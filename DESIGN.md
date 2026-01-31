@@ -607,4 +607,35 @@ Sequential queue in `agent-runner-full.ts` prevents parallel LLM calls from over
 
 ---
 
+---
+
+## 14. 🗄️ Database Abstraction Layer
+
+### 14.1 Architecture
+- `db-interface.ts` — TypeScript interface defining ALL database operations with typed records
+- `db.ts` — SQLite implementation (better-sqlite3, unchanged)
+- `db-supabase.ts` — Supabase stub (same interface, ready to implement)
+- `db-factory.ts` — Reads `DATABASE_PROVIDER` env var, returns correct implementation
+
+### 14.2 Switching to Supabase
+```bash
+# 1. Install dependency
+npm install @supabase/supabase-js
+
+# 2. Run migration
+psql $DATABASE_URL < migrations/001_initial_schema.sql
+
+# 3. Set env vars
+DATABASE_PROVIDER=supabase
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_ANON_KEY=eyJ...
+
+# 4. Implement async methods in db-supabase.ts (stubs are ready)
+```
+
+### 14.3 Migration File
+`migrations/001_initial_schema.sql` — PostgreSQL equivalent of the SQLite schema, with UUID primary keys, TIMESTAMPTZ, JSONB, and proper indexes.
+
+---
+
 *Last updated: 2026-02-01*

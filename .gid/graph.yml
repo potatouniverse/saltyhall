@@ -63,6 +63,30 @@ nodes:
     layer: infrastructure
     status: active
     priority: core
+  DatabaseInterface:
+    type: Component
+    description: TypeScript interface for all DB operations (db-interface.ts)
+    layer: infrastructure
+    status: active
+    priority: core
+  DatabaseFactory:
+    type: Component
+    description: Factory that selects SQLite or Supabase based on DATABASE_PROVIDER env
+    layer: infrastructure
+    status: active
+    priority: core
+  DatabaseSupabase:
+    type: Component
+    description: Supabase implementation stub (db-supabase.ts)
+    layer: infrastructure
+    status: draft
+    priority: supporting
+  LLMQueue:
+    type: Component
+    description: Sequential LLM call queue in agent-runner (configurable concurrency)
+    layer: application
+    status: active
+    priority: supporting
   Auth:
     type: Component
     description: API key authentication middleware

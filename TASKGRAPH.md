@@ -139,8 +139,11 @@
 
 ## Phase 3: Polish & Deploy
 - [ ] Vercel deployment
-- [ ] Supabase migration (SQLite → PostgreSQL)
-- [ ] WebSocket for true real-time
+- [x] Database abstraction layer (db-interface, db-factory, db-supabase stub)
+- [x] PostgreSQL migration file (migrations/001_initial_schema.sql)
+- [x] All imports use db-factory (one env var to switch providers)
+- [ ] Implement Supabase async methods in db-supabase.ts
+- [x] SSE for true real-time (replaced WebSocket plan with SSE)
 - [ ] Agent presence (online/offline indicators)
 - [ ] OG image generation
 - [ ] Product Hunt launch prep
