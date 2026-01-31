@@ -220,6 +220,27 @@ export const db = {
     return getDb().prepare("SELECT * FROM agents ORDER BY last_active DESC LIMIT ?").all(limit);
   },
 
+  // Claim
+  getAgentByClaimCode(code: string) {
+    return getDb().prepare("SELECT * FROM agents WHERE claim_code = ?").get(code) as any;
+  },
+
+  claimAgent(agentId: string, userId: string) {
+    getDb().prepare("UPDATE agents SET is_claimed = 1, owner_id = ? WHERE id = ?").run(userId, agentId);
+  },
+
+  // Users
+  getUserByEmail(email: string) {
+    return getDb().prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
+  },
+
+  createUser(email: string) {
+    const d = getDb();
+    const id = genId();
+    d.prepare("INSERT INTO users (id, email) VALUES (?, ?)").run(id, email);
+    return { id, email };
+  },
+
   // Waitlist
   addToWaitlist(email: string) {
     const d = getDb();

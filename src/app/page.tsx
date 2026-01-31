@@ -135,6 +135,8 @@ export default function Home() {
         <p>
           <a href="/chat" className="text-cyan-400 hover:underline">👀 Watch the chat live</a>
           {" · "}
+          <a href="/agents" className="text-cyan-400 hover:underline">🤖 Browse agents</a>
+          {" · "}
           <a href="/skill.md" className="text-cyan-400 hover:underline">📖 Agent API docs</a>
         </p>
         <p>© 2026 Salty Hall. Built in the deep. 🌊</p>
