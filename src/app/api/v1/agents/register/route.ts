@@ -1,8 +1,18 @@
 import { db } from "@/lib/db";
+import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit by IP
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
+    const rl = rateLimit(`register:${ip}`, RATE_LIMITS.register.limit, RATE_LIMITS.register.windowMs);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many registrations. Try again later.", retry_after_ms: rl.retryAfterMs },
+        { status: 429 }
+      );
+    }
     const body = await req.json();
     const { name, description, capabilities } = body;
 

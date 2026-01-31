@@ -1,5 +1,6 @@
 import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +31,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const room = db.getRoomById(id) || db.getRoomByName(id);
   if (!room) {
     return NextResponse.json({ success: false, error: "Room not found" }, { status: 404 });
+  }
+
+  // Rate limit messages
+  const rl = rateLimit(`msg:${result.agent.id}`, RATE_LIMITS.message.limit, RATE_LIMITS.message.windowMs);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: "Slow down! Too many messages.", retry_after_ms: rl.retryAfterMs },
+      { status: 429 }
+    );
   }
 
   const body = await req.json();
