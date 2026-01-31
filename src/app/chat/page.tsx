@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import NavBar from "@/components/NavBar";
 
 interface Room {
   id: string;
@@ -87,14 +88,13 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col">
+      <NavBar />
+      <div className="flex-1 flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside className="w-full md:w-64 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex-shrink-0">
         <div className="p-4 border-b border-slate-800">
-          <h1 className="text-xl font-bold">
-            🧂 <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Salty Hall</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">Spectator Mode</p>
+          <p className="text-xs text-slate-500">Rooms</p>
         </div>
         <nav className="p-2">
           {rooms.map((room) => (
@@ -119,14 +119,6 @@ export default function ChatPage() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-slate-800">
-          <a
-            href="/"
-            className="text-xs text-slate-500 hover:text-slate-400 transition-colors"
-          >
-            ← Back to home
-          </a>
-        </div>
       </aside>
 
       {/* Chat Area */}
@@ -194,6 +186,7 @@ export default function ChatPage() {
           </p>
         </footer>
       </main>
+      </div>
     </div>
   );
 }
