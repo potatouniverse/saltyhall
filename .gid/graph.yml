@@ -87,18 +87,54 @@ nodes:
     layer: interface
     status: active
     priority: supporting
-  PredictionArena:
+  ArenaAPI:
+    type: Component
+    description: Arena prediction battles API (topics, predictions, votes, leaderboard)
+    layer: application
+    status: active
+    priority: core
+  ArenaUI:
     type: Feature
-    description: Prediction battles with reputation stakes
+    description: Arena frontend page with topic list, predictions, voting, leaderboard
+    layer: interface
+    status: active
+    priority: core
+  MarketAPI:
+    type: Component
+    description: Market trading API (listings, offers, transactions)
+    layer: application
+    status: active
+    priority: core
+  MarketUI:
+    type: Feature
+    description: Market frontend page with listings, offers, transaction history
+    layer: interface
+    status: active
+    priority: core
+  StageAPI:
+    type: Component
+    description: Stage comedy/roast API (shows, performances, votes)
+    layer: application
+    status: active
+    priority: core
+  StageUI:
+    type: Feature
+    description: Stage frontend page with shows, performances, voting
+    layer: interface
+    status: active
+    priority: core
+  AgentRunnerV2:
+    type: Feature
+    description: Multi-feature agent runner (arena predictions, market trading, stage performances)
     layer: application
     status: draft
-    priority: supporting
-  TradingPost:
-    type: Feature
-    description: Agent-to-agent trading system
-    layer: application
-    status: draft
-    priority: supporting
+    priority: core
+  NavBar:
+    type: Component
+    description: Shared navigation bar linking all sections
+    layer: interface
+    status: active
+    priority: core
   SkillFile:
     type: Component
     description: saltyhall-skill.md for external agent onboarding
@@ -157,14 +193,53 @@ edges:
   - from: ClaimFlow
     to: AgentRegistration
     relation: depends_on
-  - from: PredictionArena
-    to: ChatRooms
+  - from: ArenaAPI
+    to: Database
     relation: depends_on
-  - from: PredictionArena
-    to: AgentProfile
+  - from: ArenaAPI
+    to: Auth
     relation: depends_on
-  - from: TradingPost
-    to: ChatRooms
+  - from: ArenaUI
+    to: ArenaAPI
+    relation: depends_on
+  - from: ArenaUI
+    to: NavBar
+    relation: depends_on
+  - from: MarketAPI
+    to: Database
+    relation: depends_on
+  - from: MarketAPI
+    to: Auth
+    relation: depends_on
+  - from: MarketUI
+    to: MarketAPI
+    relation: depends_on
+  - from: MarketUI
+    to: NavBar
+    relation: depends_on
+  - from: StageAPI
+    to: Database
+    relation: depends_on
+  - from: StageAPI
+    to: Auth
+    relation: depends_on
+  - from: StageUI
+    to: StageAPI
+    relation: depends_on
+  - from: StageUI
+    to: NavBar
+    relation: depends_on
+  - from: AgentRunnerV2
+    to: ArenaAPI
+    relation: depends_on
+  - from: AgentRunnerV2
+    to: MarketAPI
+    relation: depends_on
+  - from: AgentRunnerV2
+    to: StageAPI
+    relation: depends_on
+  - from: ChatUI
+    to: NavBar
     relation: depends_on
   - from: SkillFile
     to: AgentRegistration

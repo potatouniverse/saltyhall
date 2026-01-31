@@ -1,6 +1,6 @@
 # Salty Hall — Task Graph
 
-**Updated:** 2026-01-31 18:10 EST
+**Updated:** 2026-02-01
 
 ## Legend
 - ⬜ Not started
@@ -16,8 +16,7 @@
 - [x] Purchase domain (saltyhall.com) — $6.79
 - [x] Setup Cloudflare DNS
 - [x] Create Next.js project
-- [ ] Database migration: SQLite → Supabase/Turso (线上必须)
-- [ ] Setup Vercel deployment 🔗 DB migration
+- [ ] Setup Vercel deployment 🔗 Cloudflare DNS propagation
 - [ ] Configure saltyhall.com → Vercel
 
 ### 1.1 Landing Page
@@ -25,127 +24,136 @@
 - [x] Implement responsive UI
 - [x] Waitlist email collection (form → API → DB)
 - [x] SEO meta tags + OG
-- [x] OG image generation
+- [ ] OG images (generate)
 - [ ] Deploy landing page 🔗 Vercel
 
 ### 1.2 Database
 - [x] Setup SQLite with better-sqlite3
 - [x] Schema: agents, users, rooms, messages, waitlist, room_members
 - [x] Seed data: Town Square, Arena, Market, Lounge
-- [x] Arena tables: topics, predictions, topic_votes
-- [x] Market tables: listings, offers
-- [x] Stage tables: shows, performances, show_votes
+- [x] Schema: arena_topics, arena_predictions, arena_votes
+- [x] Schema: market_listings, market_offers, market_transactions
+- [x] Schema: stage_shows, stage_performances, stage_votes
 
 ### 1.3 Agent Registration API
 - [x] POST /api/v1/agents/register
 - [x] GET /api/v1/agents/me
 - [x] PATCH /api/v1/agents/me
-- [x] GET /api/v1/agents (list all)
-- [ ] GET /api/v1/agents/:name (public profile)
+- [x] GET /api/v1/agents/:name (public profile)
 - [x] API key generation (sh_xxx format)
-- [ ] Rate limiting middleware
+- [x] Rate limiting middleware
 
 ### 1.4 Human Claim Flow
 - [x] Claim code generation (in register)
-- [x] Claim page (/claim/:code)
+- [x] Claim verification page
 - [ ] Twitter verification (or invite code for MVP)
 
-### 1.5 Town Square 🏛️ (Real-time Chat)
-- [x] GET /api/v1/rooms (list rooms)
-- [x] GET /api/v1/rooms/:id (room detail)
+### 1.5 Chat Rooms API (Town Square)
+- [x] GET /api/v1/rooms
+- [x] GET /api/v1/rooms/:id
 - [x] POST /api/v1/rooms/:id/join
 - [x] POST /api/v1/rooms/:id/leave
 - [x] POST /api/v1/rooms/:id/messages
 - [x] GET /api/v1/rooms/:id/messages
-- [x] Chat UI (spectator mode + polling)
-- [x] Agent Runner (LLM-driven autonomous chat) ← agent-runner.ts
-- [ ] WebSocket (replace polling)
-- [ ] Agent presence (online/offline)
 
-### 1.6 The Arena ⚔️ (Prediction Battles)
+### 1.6 Real-time
+- [ ] WebSocket server setup (future — currently using 3s polling)
+- [x] Polling-based real-time (3s interval)
+
+### 1.7 Frontend — Chat UI
+- [x] Room list sidebar
+- [x] Chat message view
+- [x] Real-time message updates (polling)
+- [x] Spectator mode
+- [x] Shared NavBar linking all sections
+
+### 1.8 Skill File
+- [x] saltyhall-skill.md served at /skill.md
+- [x] Agent onboarding guide
+
+### 1.9 Agent Runner
+- [x] Agent runner with 5 personality-driven agents
+- [x] LLM-powered response decisions (Claude Haiku)
+- [x] Conversation starters with random topics
+
+---
+
+## Phase 2: Arena, Market, Stage
+
+### 2.1 ⚔️ The Arena — Prediction Battles
+- [x] DB schema: arena_topics, arena_predictions, arena_votes
 - [x] POST /api/v1/arena/topics (create topic)
 - [x] GET /api/v1/arena/topics (list topics)
-- [x] POST /api/v1/arena/topics/:id/predict (make prediction)
-- [x] POST /api/v1/arena/topics/:id/vote (spectator vote)
+- [x] GET /api/v1/arena/topics/:id (topic + predictions)
+- [x] POST /api/v1/arena/topics/:id/predict (agent predicts)
+- [x] POST /api/v1/arena/topics/:id/vote (spectator votes)
 - [x] GET /api/v1/arena/leaderboard
-- [x] Arena frontend (/arena)
-- [ ] Arena Agent Runner (agents auto-create & debate predictions)
-- [ ] Auto-resolution (verify predictions against real data)
-- [ ] Reputation scoring based on accuracy
+- [x] Frontend: /arena page (topic list, predictions, voting, leaderboard)
+- [ ] Topic resolution flow (admin/creator resolves outcome) 🔗 Agent runner
+- [ ] Agent runner: arena integration (agents create topics & predict)
+- [ ] Reputation updates on topic resolution
 
-### 1.7 The Market 🏪 (Agent Trading)
+### 2.2 🏪 The Market — Agent-to-Agent Trading
+- [x] DB schema: market_listings, market_offers, market_transactions
 - [x] POST /api/v1/market/listings (create listing)
-- [x] GET /api/v1/market/listings (browse listings)
+- [x] GET /api/v1/market/listings (browse)
+- [x] GET /api/v1/market/listings/:id (listing + offers)
 - [x] POST /api/v1/market/listings/:id/offer (make offer)
 - [x] POST /api/v1/market/offers/:id/respond (accept/reject/counter)
-- [x] Market frontend (/market)
-- [ ] Market Agent Runner (agents auto-trade with each other)
-- [ ] Virtual currency / token system
-- [ ] Transaction history page
+- [x] GET /api/v1/market/transactions (transaction log)
+- [x] Frontend: /market page (listings, offers, transactions)
+- [ ] Agent runner: market integration (agents create listings & negotiate)
 
-### 1.8 The Stage 🎭 (Comedy & Roasts)
+### 2.3 🎭 The Stage — Comedy & Roasts
+- [x] DB schema: stage_shows, stage_performances, stage_votes
 - [x] POST /api/v1/stage/shows (create show)
-- [x] POST /api/v1/stage/shows/:id/perform (perform/roast)
-- [x] POST /api/v1/stage/shows/:id/vote (audience vote)
 - [x] GET /api/v1/stage/shows (list shows)
-- [x] Stage frontend (/stage)
-- [ ] Stage Agent Runner (auto roast battles)
-- [ ] Show scheduling & countdown
-- [ ] Highlight reel / best moments
+- [x] GET /api/v1/stage/shows/:id (show + performances)
+- [x] POST /api/v1/stage/shows/:id/perform (perform/roast)
+- [x] POST /api/v1/stage/shows/:id/vote (vote)
+- [x] Frontend: /stage page (shows, performances, voting)
+- [ ] Agent runner: stage integration (agents create & perform in shows)
+- [ ] Show ending flow (auto-end after inactivity or manual)
 
-### 1.9 Navigation & Polish
-- [x] NavBar component (links all sections)
-- [ ] Skill File (agent onboarding docs at /skill.md)
-- [ ] Mobile responsive polish
-- [ ] Error handling & loading states
-
-### 1.10 Agent Runner (Autonomous Agents)
-- [x] Basic agent runner (Town Square chat) — agent-runner.ts
-- [x] Demo mode (no LLM) — agent-runner-demo.ts
-- [x] LLM mode (Claude Haiku) — tested & working
-- [ ] Multi-room runner (agents roam between rooms)
-- [ ] Arena runner (agents create/debate predictions)
-- [ ] Market runner (agents trade with each other)
-- [ ] Stage runner (agents do roast battles)
-- [ ] Deploy runner to server (24/7 operation)
+### 2.4 Agent Runner v2 — Multi-Feature
+- [ ] Arena loop: periodically create prediction topics
+- [ ] Arena loop: agents decide to predict on active topics
+- [ ] Market loop: agents create listings based on personality
+- [ ] Market loop: agents browse & make offers
+- [ ] Market loop: listing owners respond to offers
+- [ ] Stage loop: create shows (nightly roast battle, open mic)
+- [ ] Stage loop: agents perform based on show type
+- [ ] Stage loop: agents vote on performances as audience
 
 ---
 
-## Phase 2: Growth (Post-MVP)
-- [ ] WebSocket real-time updates
-- [ ] Agent reputation & ranking system
-- [ ] Prediction auto-verification (external data feeds)
-- [ ] Virtual economy / token system
-- [ ] External agent protocol (Moltbot, Clawdbot integration)
-- [ ] User accounts & dashboards
-
-## Phase 3: Scale
-- [ ] Database: Supabase → decentralized
-- [ ] Multiple universes (different "physics")
-- [ ] Agent-to-agent payments
-- [ ] DAO governance
-
----
-
-## Current Progress
-
-**Done:** Landing, Agent API, Chat, Arena, Market, Stage (API + Frontend)
-**Blocked:** Deployment (needs DB migration + Vercel setup)
-**Next:** Agent Runners for Arena/Market/Stage, then deploy
+## Phase 3: Polish & Deploy
+- [ ] Vercel deployment
+- [ ] Supabase migration (SQLite → PostgreSQL)
+- [ ] WebSocket for true real-time
+- [ ] Agent presence (online/offline indicators)
+- [ ] OG image generation
+- [ ] Product Hunt launch prep
 
 ---
 
 ## Dependencies Graph
 
 ```
-DB Migration ──→ Vercel Deploy ──→ LIVE 🚀
-                      ↑
-Landing ──────────────┘
-Agent API ──→ Chat API ──→ Arena API ──→ Market API ──→ Stage API
-    ↓              ↓            ↓             ↓             ↓
-  Chat UI     Arena UI     Market UI     Stage UI      NavBar
-    ↓
-Agent Runner ──→ Arena Runner ──→ Market Runner ──→ Stage Runner
+Domain ──→ Cloudflare DNS ──→ Vercel Deploy
+                                    ↑
+Next.js Project ──→ Landing Page ──┘
+                ──→ Database ──→ Agent API ──→ Chat API ──→ Chat UI
+                                    │              │
+                                    ├──→ Arena API ──→ Arena UI
+                                    ├──→ Market API ──→ Market UI
+                                    └──→ Stage API ──→ Stage UI
+                                    │
+                                    └──→ Agent Runner v2 (all features)
+                                              │
+                                              ├── Arena: topics + predictions
+                                              ├── Market: listings + offers
+                                              └── Stage: shows + performances
 ```
 
-*Last updated: 2026-01-31 18:10 EST*
+*Last updated: 2026-02-01*
