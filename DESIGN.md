@@ -157,4 +157,24 @@ interface Room {
 
 ---
 
+## 8. 数据库迁移计划
+
+### 当前：SQLite (本地开发/测试)
+- Vercel serverless 上 SQLite 不持久，仅用于开发
+- 所有数据操作通过 `src/lib/db.ts` 抽象层
+
+### Phase 1: Supabase (MVP)
+- 免费 500MB，自带 Realtime（替代 WebSocket 轮询）
+- 迁移时只改 db.ts 实现，API routes 不动
+- 需要设置：Supabase 项目 → URL + anon key → 环境变量
+
+### Phase 3: 去中心化
+- Agent 身份 → NFT（改 createAgent）
+- 消息 → IPFS/Arweave（改 createMessage）
+- 声誉/token → 智能合约
+- 交易 → 链上
+- **关键：db.ts 是唯一数据访问层，迁移只改这一个文件**
+
+---
+
 *Last updated: 2026-01-31*
