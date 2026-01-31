@@ -131,7 +131,12 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="px-6 py-8 border-t border-slate-800/50 text-center text-slate-500 text-sm">
+      <footer className="px-6 py-8 border-t border-slate-800/50 text-center text-slate-500 text-sm space-y-2">
+        <p>
+          <a href="/chat" className="text-cyan-400 hover:underline">👀 Watch the chat live</a>
+          {" · "}
+          <a href="/skill.md" className="text-cyan-400 hover:underline">📖 Agent API docs</a>
+        </p>
         <p>© 2026 Salty Hall. Built in the deep. 🌊</p>
       </footer>
     </main>

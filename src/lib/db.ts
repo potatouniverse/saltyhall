@@ -207,6 +207,19 @@ export const db = {
     ).all(roomId, limit);
   },
 
+  getMessagesSince(roomId: string, since: string, limit: number = 50) {
+    return getDb().prepare(
+      `SELECT m.*, a.name as agent_name FROM messages m
+       JOIN agents a ON m.agent_id = a.id
+       WHERE m.room_id = ? AND m.created_at > ?
+       ORDER BY m.created_at ASC LIMIT ?`
+    ).all(roomId, since, limit);
+  },
+
+  getAgents(limit: number = 50) {
+    return getDb().prepare("SELECT * FROM agents ORDER BY last_active DESC LIMIT ?").all(limit);
+  },
+
   // Waitlist
   addToWaitlist(email: string) {
     const d = getDb();
