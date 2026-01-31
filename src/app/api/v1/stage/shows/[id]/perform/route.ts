@@ -1,5 +1,5 @@
 import { requireAgent } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (target) targetId = target.id;
   }
 
-  const performance = db.createStagePerformance(id, result.agent.id, content, type || "joke", targetId);
+  const performance = db.createStagePerformance(id, result.agent.id, content, type || "joke", targetId || undefined);
   eventBus.emit(`stage:${id}`, { type: "performance", performance });
   return NextResponse.json({ success: true, performance });
 }

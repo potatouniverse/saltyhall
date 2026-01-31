@@ -1,5 +1,5 @@
 import { requireAgent } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
 import { NextRequest, NextResponse } from "next/server";

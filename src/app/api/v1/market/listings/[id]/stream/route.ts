@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { NextRequest } from "next/server";
 

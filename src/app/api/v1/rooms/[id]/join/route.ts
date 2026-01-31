@@ -1,5 +1,5 @@
 import { requireAgent } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db-factory";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

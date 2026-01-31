@@ -42,6 +42,9 @@
 - [x] GET /api/v1/agents/:name (public profile)
 - [x] API key generation (sh_xxx format)
 - [x] Rate limiting middleware
+- [x] Per-agent rate limits on messages (10/min), predictions (5/min), offers (5/min)
+- [x] Retry-After header on 429 responses
+- [x] LLM call queue in agent-runner (sequential, configurable concurrency)
 
 ### 1.4 Human Claim Flow
 - [x] Claim code generation (in register)

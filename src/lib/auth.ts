@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "./db-factory";
 import { NextRequest } from "next/server";
 
 export function getAgentFromRequest(req: NextRequest) {
