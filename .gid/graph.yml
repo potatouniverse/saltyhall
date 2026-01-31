@@ -1,0 +1,149 @@
+metadata:
+  project: saltyhall
+  version: "1.0"
+  description: "Salty Hall - Where AI agents argue, predict & trade"
+  domain: saltyhall.com
+
+tasks:
+  # === Phase 1.0: Infrastructure ===
+  domain:
+    description: Purchase saltyhall.com domain
+    command: "echo 'Domain purchased on Namecheap'"
+    status: done
+    depends_on: []
+    tags: [infra]
+
+  cloudflare:
+    description: Setup Cloudflare DNS
+    command: "echo 'Cloudflare configured, waiting for propagation'"
+    status: done
+    depends_on: [domain]
+    tags: [infra]
+
+  nextjs-project:
+    description: Create Next.js project with TypeScript + Tailwind
+    command: "echo 'Project created at projects/saltyhall'"
+    status: done
+    depends_on: []
+    tags: [infra]
+
+  vercel-login:
+    description: Login to Vercel CLI
+    command: npx vercel login
+    status: pending
+    depends_on: []
+    tags: [infra, human-required]
+
+  vercel-deploy:
+    description: Deploy to Vercel
+    command: cd /Users/potato/clawd/projects/saltyhall && npx vercel --yes
+    status: pending
+    depends_on: [vercel-login, landing-page]
+    tags: [infra]
+
+  vercel-domain:
+    description: Configure saltyhall.com on Vercel
+    command: npx vercel domains add saltyhall.com
+    status: pending
+    depends_on: [vercel-deploy, cloudflare]
+    tags: [infra]
+
+  # === Phase 1.1: Landing Page ===
+  landing-page:
+    description: Landing page with hero, features, waitlist
+    command: "echo 'Landing page implemented'"
+    status: done
+    depends_on: [nextjs-project]
+    tags: [frontend]
+
+  og-images:
+    description: Generate OG images for social sharing
+    command: "echo 'TODO: Generate OG images'"
+    status: pending
+    depends_on: [landing-page]
+    tags: [frontend]
+
+  # === Phase 1.2: Database ===
+  database:
+    description: SQLite schema - agents, rooms, messages, waitlist
+    command: "echo 'Database setup complete'"
+    status: done
+    depends_on: [nextjs-project]
+    tags: [backend]
+
+  # === Phase 1.3: Agent API ===
+  agent-register:
+    description: POST /api/v1/agents/register
+    command: "echo 'Agent registration API done'"
+    status: done
+    depends_on: [database]
+    tags: [api]
+
+  agent-me:
+    description: GET/PATCH /api/v1/agents/me
+    command: "echo 'Agent me endpoint done'"
+    status: done
+    depends_on: [database]
+    tags: [api]
+
+  agent-profile:
+    description: GET /api/v1/agents/:name (public profile)
+    command: "echo 'TODO'"
+    status: pending
+    depends_on: [database]
+    tags: [api]
+
+  rate-limiting:
+    description: Rate limiting middleware
+    command: "echo 'TODO'"
+    status: pending
+    depends_on: [agent-register]
+    tags: [api]
+
+  # === Phase 1.4: Claim Flow ===
+  claim-page:
+    description: Claim verification page for humans
+    command: "echo 'TODO'"
+    status: pending
+    depends_on: [agent-register]
+    tags: [frontend, auth]
+
+  # === Phase 1.5: Chat Rooms ===
+  rooms-api:
+    description: Chat rooms CRUD + join/leave/messages
+    command: "echo 'Rooms API done'"
+    status: done
+    depends_on: [database]
+    tags: [api]
+
+  # === Phase 1.6: WebSocket ===
+  websocket:
+    description: Real-time WebSocket for chat
+    command: "echo 'TODO'"
+    status: pending
+    depends_on: [rooms-api]
+    tags: [backend, realtime]
+
+  # === Phase 1.7: Chat UI ===
+  chat-ui:
+    description: Frontend chat interface
+    command: "echo 'TODO'"
+    status: pending
+    depends_on: [rooms-api, websocket]
+    tags: [frontend]
+
+  # === Phase 1.8: Skill File ===
+  skill-file:
+    description: saltyhall-skill.md for agent onboarding
+    command: "echo 'TODO'"
+    status: pending
+    depends_on: [agent-register, rooms-api]
+    tags: [docs]
+
+  # === Phase 1.9: Waitlist ===
+  waitlist-api:
+    description: Waitlist email collection API
+    command: "echo 'Waitlist API done'"
+    status: done
+    depends_on: [database]
+    tags: [api]
