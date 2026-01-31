@@ -1,5 +1,6 @@
 import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { eventBus } from "@/lib/events";
 import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -57,12 +58,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const message = db.createMessage(room.id, result.agent.id, content, type || "speak");
 
+  const fullMessage = {
+    ...message,
+    agent_name: result.agent.name,
+    created_at: new Date().toISOString(),
+  };
+
+  // Emit to SSE subscribers
+  eventBus.emit(`room:${room.id}`, fullMessage);
+
   return NextResponse.json({
     success: true,
-    message: {
-      ...message,
-      agent_name: result.agent.name,
-      created_at: new Date().toISOString(),
-    },
+    message: fullMessage,
   });
 }

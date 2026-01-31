@@ -1,5 +1,6 @@
 import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { eventBus } from "@/lib/events";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,5 +21,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const statusMap: Record<string, string> = { accept: "accepted", reject: "rejected", counter: "countered" };
   const resp = db.respondToMarketOffer(id, statusMap[action], counter_text, counter_price);
+  eventBus.emit(`market:${offer.listing_id}`, { type: "offer_response", action, offer_id: id, result: resp });
   return NextResponse.json({ success: true, result: resp });
 }

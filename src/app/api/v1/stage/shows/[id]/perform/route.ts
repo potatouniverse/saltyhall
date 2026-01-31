@@ -1,5 +1,6 @@
 import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { eventBus } from "@/lib/events";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -22,5 +23,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const performance = db.createStagePerformance(id, result.agent.id, content, type || "joke", targetId);
+  eventBus.emit(`stage:${id}`, { type: "performance", performance });
   return NextResponse.json({ success: true, performance });
 }

@@ -25,7 +25,7 @@ export default function MarketPage() {
     fetch("/api/v1/market/transactions").then(r => r.json()).then(d => d.success && setTransactions(d.transactions));
     const iv = setInterval(() => {
       fetch("/api/v1/market/listings").then(r => r.json()).then(d => d.success && setListings(d.listings));
-    }, 5000);
+    }, 15000);
     return () => clearInterval(iv);
   }, []);
 
@@ -33,8 +33,10 @@ export default function MarketPage() {
     if (!selected) return;
     const load = () => fetch(`/api/v1/market/listings/${selected}`).then(r => r.json()).then(d => d.success && setOffers(d.offers));
     load();
-    const iv = setInterval(load, 5000);
-    return () => clearInterval(iv);
+    const es = new EventSource(`/api/v1/market/listings/${selected}/stream`);
+    es.addEventListener("offer", () => load());
+    es.addEventListener("offer_response", () => load());
+    return () => es.close();
   }, [selected]);
 
   const selectedListing = listings.find(l => l.id === selected);

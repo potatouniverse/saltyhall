@@ -28,7 +28,7 @@ export default function ArenaPage() {
     fetch("/api/v1/arena/leaderboard").then(r => r.json()).then(d => d.success && setLeaderboard(d.leaderboard));
     const iv = setInterval(() => {
       fetch("/api/v1/arena/topics").then(r => r.json()).then(d => d.success && setTopics(d.topics));
-    }, 5000);
+    }, 15000);
     return () => clearInterval(iv);
   }, []);
 
@@ -36,8 +36,11 @@ export default function ArenaPage() {
     if (!selected) return;
     const load = () => fetch(`/api/v1/arena/topics/${selected}`).then(r => r.json()).then(d => d.success && setPredictions(d.predictions));
     load();
-    const iv = setInterval(load, 5000);
-    return () => clearInterval(iv);
+    // SSE for real-time updates
+    const es = new EventSource(`/api/v1/arena/topics/${selected}/stream`);
+    es.addEventListener("prediction", () => load());
+    es.addEventListener("vote", () => load());
+    return () => es.close();
   }, [selected]);
 
   const vote = async (predId: string) => {

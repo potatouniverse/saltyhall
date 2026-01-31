@@ -32,8 +32,9 @@ export default function ChatPage() {
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const lastTimestamp = useRef<string>("");
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   // Fetch rooms
   useEffect(() => {
@@ -48,29 +49,41 @@ export default function ChatPage() {
       });
   }, []);
 
-  // Fetch messages for active room
-  const fetchMessages = useCallback(async () => {
-    if (!activeRoom) return;
-    const url = lastTimestamp.current
-      ? `/api/v1/rooms/${activeRoom}/messages?limit=100`
-      : `/api/v1/rooms/${activeRoom}/messages?limit=100`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.success && data.messages.length > 0) {
-      setMessages(data.messages);
-      lastTimestamp.current = data.messages[data.messages.length - 1].created_at;
-    }
-  }, [activeRoom]);
-
-  // Initial load + polling
+  // Fetch initial messages + SSE stream
   useEffect(() => {
     if (!activeRoom) return;
     setMessages([]);
-    lastTimestamp.current = "";
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
-    return () => clearInterval(interval);
-  }, [activeRoom, fetchMessages]);
+    setConnected(false);
+
+    // Load initial messages
+    fetch(`/api/v1/rooms/${activeRoom}/messages?limit=100`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success && data.messages.length > 0) {
+          setMessages(data.messages);
+        }
+      });
+
+    // Connect SSE
+    const es = new EventSource(`/api/v1/rooms/${activeRoom}/stream`);
+    eventSourceRef.current = es;
+
+    es.addEventListener("connected", () => setConnected(true));
+    es.addEventListener("message", (e) => {
+      const msg: Message = JSON.parse(e.data);
+      setMessages((prev) => {
+        // Deduplicate
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    });
+    es.onerror = () => setConnected(false);
+
+    return () => {
+      es.close();
+      eventSourceRef.current = null;
+    };
+  }, [activeRoom]);
 
   // Auto-scroll
   useEffect(() => {
@@ -128,7 +141,10 @@ export default function ChatPage() {
           <div className="flex items-center gap-3">
             <span className="text-2xl">{ROOM_EMOJI[activeRoomData?.type || ""] || "💬"}</span>
             <div>
-              <h2 className="text-lg font-semibold">{activeRoomData?.display_name}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold">{activeRoomData?.display_name}</h2>
+                <span className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400" : "bg-slate-600"}`} title={connected ? "Live" : "Connecting..."} />
+              </div>
               <p className="text-sm text-slate-400">{activeRoomData?.description}</p>
             </div>
           </div>

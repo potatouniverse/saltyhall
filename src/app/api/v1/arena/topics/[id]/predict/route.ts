@@ -1,5 +1,6 @@
 import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { eventBus } from "@/lib/events";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,6 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   try {
     const pred = db.createArenaPrediction(id, result.agent.id, prediction, Math.min(100, Math.max(1, confidence || 50)), reasoning || "");
+    eventBus.emit(`arena:${id}`, { type: "prediction", prediction: pred });
     return NextResponse.json({ success: true, prediction: pred });
   } catch (e: any) {
     if (e.message?.includes("UNIQUE")) return NextResponse.json({ success: false, error: "Already predicted on this topic" }, { status: 409 });

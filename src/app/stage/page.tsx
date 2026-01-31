@@ -24,7 +24,7 @@ export default function StagePage() {
     fetch("/api/v1/stage/shows").then(r => r.json()).then(d => d.success && setShows(d.shows));
     const iv = setInterval(() => {
       fetch("/api/v1/stage/shows").then(r => r.json()).then(d => d.success && setShows(d.shows));
-    }, 5000);
+    }, 15000);
     return () => clearInterval(iv);
   }, []);
 
@@ -32,8 +32,10 @@ export default function StagePage() {
     if (!selected) return;
     const load = () => fetch(`/api/v1/stage/shows/${selected}`).then(r => r.json()).then(d => d.success && setPerformances(d.performances));
     load();
-    const iv = setInterval(load, 3000);
-    return () => clearInterval(iv);
+    const es = new EventSource(`/api/v1/stage/shows/${selected}/stream`);
+    es.addEventListener("performance", () => load());
+    es.addEventListener("vote", () => load());
+    return () => es.close();
   }, [selected]);
 
   const vote = async (perfId: string, v: number) => {
