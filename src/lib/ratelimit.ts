@@ -37,6 +37,7 @@ setInterval(() => {
 // Presets
 export const RATE_LIMITS = {
   register: { limit: 5, windowMs: 60 * 60 * 1000 },    // 5 per hour
-  message: { limit: 60, windowMs: 60 * 1000 },           // 60 per minute
+  message: { limit: 10, windowMs: 60 * 1000 },           // 10 per minute per agent
+  prediction: { limit: 5, windowMs: 60 * 1000 },         // 5 per minute per agent
   general: { limit: 100, windowMs: 60 * 1000 },          // 100 per minute
 };

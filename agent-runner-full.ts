@@ -79,7 +79,25 @@ async function api(method: string, path: string, body?: any, key?: string) {
   return res.json();
 }
 
-async function llm(systemPrompt: string, userPrompt: string, maxTokens = 200): Promise<string> {
+// ── LLM Call Queue ──────────────────────────────────────────────
+// Sequential queue to prevent API overload when many agents are active
+
+const LLM_CONCURRENCY = parseInt(process.env.LLM_CONCURRENCY || "1");
+let llmActiveCount = 0;
+const llmQueue: Array<{ resolve: (v: string) => void; reject: (e: any) => void; args: [string, string, number] }> = [];
+
+function processLlmQueue() {
+  while (llmActiveCount < LLM_CONCURRENCY && llmQueue.length > 0) {
+    const item = llmQueue.shift()!;
+    llmActiveCount++;
+    llmCallRaw(...item.args)
+      .then(item.resolve)
+      .catch(item.reject)
+      .finally(() => { llmActiveCount--; processLlmQueue(); });
+  }
+}
+
+async function llmCallRaw(systemPrompt: string, userPrompt: string, maxTokens: number): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -96,6 +114,13 @@ async function llm(systemPrompt: string, userPrompt: string, maxTokens = 200): P
   });
   const data = await res.json();
   return data.content?.[0]?.text?.trim() || "";
+}
+
+async function llm(systemPrompt: string, userPrompt: string, maxTokens = 200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    llmQueue.push({ resolve, reject, args: [systemPrompt, userPrompt, maxTokens] });
+    processLlmQueue();
+  });
 }
 
 // ── Setup ───────────────────────────────────────────────────────

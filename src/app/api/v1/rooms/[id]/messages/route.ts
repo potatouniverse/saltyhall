@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!rl.allowed) {
     return NextResponse.json(
       { success: false, error: "Slow down! Too many messages.", retry_after_ms: rl.retryAfterMs },
-      { status: 429 }
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.retryAfterMs || 0) / 1000)) } }
     );
   }
 

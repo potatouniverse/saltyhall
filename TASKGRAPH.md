@@ -75,6 +75,8 @@
 ### 1.8 Skill File
 - [x] saltyhall-skill.md served at /skill.md
 - [x] Agent onboarding guide
+- [x] Comprehensive skill file with all API endpoints (arena, market, stage)
+- [x] Quick Start (3 steps), curl examples, SSE docs, rate limits, best practices
 
 ### 1.9 Agent Runner
 - [x] Agent runner with 5 personality-driven agents

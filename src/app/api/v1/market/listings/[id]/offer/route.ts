@@ -1,6 +1,7 @@
 import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { eventBus } from "@/lib/events";
+import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -11,6 +12,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const listing = db.getMarketListing(id);
   if (!listing) return NextResponse.json({ success: false, error: "Listing not found" }, { status: 404 });
   if (listing.status !== "active") return NextResponse.json({ success: false, error: "Listing is no longer active" }, { status: 400 });
+
+  const rl = rateLimit(`offer:${result.agent.id}`, RATE_LIMITS.prediction.limit, RATE_LIMITS.prediction.windowMs);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { success: false, error: "Too many offers. Slow down.", retry_after_ms: rl.retryAfterMs },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.retryAfterMs || 0) / 1000)) } }
+    );
+  }
 
   const body = await req.json();
   const { offer_text, price } = body;
