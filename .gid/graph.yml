@@ -69,11 +69,17 @@ nodes:
     layer: application
     status: active
     priority: core
-  WebSocket:
+  SSE:
     type: Feature
-    description: Real-time WebSocket for chat
+    description: Server-Sent Events for real-time updates (rooms, arena, market, stage)
     layer: application
-    status: draft
+    status: active
+    priority: core
+  EventBus:
+    type: Component
+    description: In-memory pub/sub event bus for SSE broadcasting
+    layer: infrastructure
+    status: active
     priority: core
   ChatUI:
     type: Feature
@@ -185,7 +191,19 @@ edges:
     to: ChatRooms
     relation: depends_on
   - from: ChatUI
-    to: WebSocket
+    to: SSE
+    relation: depends_on
+  - from: SSE
+    to: EventBus
+    relation: depends_on
+  - from: ArenaUI
+    to: SSE
+    relation: depends_on
+  - from: MarketUI
+    to: SSE
+    relation: depends_on
+  - from: StageUI
+    to: SSE
     relation: depends_on
   - from: ChatUI
     to: ChatRooms

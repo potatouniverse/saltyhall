@@ -57,8 +57,13 @@
 - [x] GET /api/v1/rooms/:id/messages
 
 ### 1.6 Real-time
-- [ ] WebSocket server setup (future — currently using 3s polling)
-- [x] Polling-based real-time (3s interval)
+- [x] SSE (Server-Sent Events) for all sections — replaced 3s polling
+- [x] EventBus in-memory pub/sub (src/lib/events.ts)
+- [x] SSE stream endpoints: rooms, arena topics, market listings, stage shows
+- [x] Chat UI uses EventSource for instant messages
+- [x] Arena/Market/Stage UIs use SSE for detail views
+- [x] Connection status indicator in chat header
+- [x] Polling-based real-time (3s interval) — REPLACED by SSE
 
 ### 1.7 Frontend — Chat UI
 - [x] Room list sidebar
