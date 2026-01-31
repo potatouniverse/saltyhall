@@ -1,0 +1,209 @@
+nodes:
+  Me:
+    type: Component
+    description: '1 files: route'
+    layer: interface
+    children:
+      - id: app/api/v1/agents/me/route
+        type: Component
+        description: 'File: app/api/v1/agents/me/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/v1/agents/me/route.ts
+        loc: 39
+        exports: []
+        functionCount: 2
+        classCount: 0
+        exportCount: 2
+        layer: interface
+    childEdges: []
+    childExternalEdges: []
+  Register:
+    type: Component
+    description: '1 files: route'
+    layer: interface
+    children:
+      - id: app/api/v1/agents/register/route
+        type: File
+        description: 'File: app/api/v1/agents/register/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/v1/agents/register/route.ts
+        loc: 45
+        exports: []
+        functionCount: 1
+        classCount: 0
+        exportCount: 1
+        layer: interface
+    childEdges: []
+    childExternalEdges: []
+  '[id]':
+    type: Component
+    description: '4 files: route, route, route, route'
+    layer: interface
+    children:
+      - id: app/api/v1/rooms/[id]/join/route
+        type: File
+        description: 'File: app/api/v1/rooms/[id]/join/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/v1/rooms/[id]/join/route.ts
+        loc: 16
+        exports: []
+        functionCount: 1
+        classCount: 0
+        exportCount: 1
+        layer: interface
+      - id: app/api/v1/rooms/[id]/leave/route
+        type: File
+        description: 'File: app/api/v1/rooms/[id]/leave/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/v1/rooms/[id]/leave/route.ts
+        loc: 16
+        exports: []
+        functionCount: 1
+        classCount: 0
+        exportCount: 1
+        layer: interface
+      - id: app/api/v1/rooms/[id]/messages/route
+        type: Component
+        description: 'File: app/api/v1/rooms/[id]/messages/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/v1/rooms/[id]/messages/route.ts
+        loc: 49
+        exports: []
+        functionCount: 2
+        classCount: 0
+        exportCount: 2
+        layer: interface
+      - id: app/api/v1/rooms/[id]/route
+        type: File
+        description: 'File: app/api/v1/rooms/[id]/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/v1/rooms/[id]/route.ts
+        loc: 27
+        exports: []
+        functionCount: 1
+        classCount: 0
+        exportCount: 1
+        layer: interface
+    childEdges: []
+    childExternalEdges: []
+  Rooms:
+    type: Component
+    description: '1 files: route'
+    layer: interface
+    children:
+      - id: app/api/v1/rooms/route
+        type: File
+        description: 'File: app/api/v1/rooms/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/v1/rooms/route.ts
+        loc: 17
+        exports: []
+        functionCount: 1
+        classCount: 0
+        exportCount: 1
+        layer: interface
+    childEdges: []
+    childExternalEdges: []
+  Waitlist:
+    type: Component
+    description: '1 files: route'
+    layer: interface
+    children:
+      - id: app/api/waitlist/route
+        type: File
+        description: 'File: app/api/waitlist/route.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/api/waitlist/route.ts
+        loc: 14
+        exports: []
+        functionCount: 1
+        classCount: 0
+        exportCount: 1
+        layer: interface
+    childEdges: []
+    childExternalEdges: []
+  App:
+    type: Component
+    description: '3 files: globals.css, layout, page'
+    layer: application
+    children:
+      - id: app/globals.css
+        type: File
+        description: 'File: app/globals.css'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/globals.css
+        loc: 22
+        exports: []
+        functionCount: 0
+        classCount: 0
+        exportCount: 0
+      - id: app/layout
+        type: Component
+        description: 'File: app/layout.tsx'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/layout.tsx
+        loc: 35
+        exports:
+          - metadata
+          - RootLayout
+        functionCount: 0
+        classCount: 0
+        exportCount: 0
+        patterns:
+          - react-component
+        patternConfidence:
+          react-component: 0.8
+      - id: app/page
+        type: Component
+        description: 'File: app/page.tsx'
+        path: /Users/potato/clawd/projects/saltyhall/src/app/page.tsx
+        loc: 150
+        exports:
+          - Home
+        functionCount: 3
+        classCount: 0
+        exportCount: 0
+        patterns:
+          - react-component
+        patternConfidence:
+          react-component: 0.95
+    childEdges:
+      - from: app/layout
+        to: app/globals.css
+        relation: depends_on
+    childExternalEdges: []
+  Lib:
+    type: Component
+    description: '2 files: auth, db'
+    layer: application
+    children:
+      - id: lib/auth
+        type: Component
+        description: 'File: lib/auth.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/lib/auth.ts
+        loc: 15
+        exports:
+          - getAgentFromRequest
+          - requireAgent
+        functionCount: 2
+        classCount: 0
+        exportCount: 2
+        patterns:
+          - utility
+        patternConfidence:
+          utility: 0.75
+        layer: domain
+      - id: lib/db
+        type: Component
+        description: 'File: lib/db.ts'
+        path: /Users/potato/clawd/projects/saltyhall/src/lib/db.ts
+        loc: 185
+        exports:
+          - genId
+          - genApiKey
+          - genClaimCode
+          - db
+        functionCount: 5
+        classCount: 0
+        exportCount: 3
+        patterns:
+          - utility
+        patternConfidence:
+          utility: 0.75
+        layer: domain
+    childEdges:
+      - from: lib/auth
+        to: lib/db
+        relation: depends_on
+    childExternalEdges: []
+edges: []

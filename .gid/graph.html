@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GID Visual - Graph Visualization</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      overflow: hidden;
+    }
+    #header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 50px;
+      background: #16213e;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 100;
+      border-bottom: 1px solid #0f3460;
+    }
+    #header h1 { font-size: 18px; font-weight: 500; color: #e94560; }
+    #controls { display: flex; gap: 10px; align-items: center; }
+    #controls input {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid #0f3460;
+      background: #1a1a2e;
+      color: #eee;
+      width: 200px;
+    }
+    #controls button {
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: none;
+      background: #e94560;
+      color: white;
+      cursor: pointer;
+    }
+    #controls button:hover { background: #ff6b6b; }
+    #graph { position: fixed; top: 50px; left: 0; right: 0; bottom: 50px; }
+    #footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 50px;
+      background: #16213e;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-top: 1px solid #0f3460;
+      font-size: 14px;
+      color: #888;
+    }
+    #footer .stat { margin-right: 20px; }
+    #footer .health-score { font-weight: bold; }
+    #details {
+      position: fixed;
+      right: 20px; top: 70px;
+      width: 300px;
+      background: #16213e;
+      border-radius: 8px;
+      padding: 20px;
+      display: none;
+      border: 1px solid #0f3460;
+    }
+    #details.visible { display: block; }
+    #details h3 { color: #e94560; margin-bottom: 10px; }
+    #details .property { margin: 8px 0; }
+    #details .property label { color: #888; font-size: 12px; display: block; }
+    .node { cursor: pointer; }
+    .node circle { stroke: #fff; stroke-width: 2px; }
+    .node text { fill: #eee; font-size: 12px; pointer-events: none; }
+    .link { stroke: #0f3460; stroke-opacity: 0.6; }
+    /* Code-level relations (solid) */
+    .link.implements { stroke: #4caf50; }
+    .link.depends_on { stroke: #2196f3; }
+    .link.calls { stroke: #ff9800; }
+    .link.reads { stroke: #9c27b0; }
+    .link.writes { stroke: #f44336; }
+    .link.tested_by { stroke: #00bcd4; }
+    .link.defined_in { stroke: #607d8b; }
+    /* Semantic-level relations (dashed) */
+    .link.enables { stroke: #4caf50; stroke-dasharray: 5,3; }
+    .link.blocks { stroke: #f44336; stroke-dasharray: 5,3; }
+    .link.requires { stroke: #2196f3; stroke-dasharray: 5,3; }
+    .link.precedes { stroke: #ff9800; stroke-dasharray: 3,3; }
+    .link.refines { stroke: #9c27b0; stroke-dasharray: 5,3; }
+    .link.validates { stroke: #00bcd4; stroke-dasharray: 5,3; }
+    .link.related_to { stroke: #888888; stroke-dasharray: 3,3; }
+    .link.decided_by { stroke: #795548; stroke-dasharray: 5,3; }
+    .legend {
+      position: fixed;
+      left: 20px; bottom: 70px;
+      background: #16213e;
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 12px;
+      border: 1px solid #0f3460;
+    }
+    .legend-item { display: flex; align-items: center; margin: 4px 0; font-size: 11px; }
+    .legend-color { width: 20px; height: 3px; margin-right: 8px; }
+    .legend-node { width: 14px; height: 14px; border-radius: 50%; margin-right: 8px; }
+    .legend-section { margin-bottom: 10px; }
+    .legend-title { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+    .static-badge {
+      background: #0f3460;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>GID Visual <span class="static-badge">Static</span></h1>
+    <div id="controls">
+      <input type="text" id="search" placeholder="Search nodes...">
+      <button onclick="resetZoom()">Reset View</button>
+    </div>
+  </div>
+
+  <div id="graph"></div>
+
+  <div id="details">
+    <h3 id="node-name">Node</h3>
+    <div id="node-properties"></div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-section">
+      <div class="legend-title">Code Relations (solid →)</div>
+      <div class="legend-item"><svg width="24" height="10" style="margin-right:6px"><line x1="0" y1="5" x2="16" y2="5" stroke="#4caf50" stroke-width="2"/><polygon points="16,2 22,5 16,8" fill="#4caf50"/></svg>implements</div>
+      <div class="legend-item"><svg width="24" height="10" style="margin-right:6px"><line x1="0" y1="5" x2="16" y2="5" stroke="#2196f3" stroke-width="2"/><polygon points="16,2 22,5 16,8" fill="#2196f3"/></svg>depends_on</div>
+      <div class="legend-item"><svg width="24" height="10" style="margin-right:6px"><line x1="0" y1="5" x2="16" y2="5" stroke="#ff9800" stroke-width="2"/><polygon points="16,2 22,5 16,8" fill="#ff9800"/></svg>calls</div>
+    </div>
+    <div class="legend-section">
+      <div class="legend-title">Semantic Relations (dashed →)</div>
+      <div class="legend-item"><svg width="24" height="10" style="margin-right:6px"><line x1="0" y1="5" x2="16" y2="5" stroke="#4caf50" stroke-width="2" stroke-dasharray="4,2"/><polygon points="16,2 22,5 16,8" fill="#4caf50"/></svg>enables</div>
+      <div class="legend-item"><svg width="24" height="10" style="margin-right:6px"><line x1="0" y1="5" x2="16" y2="5" stroke="#f44336" stroke-width="2" stroke-dasharray="4,2"/><polygon points="16,2 22,5 16,8" fill="#f44336"/></svg>blocks</div>
+      <div class="legend-item"><svg width="24" height="10" style="margin-right:6px"><line x1="0" y1="5" x2="16" y2="5" stroke="#2196f3" stroke-width="2" stroke-dasharray="4,2"/><polygon points="16,2 22,5 16,8" fill="#2196f3"/></svg>requires</div>
+      <div class="legend-item"><svg width="24" height="10" style="margin-right:6px"><line x1="0" y1="5" x2="16" y2="5" stroke="#795548" stroke-width="2" stroke-dasharray="4,2"/><polygon points="16,2 22,5 16,8" fill="#795548"/></svg>decided_by</div>
+    </div>
+    <div class="legend-section">
+      <div class="legend-title">Node Types</div>
+      <div class="legend-item"><svg width="16" height="16" style="margin-right:8px"><polygon points="8,1 15,14 1,14" fill="#e94560"/></svg>Feature (semantic)</div>
+      <div class="legend-item"><svg width="16" height="16" style="margin-right:8px"><polygon points="8,1 15,8 8,15 1,8" fill="#795548"/></svg>Decision</div>
+      <div class="legend-item"><div class="legend-node" style="background:#4caf50"></div>Component (code)</div>
+      <div class="legend-item"><div class="legend-node" style="background:#607d8b"></div>File</div>
+    </div>
+    <div class="legend-section">
+      <div class="legend-title">Layers (border color)</div>
+      <div class="legend-item"><div class="legend-node" style="background:transparent;border:3px solid #2196f3"></div>interface</div>
+      <div class="legend-item"><div class="legend-node" style="background:transparent;border:3px solid #4caf50"></div>application</div>
+      <div class="legend-item"><div class="legend-node" style="background:transparent;border:3px solid #ff9800"></div>domain</div>
+      <div class="legend-item"><div class="legend-node" style="background:transparent;border:3px solid #9c27b0"></div>infrastructure</div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <div>
+      <span class="stat">Nodes: <span id="node-count">15</span></span>
+      <span class="stat">Edges: <span id="edge-count">14</span></span>
+      <span class="stat health-score">Health: <span id="health-score">--</span>/100</span>
+    </div>
+    <div>GID MCP - Static Export</div>
+  </div>
+
+  <script>
+    // Embedded graph data (no server needed)
+    const graphData = {"meta":{"version":"2.0","domain":"auto-generated","schema":{"relations":{"code":["implements","depends_on","calls","reads","writes","tested_by","defined_in"],"semantic":["enables","blocks","requires","precedes","refines","validates","related_to","decided_by"]},"discovered":[]}},"nodes":{"ApiService":{"type":"Component","layer":"application","description":"Handles api logic","status":"draft"},"LandingPage":{"type":"Feature","description":"Landing page with hero, features, waitlist form","layer":"interface","status":"active","priority":"core"},"WaitlistAPI":{"type":"Component","description":"Email waitlist collection endpoint","layer":"application","status":"active","priority":"core"},"AgentRegistration":{"type":"Feature","description":"Agent registration with API key generation","layer":"application","status":"active","priority":"core"},"AgentProfile":{"type":"Feature","description":"Agent profile view and update","layer":"application","status":"active","priority":"core"},"ChatRooms":{"type":"Feature","description":"Chat rooms with join/leave/messages","layer":"application","status":"active","priority":"core"},"Database":{"type":"Component","description":"SQLite database with agents, rooms, messages, waitlist tables","layer":"infrastructure","status":"active","priority":"core"},"Auth":{"type":"Component","description":"API key authentication middleware","layer":"application","status":"active","priority":"core"},"WebSocket":{"type":"Feature","description":"Real-time WebSocket for chat","layer":"application","status":"draft","priority":"core"},"ChatUI":{"type":"Feature","description":"Frontend chat interface","layer":"interface","status":"draft","priority":"core"},"ClaimFlow":{"type":"Feature","description":"Human claim/verification for agents","layer":"interface","status":"draft","priority":"supporting"},"PredictionArena":{"type":"Feature","description":"Prediction battles with reputation stakes","layer":"application","status":"draft","priority":"supporting"},"TradingPost":{"type":"Feature","description":"Agent-to-agent trading system","layer":"application","status":"draft","priority":"supporting"},"SkillFile":{"type":"Component","description":"saltyhall-skill.md for external agent onboarding","layer":"interface","status":"draft","priority":"supporting"},"VercelDeploy":{"type":"Component","description":"Vercel deployment + domain config","layer":"infrastructure","status":"draft","priority":"core"}},"edges":[{"from":"AgentRegistration","to":"Database","relation":"depends_on"},{"from":"AgentRegistration","to":"Auth","relation":"depends_on"},{"from":"ChatRooms","to":"Database","relation":"depends_on"},{"from":"ChatRooms","to":"Auth","relation":"depends_on"},{"from":"WaitlistAPI","to":"Database","relation":"depends_on"},{"from":"WebSocket","to":"ChatRooms","relation":"depends_on"},{"from":"ChatUI","to":"WebSocket","relation":"depends_on"},{"from":"ChatUI","to":"ChatRooms","relation":"depends_on"},{"from":"ClaimFlow","to":"AgentRegistration","relation":"depends_on"},{"from":"PredictionArena","to":"ChatRooms","relation":"depends_on"},{"from":"PredictionArena","to":"AgentProfile","relation":"depends_on"},{"from":"TradingPost","to":"ChatRooms","relation":"depends_on"},{"from":"SkillFile","to":"AgentRegistration","relation":"depends_on"},{"from":"LandingPage","to":"WaitlistAPI","relation":"calls"}]};
+
+    // Calculate health score
+    function calculateHealthScore() {
+      const nodes = Object.entries(graphData.nodes || {});
+      const edges = graphData.edges || [];
+      if (nodes.length === 0) return 0;
+
+      let score = 100;
+      let issues = 0;
+
+      // Check for orphan nodes (no connections)
+      const connectedNodes = new Set();
+      edges.forEach(e => {
+        connectedNodes.add(e.from);
+        connectedNodes.add(e.to);
+      });
+      const orphans = nodes.filter(([id]) => !connectedNodes.has(id));
+      issues += orphans.length * 5; // -5 per orphan
+
+      // Check for nodes without layers (except Features)
+      const noLayer = nodes.filter(([_, n]) => !n.layer && n.type !== 'Feature' && !n.children);
+      issues += noLayer.length * 2; // -2 per node without layer
+
+      // Check for nodes without descriptions (except Files)
+      const noDesc = nodes.filter(([_, n]) => !n.description && n.type !== 'File' && !n.children);
+      issues += noDesc.length * 1; // -1 per node without description
+
+      score = Math.max(0, Math.min(100, 100 - issues));
+      return score;
+    }
+
+    const healthScore = calculateHealthScore();
+    document.addEventListener('DOMContentLoaded', () => {
+      const healthEl = document.getElementById('health-score');
+      if (healthEl) {
+        healthEl.textContent = healthScore;
+        healthEl.style.color = healthScore >= 80 ? '#4caf50' : healthScore >= 50 ? '#ff9800' : '#f44336';
+      }
+    });
+
+    let simulation = null;
+    let svg = null;
+    let g = null;
+    let zoom = null;
+
+    // Track expanded components
+    const expandedNodes = new Set();
+
+    // Type-based colors
+    const typeColors = {
+      Feature: '#e94560',
+      Component: '#4caf50',
+      Interface: '#ff9800',
+      Data: '#9c27b0',
+      File: '#607d8b',
+      Test: '#00bcd4',
+      Decision: '#795548',
+    };
+
+    // Layer-based colors (used for File nodes or as border)
+    const layerColors = {
+      interface: '#2196f3',    // Blue - API/UI layer
+      application: '#4caf50',  // Green - Business logic
+      domain: '#ff9800',       // Orange - Core domain
+      infrastructure: '#9c27b0', // Purple - Database/external
+    };
+
+    // Status-based opacity
+    const statusOpacity = {
+      active: 1.0,
+      in_progress: 0.85,
+      draft: 0.5,        // Greyer for proposed/draft nodes
+      deprecated: 0.4,   // Faded for deprecated
+    };
+
+    function getNodeColor(node) {
+      // If node has a layer, use layer color (works for File, Component, etc.)
+      if (node.layer && layerColors[node.layer]) {
+        return layerColors[node.layer];
+      }
+      return typeColors[node.type] || '#607d8b';
+    }
+
+    function getNodeOpacity(node) {
+      return statusOpacity[node.status] || 1.0;
+    }
+
+    function getVisibleNodes() {
+      const nodes = [];
+      const nodeMap = {};
+
+      for (const [id, data] of Object.entries(graphData.nodes || {})) {
+        if (expandedNodes.has(id) && data.children && data.children.length > 0) {
+          // Add parent as collapsed indicator
+          const parentNode = { id, ...data, isExpanded: true };
+          nodes.push(parentNode);
+          nodeMap[id] = parentNode;
+
+          // Add children
+          for (const child of data.children) {
+            const childNode = { ...child, parentId: id, isChild: true };
+            nodes.push(childNode);
+            nodeMap[child.id] = childNode;
+          }
+        } else {
+          const node = { id, ...data, hasChildren: data.children && data.children.length > 0 };
+          nodes.push(node);
+          nodeMap[id] = node;
+        }
+      }
+      return { nodes, nodeMap };
+    }
+
+    function getVisibleLinks(nodeMap) {
+      const links = [];
+      const addedLinks = new Set();
+
+      // Build file-to-component map for resolving external edges
+      const fileToComponent = {};
+      for (const [id, data] of Object.entries(graphData.nodes || {})) {
+        if (data.children) {
+          for (const child of data.children) {
+            fileToComponent[child.id] = id;
+          }
+        }
+      }
+
+      // Helper to resolve a file ID to its visible node
+      function resolveToVisible(fileId) {
+        // If the file is directly in nodeMap, use it
+        if (nodeMap[fileId]) return fileId;
+        // Otherwise map to its component
+        const compId = fileToComponent[fileId];
+        if (compId && nodeMap[compId]) return compId;
+        return null;
+      }
+
+      for (const edge of (graphData.edges || [])) {
+        const sourceInMap = nodeMap[edge.from];
+        const targetInMap = nodeMap[edge.to];
+
+        if (sourceInMap && targetInMap) {
+          const linkKey = edge.from + '->' + edge.to;
+          if (!addedLinks.has(linkKey)) {
+            links.push({ source: edge.from, target: edge.to, relation: edge.relation });
+            addedLinks.add(linkKey);
+          }
+        }
+      }
+
+      // Add edges between expanded children (from stored childEdges)
+      for (const [id, data] of Object.entries(graphData.nodes || {})) {
+        if (expandedNodes.has(id) && data.childEdges) {
+          for (const edge of data.childEdges) {
+            const linkKey = edge.from + '->' + edge.to;
+            if (!addedLinks.has(linkKey)) {
+              links.push({ source: edge.from, target: edge.to, relation: edge.relation, isInternal: true });
+              addedLinks.add(linkKey);
+            }
+          }
+        }
+
+        // Add external edges from expanded children to other components
+        if (expandedNodes.has(id) && data.childExternalEdges) {
+          for (const edge of data.childExternalEdges) {
+            const sourceVisible = resolveToVisible(edge.from);
+            const targetVisible = resolveToVisible(edge.to);
+
+            if (sourceVisible && targetVisible && sourceVisible !== targetVisible) {
+              const linkKey = sourceVisible + '->' + targetVisible;
+              if (!addedLinks.has(linkKey)) {
+                links.push({ source: sourceVisible, target: targetVisible, relation: edge.relation, isExternal: true });
+                addedLinks.add(linkKey);
+              }
+            }
+          }
+        }
+      }
+
+      return links;
+    }
+
+    function toggleExpand(nodeId) {
+      if (expandedNodes.has(nodeId)) {
+        expandedNodes.delete(nodeId);
+      } else {
+        expandedNodes.add(nodeId);
+      }
+      renderGraph();
+    }
+
+    function renderGraph() {
+      const container = document.getElementById('graph');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      container.innerHTML = '';
+
+      svg = d3.select('#graph')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+      // Define arrow markers for each relation type
+      const defs = svg.append('defs');
+      const markerColors = {
+        // Code-level
+        implements: '#4caf50',
+        depends_on: '#2196f3',
+        calls: '#ff9800',
+        reads: '#9c27b0',
+        writes: '#f44336',
+        tested_by: '#00bcd4',
+        defined_in: '#607d8b',
+        // Semantic-level
+        enables: '#4caf50',
+        blocks: '#f44336',
+        requires: '#2196f3',
+        precedes: '#ff9800',
+        refines: '#9c27b0',
+        validates: '#00bcd4',
+        related_to: '#888888',
+        decided_by: '#795548',
+        default: '#0f3460'
+      };
+
+      Object.entries(markerColors).forEach(([type, color]) => {
+        defs.append('marker')
+          .attr('id', 'arrow-' + type)
+          .attr('viewBox', '0 -5 10 10')
+          .attr('refX', 25)
+          .attr('refY', 0)
+          .attr('markerWidth', 6)
+          .attr('markerHeight', 6)
+          .attr('orient', 'auto')
+          .append('path')
+          .attr('fill', color)
+          .attr('d', 'M0,-5L10,0L0,5');
+      });
+
+      zoom = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on('zoom', (event) => g.attr('transform', event.transform));
+
+      svg.call(zoom);
+      g = svg.append('g');
+
+      const { nodes, nodeMap } = getVisibleNodes();
+      const links = getVisibleLinks(nodeMap);
+
+      simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => d.isInternal ? 60 : 100))
+        .force('charge', d3.forceManyBody().strength(d => d.isChild ? -150 : -300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => d.isChild ? 30 : 50));
+
+      const link = g.append('g')
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('class', d => 'link ' + d.relation + (d.isInternal ? ' internal' : ''))
+        .attr('stroke-width', d => d.isInternal ? 1 : 2)
+        .attr('stroke-dasharray', d => d.isInternal ? '3,3' : null)
+        .attr('marker-end', d => 'url(#arrow-' + (markerColors[d.relation] ? d.relation : 'default') + ')');
+
+      const node = g.append('g')
+        .selectAll('g')
+        .data(nodes)
+        .join('g')
+        .attr('class', d => 'node' + (d.isChild ? ' child-node' : '') + (d.hasChildren ? ' expandable' : ''))
+        .on('click', (event, d) => showDetails(d))
+        .on('dblclick', (event, d) => {
+          if (d.hasChildren || d.isExpanded) {
+            event.stopPropagation();
+            toggleExpand(d.id);
+          }
+        });
+
+      // Helper function to get node shape path
+      function getNodeShape(d) {
+        const size = d.isChild ? 15 : 20;
+        if (d.type === 'Feature') {
+          // Triangle pointing up (semantic/high-level)
+          return 'M0,' + (-size) + ' L' + size + ',' + (size * 0.8) + ' L' + (-size) + ',' + (size * 0.8) + ' Z';
+        } else if (d.type === 'Decision') {
+          // Diamond shape
+          return 'M0,' + (-size) + ' L' + size + ',0 L0,' + size + ' L' + (-size) + ',0 Z';
+        }
+        return null; // Use circle for others
+      }
+
+      // Render circles for Component, File, etc.
+      node.filter(d => !['Feature', 'Decision'].includes(d.type))
+        .append('circle')
+        .attr('r', d => d.isChild ? 15 : 20)
+        .attr('fill', d => getNodeColor(d))
+        .attr('opacity', d => getNodeOpacity(d))
+        .attr('stroke', d => d.layer ? layerColors[d.layer] : (d.hasChildren ? '#fff' : null))
+        .attr('stroke-width', d => d.hasChildren ? 3 : (d.layer ? 3 : 2))
+        .attr('stroke-dasharray', d => d.hasChildren && !d.isExpanded ? '4,2' : null);
+
+      // Render triangles for Feature nodes (semantic level)
+      node.filter(d => d.type === 'Feature')
+        .append('path')
+        .attr('d', d => getNodeShape(d))
+        .attr('fill', d => getNodeColor(d))
+        .attr('opacity', d => getNodeOpacity(d))
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+
+      // Render diamonds for Decision nodes
+      node.filter(d => d.type === 'Decision')
+        .append('path')
+        .attr('d', d => getNodeShape(d))
+        .attr('fill', d => getNodeColor(d))
+        .attr('opacity', d => getNodeOpacity(d))
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+
+      // Add expand indicator for expandable nodes
+      node.filter(d => d.hasChildren && !d.isExpanded)
+        .append('text')
+        .text('+')
+        .attr('text-anchor', 'middle')
+        .attr('dy', 5)
+        .attr('fill', '#fff')
+        .attr('font-size', '16px')
+        .attr('font-weight', 'bold')
+        .style('pointer-events', 'none');
+
+      // Add collapse indicator for expanded nodes
+      node.filter(d => d.isExpanded)
+        .append('text')
+        .text('−')
+        .attr('text-anchor', 'middle')
+        .attr('dy', 5)
+        .attr('fill', '#fff')
+        .attr('font-size', '20px')
+        .attr('font-weight', 'bold')
+        .style('pointer-events', 'none');
+
+      node.append('text')
+        .attr('class', 'node-label')
+        .text(d => {
+          const label = d.id.split('/').pop() || d.id;
+          return label.length > 15 ? label.substring(0, 12) + '...' : label;
+        })
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => d.isChild ? 28 : 35)
+        .attr('opacity', d => getNodeOpacity(d))
+        .attr('font-size', d => d.isChild ? '10px' : '12px');
+
+      simulation.on('tick', () => {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+      });
+
+      // Update node count
+      document.getElementById('node-count').textContent = nodes.length;
+      document.getElementById('edge-count').textContent = links.length;
+    }
+
+    function showDetails(node) {
+      const details = document.getElementById('details');
+      document.getElementById('node-name').textContent = node.id;
+      const props = document.getElementById('node-properties');
+      props.innerHTML = '';
+      ['type', 'description', 'layer', 'path', 'status', 'priority'].forEach(key => {
+        if (node[key]) {
+          props.innerHTML += `<div class="property"><label>${key}</label><div>${node[key]}</div></div>`;
+        }
+      });
+      details.classList.add('visible');
+    }
+
+    function resetZoom() {
+      svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+    }
+
+    document.getElementById('search').addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      d3.selectAll('.node').each(function(d) {
+        const match = d.id.toLowerCase().includes(query);
+        d3.select(this).style('opacity', query === '' ? 1 : (match ? 1 : 0.2));
+      });
+    });
+
+    // Render on load
+    renderGraph();
+  </script>
+</body>
+</html>
