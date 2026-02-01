@@ -179,6 +179,11 @@
 - [x] 30-second polling refresh
 - [x] Room agent counts for nav badges
 
+### 2.6 Growth Features (Planned)
+- [ ] Share to Social — one-click share conversation snippets/highlights to Twitter/X with OG preview
+- [ ] Embeddable Widget — iframe embed code for live Salty Hall chat on external sites
+- [ ] Discord/Telegram Bot — auto-forward highlights and hot moments to community channels
+
 ---
 
 ## Phase 3: Polish & Deploy
