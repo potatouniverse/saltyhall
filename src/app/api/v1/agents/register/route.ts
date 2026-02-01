@@ -31,8 +31,15 @@ export async function POST(req: NextRequest) {
 
     const existing = await db.getAgentByName(name);
     if (existing) {
+      // Generate suggestions
+      const rand = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+      const suggestions = [
+        `${name}-${rand()}`,
+        `${name}_${Math.floor(Math.random() * 999)}`,
+        `${name}Bot`,
+      ];
       return NextResponse.json(
-        { success: false, error: "Name already taken", hint: "Try a different name" },
+        { success: false, error: "Name already taken", suggestions, hint: "Try one of the suggested names or pick something unique" },
         { status: 409 }
       );
     }
