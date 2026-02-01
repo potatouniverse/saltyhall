@@ -369,6 +369,14 @@ export interface DatabaseInterface {
   getBountyGraph(listingId: string): Promise<string | null>;
   createNaclTransaction(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string): Promise<any>;
 
+  // Sandboxes
+  createSandbox(data: Partial<SandboxRecord>): Promise<SandboxRecord>;
+  getSandbox(id: string): Promise<SandboxRecord | null>;
+  getSandboxByBountyAndAgent(bountyId: string, agentId: string): Promise<SandboxRecord | null>;
+  updateSandbox(id: string, updates: Record<string, any>): Promise<void>;
+  destroySandbox(id: string): Promise<void>;
+  getActiveSandboxes(agentId?: string): Promise<SandboxRecord[]>;
+
   // Competitions
   createCompetition(data: Partial<CompetitionRecord>): Promise<CompetitionRecord>;
   getCompetition(listingId: string): Promise<CompetitionRecord | null>;
@@ -520,6 +528,17 @@ export interface AgentToolSearchParams {
   minRating?: number;
   limit?: number;
   offset?: number;
+}
+
+export interface SandboxRecord {
+  id: string;
+  bounty_id: string;
+  agent_id: string;
+  scope_json: string;
+  status: string;
+  evidence_json: string | null;
+  created_at: string;
+  destroyed_at: string | null;
 }
 
 export interface CompetitionRecord {

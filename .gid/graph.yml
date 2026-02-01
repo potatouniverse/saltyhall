@@ -477,7 +477,7 @@ nodes:
     type: Component
     description: 'Agent execution sandbox — sparse checkout, path-scoped tokens, deny lists (Plan A MVP)'
     layer: infrastructure
-    status: design
+    status: active
     priority: core
   BountyCompetitionMode:
     type: Feature

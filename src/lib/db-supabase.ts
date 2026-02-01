@@ -1545,4 +1545,166 @@ export const db: DatabaseInterface = {
       agent_name: row.agents?.name,
     }));
   },
+
+  // Milestones
+  async createMilestone(data: Partial<MilestoneRecord>) {
+    const { data: milestone, error } = await getSupabase()
+      .from("milestones")
+      .insert({
+        listing_id: data.listing_id,
+        title: data.title,
+        description: data.description,
+        budget_percentage: data.budget_percentage,
+        acceptance_criteria: data.acceptance_criteria,
+        order_index: data.order_index,
+        status: "pending",
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return milestone as MilestoneRecord;
+  },
+
+  async getMilestone(id: string) {
+    const { data } = await getSupabase()
+      .from("milestones")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return (data as MilestoneRecord) || null;
+  },
+
+  async getMilestones(listingId: string) {
+    const { data } = await getSupabase()
+      .from("milestones")
+      .select("*")
+      .eq("listing_id", listingId)
+      .order("order_index", { ascending: true });
+    return (data as MilestoneRecord[]) || [];
+  },
+
+  async updateMilestone(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("milestones")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async createMilestoneSubmission(data: Partial<MilestoneSubmissionRecord>) {
+    const { data: submission, error } = await getSupabase()
+      .from("milestone_submissions")
+      .insert({
+        milestone_id: data.milestone_id,
+        agent_id: data.agent_id,
+        artifacts_json: data.artifacts_json,
+        status: "pending",
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return submission as MilestoneSubmissionRecord;
+  },
+
+  async getMilestoneSubmission(id: string) {
+    const { data } = await getSupabase()
+      .from("milestone_submissions")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return (data as MilestoneSubmissionRecord) || null;
+  },
+
+  async getMilestoneSubmissions(milestoneId: string) {
+    const { data } = await getSupabase()
+      .from("milestone_submissions")
+      .select("*")
+      .eq("milestone_id", milestoneId)
+      .order("submitted_at", { ascending: false });
+    return (data as MilestoneSubmissionRecord[]) || [];
+  },
+
+  async updateMilestoneSubmission(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("milestone_submissions")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  // ============================================================================
+  // Sandboxes
+  // ============================================================================
+
+  async createSandbox(data: Partial<SandboxRecord>) {
+    const { data: sandbox, error } = await getSupabase()
+      .from("sandboxes")
+      .insert({
+        id: data.id || `sbx_${crypto.randomUUID()}`,
+        bounty_id: data.bounty_id,
+        agent_id: data.agent_id,
+        scope_json: data.scope_json || '{}',
+        status: data.status || 'active',
+        evidence_json: data.evidence_json || null,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return sandbox as SandboxRecord;
+  },
+
+  async getSandbox(id: string) {
+    const { data } = await getSupabase()
+      .from("sandboxes")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return (data as SandboxRecord) || null;
+  },
+
+  async getSandboxByBountyAndAgent(bountyId: string, agentId: string) {
+    const { data } = await getSupabase()
+      .from("sandboxes")
+      .select("*")
+      .eq("bounty_id", bountyId)
+      .eq("agent_id", agentId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    return (data as SandboxRecord) || null;
+  },
+
+  async updateSandbox(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("sandboxes")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async destroySandbox(id: string) {
+    const { error } = await getSupabase()
+      .from("sandboxes")
+      .update({
+        status: 'destroyed',
+        destroyed_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    if (error) throw error;
+  },
+
+  async getActiveSandboxes(agentId?: string) {
+    let query = getSupabase()
+      .from("sandboxes")
+      .select("*")
+      .neq("status", "destroyed")
+      .order("created_at", { ascending: false });
+
+    if (agentId) {
+      query = query.eq("agent_id", agentId);
+    }
+
+    const { data } = await query;
+    return (data as SandboxRecord[]) || [];
+  },
 };

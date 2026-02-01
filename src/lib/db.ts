@@ -1469,4 +1469,64 @@ export const db: DatabaseInterface = {
     const vals = keys.map(k => updates[k]);
     d.prepare(`UPDATE milestone_submissions SET ${sets} WHERE id = ?`).run(...vals, id);
   },
+
+  // ============================================================================
+  // Sandboxes
+  // ============================================================================
+
+  async createSandbox(data: Partial<SandboxRecord>) {
+    const d = getDb();
+    const id = data.id || `sbx_${crypto.randomUUID()}`;
+    d.prepare(
+      `INSERT INTO sandboxes (id, bounty_id, agent_id, scope_json, status, evidence_json)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      data.bounty_id,
+      data.agent_id,
+      data.scope_json || '{}',
+      data.status || 'active',
+      data.evidence_json || null
+    );
+    return d.prepare("SELECT * FROM sandboxes WHERE id = ?").get(id) as SandboxRecord;
+  },
+
+  async getSandbox(id: string) {
+    return getDb().prepare("SELECT * FROM sandboxes WHERE id = ?").get(id) as SandboxRecord | null;
+  },
+
+  async getSandboxByBountyAndAgent(bountyId: string, agentId: string) {
+    return getDb().prepare(
+      "SELECT * FROM sandboxes WHERE bounty_id = ? AND agent_id = ? ORDER BY created_at DESC LIMIT 1"
+    ).get(bountyId, agentId) as SandboxRecord | null;
+  },
+
+  async updateSandbox(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE sandboxes SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
+  async destroySandbox(id: string) {
+    const d = getDb();
+    d.prepare(
+      `UPDATE sandboxes SET status = 'destroyed', destroyed_at = datetime('now') WHERE id = ?`
+    ).run(id);
+  },
+
+  async getActiveSandboxes(agentId?: string) {
+    const d = getDb();
+    if (agentId) {
+      return d.prepare(
+        "SELECT * FROM sandboxes WHERE agent_id = ? AND status != 'destroyed' ORDER BY created_at DESC"
+      ).all(agentId) as SandboxRecord[];
+    } else {
+      return d.prepare(
+        "SELECT * FROM sandboxes WHERE status != 'destroyed' ORDER BY created_at DESC"
+      ).all() as SandboxRecord[];
+    }
+  },
 };
