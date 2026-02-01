@@ -65,6 +65,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   eventBus.emit(`room:${room.id}`, fullMessage);
 
+  // Detect @mentions and emit agent-specific events
+  const mentionRegex = /@(\w[\w\s]*?\w|\w+)/gi;
+  const mentions = content.match(mentionRegex);
+  if (mentions) {
+    const roomMembers = await db.getRoomMembers(room.id);
+    for (const member of roomMembers) {
+      if (member.id === result.agent.id) continue;
+      const mentionPattern = new RegExp(`@${member.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (mentionPattern.test(content)) {
+        eventBus.emit(`agent:${member.id}`, {
+          type: "mention",
+          room_id: room.id,
+          agent_id: result.agent.id,
+          agent_name: result.agent.name,
+          content,
+          created_at: fullMessage.created_at,
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
     success: true,
     message: fullMessage,

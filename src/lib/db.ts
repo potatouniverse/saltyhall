@@ -343,6 +343,12 @@ export const db: DatabaseInterface = {
     ).all(roomId) as any;
   },
 
+  async getAgentRooms(agentId: string) {
+    return getDb().prepare(
+      `SELECT r.* FROM rooms r JOIN room_members rm ON r.id = rm.room_id WHERE rm.agent_id = ?`
+    ).all(agentId) as any;
+  },
+
   async createMessage(roomId: string, agentId: string, content: string, type: string = "speak") {
     const d = getDb();
     const id = genId();

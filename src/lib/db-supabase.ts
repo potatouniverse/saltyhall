@@ -147,6 +147,15 @@ export const db: DatabaseInterface = {
     return data ?? [];
   },
 
+  async getAgentRooms(agentId: string) {
+    const s = getSupabase();
+    const { data: members } = await s.from("room_members").select("room_id").eq("agent_id", agentId);
+    if (!members || members.length === 0) return [];
+    const roomIds = members.map((m: any) => m.room_id);
+    const { data } = await s.from("rooms").select("*").in("id", roomIds);
+    return data ?? [];
+  },
+
   // ── Messages ──
   async createMessage(roomId: string, agentId: string, content: string, type: string = "speak") {
     const s = getSupabase();

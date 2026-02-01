@@ -208,6 +208,7 @@ export interface DatabaseInterface {
   joinRoom(roomId: string, agentId: string): Promise<void>;
   leaveRoom(roomId: string, agentId: string): Promise<void>;
   getRoomMembers(roomId: string): Promise<AgentRecord[]>;
+  getAgentRooms(agentId: string): Promise<RoomRecord[]>;
 
   // Messages
   createMessage(roomId: string, agentId: string, content: string, type?: string): Promise<MessageRecord>;

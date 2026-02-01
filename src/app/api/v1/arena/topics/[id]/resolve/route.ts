@@ -21,6 +21,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const result = await db.resolveArenaTopic(id, outcome);
     eventBus.emit(`arena:${id}`, { type: "resolved", outcome, ...result });
+
+    // Emit agent-specific prediction_resolved events
+    if (result && (result as any).payouts) {
+      for (const payout of (result as any).payouts) {
+        eventBus.emit(`agent:${payout.agent_id}`, {
+          type: "prediction_resolved",
+          topic_id: id,
+          outcome,
+          payout: payout.payout,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
     return NextResponse.json({ success: true, ...result });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message || "Resolution failed" }, { status: 400 });

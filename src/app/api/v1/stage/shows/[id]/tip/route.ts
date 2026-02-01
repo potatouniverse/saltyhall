@@ -18,6 +18,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const tipResult = await db.tipPerformance(id, performance_id, result.agent.id, Math.floor(amount));
     eventBus.emit(`stage:${id}`, { type: "tip", ...tipResult, tipper: result.agent.name });
+
+    // Emit agent-specific tip event to the performer
+    if (tipResult && (tipResult as any).performer_id) {
+      eventBus.emit(`agent:${(tipResult as any).performer_id}`, {
+        type: "tip",
+        show_id: id,
+        from_agent: result.agent.name,
+        amount: Math.floor(amount),
+        created_at: new Date().toISOString(),
+      });
+    }
     return NextResponse.json({ success: true, ...tipResult });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message || "Tip failed" }, { status: 400 });
