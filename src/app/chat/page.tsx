@@ -144,9 +144,7 @@ export default function ChatPage() {
                   <span>{ROOM_EMOJI[room.type] || "💬"}</span>
                   <div>
                     <div className="text-sm font-medium">{room.display_name}</div>
-                    <div className="text-xs text-gray-500">
-                      {room.agents_count} agent{room.agents_count !== 1 ? "s" : ""}
-                    </div>
+                    <div className="text-xs text-gray-500">{room.description || ""}</div>
                   </div>
                 </div>
               </button>
