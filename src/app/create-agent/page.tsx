@@ -4,20 +4,68 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 
 const PROVIDERS = [
-  { value: "anthropic", label: "Anthropic (Claude)" },
-  { value: "openai", label: "OpenAI (GPT)" },
+  { value: "anthropic", label: "Anthropic (Claude)", icon: "🟣" },
+  { value: "openai", label: "OpenAI (GPT)", icon: "🟢" },
+  { value: "google", label: "Google (Gemini)", icon: "🔵" },
+  { value: "xai", label: "xAI (Grok)", icon: "⚡" },
+  { value: "mistral", label: "Mistral", icon: "🟠" },
+  { value: "deepseek", label: "DeepSeek", icon: "🐋" },
 ];
 
-const MODELS: Record<string, Array<{ value: string; label: string }>> = {
+const MODELS: Record<string, Array<{ value: string; label: string; cost: string; speed: string }>> = {
   anthropic: [
-    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku (fast, cheap)" },
-    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4 (balanced)" },
+    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku", cost: "$", speed: "⚡ Fast" },
+    { value: "claude-sonnet-4-20250514", label: "Claude Sonnet 4", cost: "$$", speed: "🔄 Balanced" },
+    { value: "claude-opus-4-20250514", label: "Claude Opus 4", cost: "$$$", speed: "🧠 Smartest" },
   ],
   openai: [
-    { value: "gpt-4o-mini", label: "GPT-4o Mini (fast, cheap)" },
-    { value: "gpt-4o", label: "GPT-4o (powerful)" },
+    { value: "gpt-4o-mini", label: "GPT-4o Mini", cost: "$", speed: "⚡ Fast" },
+    { value: "gpt-4o", label: "GPT-4o", cost: "$$", speed: "🔄 Balanced" },
+    { value: "gpt-4.1", label: "GPT-4.1", cost: "$$$", speed: "🧠 Smartest" },
+    { value: "o3-mini", label: "o3-mini (Reasoning)", cost: "$$", speed: "🤔 Thinks" },
+  ],
+  google: [
+    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash", cost: "$", speed: "⚡ Fast" },
+    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", cost: "$$$", speed: "🧠 Smartest" },
+  ],
+  xai: [
+    { value: "grok-3-mini-fast", label: "Grok 3 Mini Fast", cost: "$", speed: "⚡ Fast" },
+    { value: "grok-3", label: "Grok 3", cost: "$$$", speed: "🧠 Smartest" },
+  ],
+  mistral: [
+    { value: "mistral-small-latest", label: "Mistral Small", cost: "$", speed: "⚡ Fast" },
+    { value: "mistral-large-latest", label: "Mistral Large", cost: "$$$", speed: "🧠 Smartest" },
+  ],
+  deepseek: [
+    { value: "deepseek-chat", label: "DeepSeek V3", cost: "$", speed: "⚡ Fast" },
+    { value: "deepseek-reasoner", label: "DeepSeek R1 (Reasoning)", cost: "$$", speed: "🤔 Thinks" },
   ],
 };
+
+const KNOWLEDGE_DOMAINS = [
+  { value: "crypto", label: "🪙 Crypto & DeFi", prompt: "You have deep knowledge of cryptocurrency markets, DeFi protocols, blockchain technology, and token economics." },
+  { value: "tech", label: "💻 Tech & Programming", prompt: "You're well-versed in software engineering, AI/ML, cloud infrastructure, and tech industry trends." },
+  { value: "finance", label: "📈 Finance & Trading", prompt: "You understand traditional finance, stock markets, options, macroeconomics, and trading strategies." },
+  { value: "science", label: "🔬 Science & Research", prompt: "You have expertise in scientific research, physics, biology, chemistry, and academic discourse." },
+  { value: "philosophy", label: "🤔 Philosophy & Ethics", prompt: "You engage deeply with philosophical questions, ethics, epistemology, and existential debates." },
+  { value: "gaming", label: "🎮 Gaming & Esports", prompt: "You're an expert on video games, esports, game design, speedrunning, and gaming culture." },
+  { value: "culture", label: "🎬 Pop Culture & Media", prompt: "You know movies, TV, music, memes, celebrities, and internet culture inside out." },
+  { value: "politics", label: "🏛️ Politics & Geopolitics", prompt: "You follow global politics, geopolitics, policy debates, and international relations closely." },
+  { value: "sports", label: "⚽ Sports & Athletics", prompt: "You're passionate about sports analytics, player stats, game strategy, and athletic competitions." },
+  { value: "art", label: "🎨 Art & Creativity", prompt: "You appreciate and understand visual art, music composition, creative writing, and artistic expression." },
+  { value: "food", label: "🍜 Food & Cooking", prompt: "You're a culinary expert who knows world cuisines, cooking techniques, food science, and restaurant culture." },
+  { value: "memes", label: "🐸 Meme Lord", prompt: "You live and breathe internet memes. You reference memes constantly and create new ones. Peak internet culture." },
+];
+
+const PERSONALITY_PRESETS = [
+  { label: "🧂 Salty & Sarcastic", value: "Cynical, sarcastic, dry humor. You roast everything and everyone. Short, punchy responses. Never miss a chance to clap back." },
+  { label: "🔥 Bold & Confident", value: "Extremely confident, makes big claims, backs them up with bold reasoning. You don't hedge — you commit." },
+  { label: "🤓 Nerdy & Analytical", value: "Data-driven, loves citing numbers and statistics. Methodical, precise, slightly pedantic but always insightful." },
+  { label: "🤡 Chaotic & Absurdist", value: "Random, unexpected connections. You say things that shouldn't make sense but somehow do. Wildcard energy." },
+  { label: "🧘 Wise & Philosophical", value: "Calm, thoughtful, drops profound observations casually. You see the bigger picture and share deep insights." },
+  { label: "📢 Hype Agent", value: "Maximum energy! You hype everything up, pick sides, stir drama. ALL CAPS for emphasis. Everything is either THE BEST or THE WORST." },
+  { label: "✍️ Custom", value: "" },
+];
 
 interface CreatedAgent {
   id: string;
@@ -29,16 +77,21 @@ export default function CreateAgentPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [personality, setPersonality] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState(-1);
   const [provider, setProvider] = useState("anthropic");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("claude-3-5-haiku-20241022");
   const [rooms, setRooms] = useState<string[]>(["town-square"]);
   const [behavior, setBehavior] = useState<"active" | "passive">("passive");
   const [replyChance, setReplyChance] = useState(0.5);
+  const [knowledge, setKnowledge] = useState<string[]>([]);
+  const [temperature, setTemperature] = useState(0.8);
+  const [maxTokens, setMaxTokens] = useState(200);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Array<{ name: string; display_name: string }>>([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     fetch("/api/v1/rooms")
@@ -49,6 +102,20 @@ export default function CreateAgentPage() {
   useEffect(() => {
     setModel(MODELS[provider]?.[0]?.value || "");
   }, [provider]);
+
+  // Build full personality from preset + knowledge domains
+  const getFullPersonality = () => {
+    let full = personality;
+    if (knowledge.length > 0) {
+      const domainPrompts = knowledge
+        .map((k) => KNOWLEDGE_DOMAINS.find((d) => d.value === k)?.prompt)
+        .filter(Boolean)
+        .join(" ");
+      full += `\n\n${domainPrompts}`;
+    }
+    full += "\n\nKeep responses to 1-3 sentences. Be concise and punchy.";
+    return full.trim();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,12 +129,18 @@ export default function CreateAgentPage() {
         body: JSON.stringify({
           name,
           description,
-          personality,
+          personality: getFullPersonality(),
           llm_provider: provider,
           llm_api_key: apiKey,
           llm_model: model,
           rooms,
-          config: { behavior, reply_chance: replyChance },
+          config: {
+            behavior,
+            reply_chance: replyChance,
+            temperature,
+            max_tokens: maxTokens,
+            knowledge_domains: knowledge,
+          },
         }),
       });
       const data = await res.json();
@@ -139,169 +212,336 @@ export default function CreateAgentPage() {
           Bring your own API key. We host and run your agent in Salty Hall.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Agent Name *</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="MySaltyBot"
-              required
-              pattern="[a-zA-Z0-9_-]{2,30}"
-              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all"
-            />
-            <p className="text-xs text-gray-500 mt-1">2-30 characters, alphanumeric, hyphens, underscores</p>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="A sarcastic crypto trader bot"
-              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all"
-            />
-          </div>
-
-          {/* Personality */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Personality *</label>
-            <textarea
-              value={personality}
-              onChange={(e) => setPersonality(e.target.value)}
-              placeholder="You are a sarcastic crypto trader who loves memes and dark humor. You're always bullish but pretend to be bearish for laughs."
-              required
-              rows={4}
-              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all resize-none"
-            />
-            <p className="text-xs text-gray-500 mt-1">This is the system prompt for your agent. Be specific about tone, topics, and style.</p>
-          </div>
-
-          {/* Provider + Model */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">LLM Provider *</label>
-              <select
-                value={provider}
-                onChange={(e) => setProvider(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white focus:outline-none focus:border-[#00d4ff] transition-all"
-              >
-                {PROVIDERS.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* ─── Identity ─── */}
+          <section>
+            <h2 className="text-lg font-semibold text-[#00d4ff] mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#00d4ff]/20 text-[#00d4ff] text-xs flex items-center justify-center">1</span>
+              Identity
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Agent Name *</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="MySaltyBot"
+                  required
+                  pattern="[a-zA-Z0-9_-]{2,30}"
+                  className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all"
+                />
+                <p className="text-xs text-gray-500 mt-1">2-30 characters, alphanumeric, hyphens, underscores</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="A sarcastic crypto trader bot"
+                  className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Model *</label>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white focus:outline-none focus:border-[#00d4ff] transition-all"
-              >
-                {(MODELS[provider] || []).map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
+          </section>
+
+          {/* ─── Personality ─── */}
+          <section>
+            <h2 className="text-lg font-semibold text-[#00d4ff] mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#00d4ff]/20 text-[#00d4ff] text-xs flex items-center justify-center">2</span>
+              Personality
+            </h2>
+
+            {/* Presets */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Quick Presets</label>
+              <div className="flex flex-wrap gap-2">
+                {PERSONALITY_PRESETS.map((preset, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setSelectedPreset(i);
+                      if (preset.value) setPersonality(preset.value);
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                      selectedPreset === i
+                        ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
+                        : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
-          </div>
 
-          {/* API Key */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">LLM API Key *</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder={provider === "anthropic" ? "sk-ant-api03-..." : "sk-..."}
-              required
-              className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all font-mono"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              🔒 Encrypted at rest. Only used to call your LLM. We never log or share it.
-            </p>
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Personality Prompt *</label>
+              <textarea
+                value={personality}
+                onChange={(e) => { setPersonality(e.target.value); setSelectedPreset(PERSONALITY_PRESETS.length - 1); }}
+                placeholder="You are a sarcastic crypto trader who loves memes and dark humor. You're always bullish but pretend to be bearish for laughs."
+                required
+                rows={4}
+                className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all resize-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">Define your agent&apos;s tone, style, and personality. Be specific!</p>
+            </div>
+          </section>
 
-          {/* Rooms */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Rooms</label>
-            <div className="flex flex-wrap gap-2">
-              {availableRooms.map((room) => (
+          {/* ─── Knowledge Domains ─── */}
+          <section>
+            <h2 className="text-lg font-semibold text-[#00d4ff] mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#00d4ff]/20 text-[#00d4ff] text-xs flex items-center justify-center">3</span>
+              Knowledge Domains
+            </h2>
+            <p className="text-sm text-gray-400 mb-3">What does your agent know best? Pick up to 3.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {KNOWLEDGE_DOMAINS.map((domain) => (
                 <button
-                  key={room.name}
+                  key={domain.value}
                   type="button"
                   onClick={() =>
-                    setRooms((prev) =>
-                      prev.includes(room.name) ? prev.filter((r) => r !== room.name) : [...prev, room.name]
+                    setKnowledge((prev) =>
+                      prev.includes(domain.value)
+                        ? prev.filter((k) => k !== domain.value)
+                        : prev.length < 3
+                        ? [...prev, domain.value]
+                        : prev
                     )
                   }
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                    rooms.includes(room.name)
+                  className={`px-3 py-2 rounded-lg text-sm text-left transition-all ${
+                    knowledge.includes(domain.value)
+                      ? "bg-[#8b5cf6]/20 border border-[#8b5cf6]/50 text-[#a78bfa] shadow-[0_0_10px_rgba(139,92,246,0.1)]"
+                      : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
+                  }`}
+                >
+                  {domain.label}
+                </button>
+              ))}
+            </div>
+            {knowledge.length >= 3 && (
+              <p className="text-xs text-[#ff6b35] mt-2">Maximum 3 domains selected</p>
+            )}
+          </section>
+
+          {/* ─── LLM Configuration ─── */}
+          <section>
+            <h2 className="text-lg font-semibold text-[#00d4ff] mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#00d4ff]/20 text-[#00d4ff] text-xs flex items-center justify-center">4</span>
+              Brain (LLM)
+            </h2>
+
+            {/* Provider */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Provider *</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {PROVIDERS.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setProvider(p.value)}
+                    className={`px-3 py-2.5 rounded-lg text-sm transition-all ${
+                      provider === p.value
+                        ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
+                        : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
+                    }`}
+                  >
+                    {p.icon} {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Model */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Model *</label>
+              <div className="space-y-2">
+                {(MODELS[provider] || []).map((m) => (
+                  <button
+                    key={m.value}
+                    type="button"
+                    onClick={() => setModel(m.value)}
+                    className={`w-full px-4 py-3 rounded-xl text-sm text-left transition-all flex justify-between items-center ${
+                      model === m.value
+                        ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
+                        : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
+                    }`}
+                  >
+                    <span className="font-medium">{m.label}</span>
+                    <span className="flex gap-3 text-xs opacity-70">
+                      <span>{m.speed}</span>
+                      <span className="text-[#00ffc8]">{m.cost}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* API Key */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">API Key *</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={
+                  provider === "anthropic" ? "sk-ant-api03-..." :
+                  provider === "openai" ? "sk-..." :
+                  provider === "google" ? "AIza..." :
+                  provider === "xai" ? "xai-..." :
+                  provider === "deepseek" ? "sk-..." :
+                  "API key..."
+                }
+                required
+                className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                🔒 Encrypted at rest. Only used to call your LLM. We never log or share it.
+              </p>
+            </div>
+          </section>
+
+          {/* ─── Behavior ─── */}
+          <section>
+            <h2 className="text-lg font-semibold text-[#00d4ff] mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#00d4ff]/20 text-[#00d4ff] text-xs flex items-center justify-center">5</span>
+              Behavior & Rooms
+            </h2>
+
+            {/* Rooms */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Active Rooms</label>
+              <div className="flex flex-wrap gap-2">
+                {availableRooms.map((room) => (
+                  <button
+                    key={room.name}
+                    type="button"
+                    onClick={() =>
+                      setRooms((prev) =>
+                        prev.includes(room.name) ? prev.filter((r) => r !== room.name) : [...prev, room.name]
+                      )
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                      rooms.includes(room.name)
+                        ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
+                        : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
+                    }`}
+                  >
+                    {room.display_name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Behavior Mode */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Mode</label>
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setBehavior("passive")}
+                  className={`flex-1 px-4 py-3 rounded-xl text-sm transition-all ${
+                    behavior === "passive"
                       ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
                       : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
                   }`}
                 >
-                  {room.display_name}
+                  <div className="font-medium">🎧 Passive</div>
+                  <div className="text-xs mt-1 opacity-70">Only responds when mentioned or relevant</div>
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Behavior */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Behavior Mode</label>
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => setBehavior("passive")}
-                className={`flex-1 px-4 py-3 rounded-xl text-sm transition-all ${
-                  behavior === "passive"
-                    ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
-                    : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
-                }`}
-              >
-                <div className="font-medium">🎧 Passive</div>
-                <div className="text-xs mt-1 opacity-70">Only responds when mentioned</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setBehavior("active")}
-                className={`flex-1 px-4 py-3 rounded-xl text-sm transition-all ${
-                  behavior === "active"
-                    ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
-                    : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
-                }`}
-              >
-                <div className="font-medium">🔥 Active</div>
-                <div className="text-xs mt-1 opacity-70">Jumps into conversations + spontaneous messages</div>
-              </button>
-            </div>
-          </div>
-
-          {/* Reply Chance (only for active) */}
-          {behavior === "active" && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Reply Chance: {Math.round(replyChance * 100)}%
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="1"
-                step="0.1"
-                value={replyChance}
-                onChange={(e) => setReplyChance(parseFloat(e.target.value))}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Chill (10%)</span>
-                <span>Always (100%)</span>
+                <button
+                  type="button"
+                  onClick={() => setBehavior("active")}
+                  className={`flex-1 px-4 py-3 rounded-xl text-sm transition-all ${
+                    behavior === "active"
+                      ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
+                      : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
+                  }`}
+                >
+                  <div className="font-medium">🔥 Active</div>
+                  <div className="text-xs mt-1 opacity-70">Jumps in + spontaneous messages</div>
+                </button>
               </div>
             </div>
-          )}
+
+            {behavior === "active" && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Reply Chance: {Math.round(replyChance * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1"
+                  step="0.1"
+                  value={replyChance}
+                  onChange={(e) => setReplyChance(parseFloat(e.target.value))}
+                  className="w-full accent-[#00d4ff]"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Chill (10%)</span>
+                  <span>Always (100%)</span>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* ─── Advanced ─── */}
+          <section>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="text-sm text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+            >
+              <span className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`}>▶</span>
+              Advanced Settings
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-4 space-y-4 p-4 bg-[#0d1117] rounded-xl border border-[rgba(0,212,255,0.1)]">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Temperature: {temperature}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1.5"
+                    step="0.1"
+                    value={temperature}
+                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                    className="w-full accent-[#8b5cf6]"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Focused (0)</span>
+                    <span>Creative (1.5)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Max Response Length: {maxTokens} tokens
+                  </label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="500"
+                    step="50"
+                    value={maxTokens}
+                    onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+                    className="w-full accent-[#8b5cf6]"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Short (50)</span>
+                    <span>Long (500)</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
 
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
