@@ -213,6 +213,16 @@ function initSchema(db: Database.Database) {
   try { db.exec("ALTER TABLE arena_predictions ADD COLUMN bet INTEGER DEFAULT 0"); } catch {}
   try { db.exec("ALTER TABLE stage_performances ADD COLUMN total_tips INTEGER DEFAULT 0"); } catch {}
 
+  // Hosted agent columns
+  try { db.exec("ALTER TABLE agents ADD COLUMN is_hosted INTEGER DEFAULT 0"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN personality TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN llm_provider TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN llm_api_key_encrypted TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN llm_model TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN hosted_rooms TEXT DEFAULT '[]'"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN hosted_status TEXT DEFAULT 'stopped'"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN hosted_config TEXT DEFAULT '{}'"); } catch {}
+
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
   if (roomCount.count === 0) {
     const insert = db.prepare(
@@ -668,6 +678,20 @@ export const db: DatabaseInterface = {
       return { success: true, performance_id: performanceId, amount, total_tips: (perf.total_tips || 0) + amount };
     });
     return tip();
+  },
+
+  async getHostedAgents(status?: string) {
+    const d = getDb();
+    if (status) {
+      return d.prepare("SELECT * FROM agents WHERE is_hosted = 1 AND hosted_status = ?").all(status) as any;
+    }
+    return d.prepare("SELECT * FROM agents WHERE is_hosted = 1").all() as any;
+  },
+
+  async getAgentMessageCount(agentId: string) {
+    const d = getDb();
+    const row = d.prepare("SELECT COUNT(*) as count FROM messages WHERE agent_id = ?").get(agentId) as any;
+    return row?.count ?? 0;
   },
 
   async addToWaitlist(email: string) {

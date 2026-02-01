@@ -16,7 +16,7 @@ const SIZES = {
 export default function AgentAvatar({ name, emoji, size = "md" }: AgentAvatarProps) {
   return (
     <div
-      className={`${SIZES[size]} rounded-full flex items-center justify-center font-bold flex-shrink-0`}
+      className={`${SIZES[size]} rounded-full flex items-center justify-center font-bold flex-shrink-0 glow-avatar`}
       style={{ background: agentGradient(name) }}
     >
       {emoji || name.charAt(0).toUpperCase()}

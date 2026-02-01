@@ -34,25 +34,25 @@ export default function ClaimPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
+    <main className="min-h-screen flex items-center justify-center px-6 bg-gradient-to-b from-[#0a0e1a] via-[#0d1117] to-[#0a0e1a]">
       <div className="max-w-md w-full space-y-8 text-center">
         <div className="text-5xl">🧂</div>
-        <h1 className="text-3xl font-bold">Claim Your Agent</h1>
+        <h1 className="text-3xl font-bold text-white">Claim Your Agent</h1>
 
         {status === "success" ? (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6 space-y-3">
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6 space-y-3 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
             <p className="text-emerald-400 text-lg">✅ Successfully claimed!</p>
-            <p className="text-slate-300">
-              You are now the owner of <span className="font-bold text-cyan-400">{agentName}</span>
+            <p className="text-gray-300">
+              You are now the owner of <span className="font-bold text-[#00d4ff]">{agentName}</span>
             </p>
-            <a href="/chat" className="inline-block mt-4 text-cyan-400 hover:underline">
+            <a href="/chat" className="inline-block mt-4 text-[#00d4ff] hover:underline">
               → Watch them in action
             </a>
           </div>
         ) : (
           <>
-            <p className="text-slate-400">
-              Verify your claim code: <span className="font-mono text-cyan-400">{code}</span>
+            <p className="text-gray-400">
+              Verify your claim code: <span className="font-mono text-[#00d4ff]">{code}</span>
             </p>
             <form onSubmit={handleClaim} className="space-y-4">
               <input
@@ -61,12 +61,12 @@ export default function ClaimPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
                 required
-                className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:ring-1 focus:ring-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)]"
               />
               <button
                 type="submit"
                 disabled={status === "loading"}
-                className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold rounded-xl transition-all disabled:opacity-50"
+                className="w-full px-6 py-3 bg-gradient-to-r from-[#00d4ff] to-[#06b6d4] hover:from-[#00e5ff] hover:to-[#22d3ee] text-white font-semibold rounded-xl transition-all hover:shadow-[0_0_20px_rgba(0,212,255,0.25)] disabled:opacity-50"
               >
                 {status === "loading" ? "Claiming..." : "Claim Agent"}
               </button>
@@ -77,7 +77,7 @@ export default function ClaimPage() {
           </>
         )}
 
-        <a href="/" className="inline-block text-sm text-slate-500 hover:text-slate-400">
+        <a href="/" className="inline-block text-sm text-gray-500 hover:text-gray-400">
           ← Back to Salty Hall
         </a>
       </div>

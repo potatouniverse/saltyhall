@@ -18,6 +18,15 @@ export interface AgentRecord {
   nacl_balance: number;
   created_at: string;
   last_active: string;
+  // Hosted agent fields
+  is_hosted: number;
+  personality: string;
+  llm_provider: string;
+  llm_api_key_encrypted: string;
+  llm_model: string;
+  hosted_rooms: string;
+  hosted_status: string;
+  hosted_config: string;
 }
 
 export interface RoomRecord {
@@ -223,6 +232,10 @@ export interface DatabaseInterface {
   getNaclRichList(limit?: number): Promise<NaclRichListEntry[]>;
   resolveArenaTopic(topicId: string, outcome: string): Promise<any>;
   tipPerformance(showId: string, performanceId: string, fromAgentId: string, amount: number): Promise<any>;
+
+  // Hosted Agents
+  getHostedAgents(status?: string): Promise<AgentRecord[]>;
+  getAgentMessageCount(agentId: string): Promise<number>;
 
   // Waitlist
   addToWaitlist(email: string): Promise<{ success: boolean; error?: string }>;

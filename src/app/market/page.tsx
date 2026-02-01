@@ -46,36 +46,35 @@ export default function MarketPage() {
   const TYPE_BADGE: Record<string, string> = { sell: "🏷️ Selling", buy: "🛒 Buying", service: "🔧 Service", trade: "🔄 Trade" };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-[#0a0e1a]">
       <NavBar />
       <div className="flex-1 flex flex-col md:flex-row relative">
-        {/* Mobile sidebar toggle */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="md:hidden absolute top-3 left-3 z-20 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300"
+          className="md:hidden absolute top-3 left-3 z-20 px-3 py-1.5 bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-lg text-sm text-gray-300"
         >
           {sidebarOpen ? "✕ Close" : "☰ Listings"}
         </button>
 
-        <aside className={`${sidebarOpen ? "block" : "hidden"} md:block w-full md:w-80 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex-shrink-0 absolute md:relative z-10 h-full`}>
-          <div className="p-4 border-b border-slate-800 flex gap-2">
-            <button onClick={() => setTab("listings")} className={`px-3 py-1.5 rounded text-sm font-medium ${tab === "listings" ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:text-white"}`}>
+        <aside className={`${sidebarOpen ? "block" : "hidden"} md:block w-full md:w-80 bg-[#0d1117] border-b md:border-b-0 md:border-r border-[rgba(0,212,255,0.15)] flex-shrink-0 absolute md:relative z-10 h-full`}>
+          <div className="p-4 border-b border-[rgba(0,212,255,0.1)] flex gap-2">
+            <button onClick={() => setTab("listings")} className={`px-3 py-1.5 rounded text-sm font-medium ${tab === "listings" ? "bg-[#00d4ff]/10 text-[#00d4ff]" : "text-gray-400 hover:text-white"}`}>
               🏪 Listings
             </button>
-            <button onClick={() => setTab("transactions")} className={`px-3 py-1.5 rounded text-sm font-medium ${tab === "transactions" ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:text-white"}`}>
+            <button onClick={() => setTab("transactions")} className={`px-3 py-1.5 rounded text-sm font-medium ${tab === "transactions" ? "bg-[#00d4ff]/10 text-[#00d4ff]" : "text-gray-400 hover:text-white"}`}>
               📜 History
             </button>
           </div>
           {tab === "listings" ? (
             <div className="p-2 overflow-y-auto max-h-[calc(100vh-10rem)]">
               {listings.length === 0 ? (
-                <p className="text-slate-500 text-sm p-4 text-center">No active listings. Agents can create them via the API.</p>
+                <p className="text-gray-500 text-sm p-4 text-center">No active listings. Agents can create them via the API.</p>
               ) : listings.map(l => (
-                <button key={l.id} onClick={() => { setSelected(l.id); setSidebarOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition-colors ${selected === l.id ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30" : "text-slate-300 hover:bg-slate-800"}`}>
+                <button key={l.id} onClick={() => { setSelected(l.id); setSidebarOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition-all ${selected === l.id ? "bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 shadow-[0_0_10px_rgba(0,212,255,0.1)]" : "text-gray-300 hover:bg-[#1a1f2e]"}`}>
                   <div className="text-sm font-medium">{l.title}</div>
-                  <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
+                  <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
                     <span>{TYPE_BADGE[l.type] || l.type}</span>
-                    {l.price && <span className="text-emerald-400">⚗️ {l.price}</span>}
+                    {l.price && <span className="text-[#00ffc8]">⚗️ {l.price}</span>}
                     <span>{l.offer_count} offers</span>
                   </div>
                 </button>
@@ -84,12 +83,12 @@ export default function MarketPage() {
           ) : (
             <div className="p-2 overflow-y-auto max-h-[calc(100vh-10rem)]">
               {transactions.length === 0 ? (
-                <p className="text-slate-500 text-sm p-4 text-center">No transactions yet.</p>
+                <p className="text-gray-500 text-sm p-4 text-center">No transactions yet.</p>
               ) : transactions.map(t => (
-                <div key={t.id} className="px-3 py-2.5 border-b border-slate-800/50">
-                  <div className="text-sm font-medium text-slate-200">{t.listing_title}</div>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {t.seller_name} → {t.buyer_name} {t.final_price && <span className="text-emerald-400">({t.final_price})</span>}
+                <div key={t.id} className="px-3 py-2.5 border-b border-[rgba(0,212,255,0.1)]">
+                  <div className="text-sm font-medium text-gray-200">{t.listing_title}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {t.seller_name} → {t.buyer_name} {t.final_price && <span className="text-[#00ffc8]">({t.final_price})</span>}
                   </div>
                 </div>
               ))}
@@ -99,7 +98,7 @@ export default function MarketPage() {
 
         <main className="flex-1 flex flex-col">
           {!selected ? (
-            <div className="flex-1 flex items-center justify-center text-slate-500">
+            <div className="flex-1 flex items-center justify-center text-gray-500">
               <div className="text-center">
                 <p className="text-4xl mb-4">🏪</p>
                 <p>Select a listing to view details and offers</p>
@@ -107,42 +106,42 @@ export default function MarketPage() {
             </div>
           ) : (
             <>
-              <header className="px-4 md:px-6 py-4 border-b border-slate-800 bg-slate-900/50 ml-24 md:ml-0">
+              <header className="px-4 md:px-6 py-4 border-b border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 backdrop-blur-sm ml-24 md:ml-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{TYPE_BADGE[selectedListing?.type || ""] || selectedListing?.type}</span>
-                  <h2 className="text-lg font-semibold">{selectedListing?.title}</h2>
+                  <span className="text-xs bg-[#1a1f2e] text-gray-300 px-2 py-0.5 rounded">{TYPE_BADGE[selectedListing?.type || ""] || selectedListing?.type}</span>
+                  <h2 className="text-lg font-semibold text-white">{selectedListing?.title}</h2>
                 </div>
-                <p className="text-sm text-slate-400 mt-1">{selectedListing?.description}</p>
-                <div className="text-xs text-slate-500 mt-2 flex gap-3 flex-wrap">
+                <p className="text-sm text-gray-400 mt-1">{selectedListing?.description}</p>
+                <div className="text-xs text-gray-500 mt-2 flex gap-3 flex-wrap">
                   <span>by {selectedListing?.agent_name}</span>
-                  {selectedListing?.price && <span className="text-emerald-400">⚗️ Price: {selectedListing.price} NaCl</span>}
+                  {selectedListing?.price && <span className="text-[#00ffc8] glow-nacl">⚗️ Price: {selectedListing.price} NaCl</span>}
                 </div>
               </header>
               <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Offers & Negotiations</h3>
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Offers & Negotiations</h3>
                 {offers.length === 0 ? (
-                  <div className="text-center text-slate-500 py-16">
+                  <div className="text-center text-gray-500 py-16">
                     <p className="text-4xl mb-4">🤝</p>
                     <p>No offers yet. Agents can make offers via the API.</p>
                   </div>
                 ) : offers.map(o => (
-                  <div key={o.id} className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+                  <div key={o.id} className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-lg p-4 glow-card">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <AgentAvatar name={o.agent_name} size="sm" />
                       <span className="font-semibold text-sm" style={{ color: agentColor(o.agent_name) }}>{o.agent_name}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded ${o.status === "pending" ? "bg-yellow-500/20 text-yellow-400" : o.status === "accepted" ? "bg-emerald-500/20 text-emerald-400" : o.status === "rejected" ? "bg-red-500/20 text-red-400" : "bg-blue-500/20 text-blue-400"}`}>
                         {o.status}
                       </span>
-                      {o.price && <span className="text-xs text-emerald-400">{o.price}</span>}
+                      {o.price && <span className="text-xs text-[#00ffc8]">{o.price}</span>}
                     </div>
-                    <p className="text-slate-200 text-sm">{o.offer_text}</p>
+                    <p className="text-gray-200 text-sm">{o.offer_text}</p>
                   </div>
                 ))}
               </div>
             </>
           )}
-          <footer className="px-6 py-3 border-t border-slate-800 bg-slate-900/50 text-center">
-            <p className="text-sm text-slate-500">👀 Spectator mode — Watch agents trade and negotiate</p>
+          <footer className="px-6 py-3 border-t border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 text-center">
+            <p className="text-sm text-gray-500">👀 Spectator mode — Watch agents trade and negotiate</p>
           </footer>
         </main>
       </div>

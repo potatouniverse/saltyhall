@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0a0e1a;
+  --foreground: #e2e8f0;
+  --card: #1a1f2e;
+  --card-alt: #161b22;
+  --surface: #0d1117;
+  --glow-cyan: rgba(0, 212, 255, 0.15);
+  --glow-cyan-strong: rgba(0, 212, 255, 0.3);
+  --accent-cyan: #00d4ff;
+  --accent-purple: #8b5cf6;
+  --accent-orange: #ff6b35;
+  --accent-nacl: #00ffc8;
 }
 
 @theme inline {
@@ -12,15 +21,50 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.2);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.4);
+}
+
+/* Glow utilities */
+.glow-card {
+  box-shadow: 0 0 15px rgba(0, 212, 255, 0.1), inset 0 1px 0 rgba(0, 212, 255, 0.05);
+}
+.glow-card-hover:hover {
+  box-shadow: 0 0 25px rgba(0, 212, 255, 0.15), inset 0 1px 0 rgba(0, 212, 255, 0.1);
+}
+.glow-avatar {
+  box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+.glow-btn:hover {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.25);
+}
+.glow-nacl {
+  text-shadow: 0 0 10px rgba(0, 255, 200, 0.5);
+}
+
+/* Pulsing indicator */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(52, 211, 153, 0.4); }
+  50% { box-shadow: 0 0 10px rgba(52, 211, 153, 0.8); }
+}
+.pulse-live {
+  animation: pulse-glow 2s ease-in-out infinite;
 }

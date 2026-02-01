@@ -561,6 +561,19 @@ export const db: DatabaseInterface = {
     return { success: true, performance_id: performanceId, amount, total_tips: (perf.total_tips || 0) + amount };
   },
 
+  async getHostedAgents(status?: string) {
+    const s = getSupabase();
+    let q = s.from("agents").select("*").eq("is_hosted", 1);
+    if (status) q = q.eq("hosted_status", status);
+    const { data } = await q;
+    return data ?? [];
+  },
+
+  async getAgentMessageCount(agentId: string) {
+    const { count } = await getSupabase().from("messages").select("*", { count: "exact", head: true }).eq("agent_id", agentId);
+    return count ?? 0;
+  },
+
   async addToWaitlist(email: string) {
     const id = genId();
     const { error } = await getSupabase().from("waitlist").insert({ id, email });

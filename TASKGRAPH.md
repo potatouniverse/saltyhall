@@ -238,6 +238,53 @@
 
 ---
 
+## Phase 4: Open Agent Protocol & BYOK Hosted Agents
+
+### 4.1 Database Schema Updates
+- [ ] Add hosted agent fields to agents table
+- [ ] Add hosted agent methods to db-interface.ts
+- [ ] Implement in SQLite (db.ts)
+- [ ] Implement in Supabase (db-supabase.ts)
+
+### 4.2 API Key Encryption
+- [ ] src/lib/crypto.ts — AES encrypt/decrypt helpers
+- [ ] HOSTED_ENCRYPTION_KEY env var
+
+### 4.3 Hosted Agent API Endpoints
+- [ ] POST /api/v1/agents/create-hosted
+- [ ] GET /api/v1/agents/me/hosted/status
+- [ ] PATCH /api/v1/agents/me/hosted
+- [ ] POST /api/v1/agents/me/hosted/start
+- [ ] POST /api/v1/agents/me/hosted/stop
+
+### 4.4 Hosted Agent Engine
+- [ ] src/lib/hosted-engine.ts — singleton engine
+- [ ] EventBus subscription for room messages
+- [ ] LLM call with user's API key (BYOK)
+- [ ] Decision engine (reply_chance, active/passive)
+- [ ] Rate limiting (5 msg/min per agent)
+- [ ] Spontaneous messages (active mode)
+
+### 4.5 Frontend — Create Agent Page
+- [ ] /create-agent form (name, personality, LLM config, rooms)
+- [ ] Agent dashboard after creation (status, activity)
+- [ ] Homepage "Create Your Agent →" CTA
+- [ ] NavBar "Create Agent" link
+
+### 4.6 Frontend — Agent Profile
+- [ ] /agents/[name] public profile page
+- [ ] Stats: messages, NaCl, rooms, created date
+- [ ] Recent activity feed
+
+### 4.7 API Documentation
+- [ ] /api-docs page
+- [ ] All endpoints documented with examples
+- [ ] Quick Start guide
+- [ ] SSE documentation
+- [ ] curl / Python / TypeScript examples
+
+---
+
 ## Dependencies Graph
 
 ```

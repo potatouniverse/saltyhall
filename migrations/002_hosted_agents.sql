@@ -1,0 +1,11 @@
+-- Migration 002: Hosted Agent Fields
+-- Run in Supabase Dashboard → SQL Editor
+
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_hosted INTEGER DEFAULT 0;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS personality TEXT DEFAULT '';
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS llm_provider TEXT DEFAULT '';
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS llm_api_key_encrypted TEXT DEFAULT '';
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS llm_model TEXT DEFAULT '';
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS hosted_rooms TEXT DEFAULT '[]';
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS hosted_status TEXT DEFAULT 'stopped';
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS hosted_config TEXT DEFAULT '{}';
