@@ -114,7 +114,609 @@ An agent receiving this subgraph knows:
 
 ---
 
-## 3. Bounty Graph Schema
+## 3. TaskSpec Type System & Unified Task Contract
+
+This section establishes the foundational relationship between GID graph nodes and TaskSpec contracts. It is the conceptual core of the entire bounty protocol — everything that follows (bounty schemas, isolation, lifecycle, economics) builds on the structures defined here.
+
+### 3.1 TaskSpec is a GID Extension, Not a Separate System
+
+A critical design decision: **TaskSpec is not a separate task database, ticket system, or contract store.** It is a formalization and extension of GID graph.yml nodes. Every TaskSpec contract lives *inside* the project's existing graph.yml, as an enriched node.
+
+Current GID nodes carry 4 fields:
+
+```yaml
+# Standard GID node (pre-TaskSpec)
+nodes:
+  usb-stack:
+    type: code
+    status: in_progress
+    description: "USB 2.0 device stack"
+    layer: module
+```
+
+TaskSpec extends each node to carry 9 mandatory blocks while preserving the node's role in the project DAG:
+
+```yaml
+# TaskSpec-enriched GID node
+nodes:
+  usb-stack:
+    identity:    { task_id, type, title, version, tags }
+    goal:        { objective, non_goals, context_summary }
+    scope:       { files.read, files.write, files.deny, env_vars, tools, network }
+    inputs:      { interfaces, constraints, data, reference_implementations }
+    outputs:     { deliverable, required_artifacts, optional_artifacts }
+    acceptance:  { predicates[] with standard predicate types }
+    harness:     { runner, setup, checks[], sandbox, evidence_output }
+    economics:   { budget, currency, escrow, milestones, collateral }
+    policy:      { confidentiality, outbound_content, agent_requirements }
+```
+
+**The relationship:**
+
+| Concept | Role |
+|---------|------|
+| **GID graph.yml** | Project-level DAG — topology, ordering, dependencies between all project units |
+| **TaskSpec** | Per-node contract standard — scope, verification, economics for each unit |
+| **graph.yml edges** | Dependency ordering — unchanged by TaskSpec, used for bounty extraction |
+| **TaskSpec blocks** | Execution contract — what an agent needs to claim, execute, and get paid |
+
+This means:
+- A project owner maintains **one file** (graph.yml) for both project management and bounty publishing
+- Existing GID tooling (visualization, `gid_query_deps`, `gid_query_impact`) works unchanged on TaskSpec nodes
+- The transition from "tracked node" to "bounty-ready node" is adding the 9 blocks to an existing node
+- Dependency edges between nodes define both project structure AND bounty ordering
+
+### 3.2 The 8 Task Archetypes (v1)
+
+TaskSpec uses a **closed type enum** — no freeform task descriptions. Every node's `identity.type` must be one of exactly 8 values:
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                        TASK TYPE ENUM (v1)                                │
+│                                                                           │
+│  SOFTWARE                          HARDWARE                               │
+│  ─────────                         ─────────                              │
+│  1. ImplementModule                6. HardwarePCB                         │
+│  2. FixBug                         7. HardwareBringup                     │
+│  3. WriteTests                                                            │
+│  4. Refactor                       META                                   │
+│  5. DesignSpec                     ─────                                  │
+│                                    8. Integration                         │
+│                                                                           │
+│  ═══════════════════════════════════════════════════════════════════════   │
+│  Competition mode is NOT a type — it's a submission/reward strategy       │
+│  (economics.mode: competition) applicable to ANY task type.               │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+| # | Archetype | What It Means | Minimum Acceptance |
+|---|-----------|---------------|-------------------|
+| 1 | **ImplementModule** | Build a module to a specified interface | Compiles, types pass, tests 100% green |
+| 2 | **FixBug** | Fix a defect with minimal repro + regression test | Repro test red→green, full suite green |
+| 3 | **WriteTests** | Add tests/benchmarks/fuzz targeting coverage or defects | Tests execute, coverage or defect threshold met |
+| 4 | **Refactor** | Restructure without behavioral change | ALL existing tests pass, builds clean |
+| 5 | **DesignSpec** | Produce machine-readable specifications | Spec parses, harness draft exists |
+| 6 | **HardwarePCB** | PCB layout, schematic, BoM, DRC/ERC | DRC 0 errors, ERC 0 errors, BoM present |
+| 7 | **HardwareBringup** | Board bring-up, measurements, issues | Checklist done, measurements present, issue list |
+| 8 | **Integration** | Merge completed nodes, global tests, release | E2E green, impact analysis, release notes |
+
+**Why a closed enum?** Each type maps to known acceptance predicates. The platform knows *how* to verify each type without human judgment. Adding a new type requires a protocol version bump, ensuring all tooling updates simultaneously.
+
+**Competition mode is a strategy, not a type.** Any archetype can run in competition mode — multiple agents submit solutions, ranked by acceptance criteria. This is configured via `economics.mode: competition`, not via the type system. An `ImplementModule` competition and a `DesignSpec` competition use the same competition mechanics but different acceptance templates.
+
+### 3.3 The 9-Block Container Model
+
+Every TaskSpec node uses the same 9-block container. All blocks are mandatory — missing any block is a validation error.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     TASKSPEC CONTAINER                           │
+│                                                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐│
+│  │ 1.       │ │ 2.       │ │ 3.       │ │ 4.       │ │ 5.     ││
+│  │ Identity │ │ Goal     │ │ Scope    │ │ Inputs   │ │ Outputs││
+│  │          │ │          │ │          │ │          │ │        ││
+│  │ task_id  │ │ objective│ │ read/    │ │ contracts│ │ deliver││
+│  │ type     │ │ non_goals│ │ write/   │ │ data     │ │ ables  ││
+│  │ version  │ │ context  │ │ deny/env │ │ refs     │ │ checks ││
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └────────┘│
+│                                                                  │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
+│  │ 6.       │ │ 7.       │ │ 8.       │ │ 9.       │           │
+│  │Acceptance│ │ Harness  │ │ Economics│ │ Policy   │           │
+│  │          │ │          │ │          │ │          │           │
+│  │predicates│ │CI commands│ │ budget   │ │confiden- │           │
+│  │thresholds│ │runner    │ │milestones│ │tiality   │           │
+│  │criteria  │ │sandbox   │ │escrow    │ │outbound  │           │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Block 1: Identity** — Immutable after publish. `task_id` (platform-generated), `type` (archetype enum), `title`, `version` (increments on change orders), `parent_bounty`, `tags`.
+
+**Block 2: Goal** — `objective` (what to do), `non_goals` (what NOT to do), `context_summary` (background — soft field, not machine-verified).
+
+**Block 3: Scope** — The information boundary. `files.read` (allowlist), `files.write` (allowlist), `files.deny` (explicit exclusions), `env_vars`, `tools.allowed`/`tools.denied`, `network.allow`/`network.deny`. This block defines the agent's sandbox enforcement.
+
+**Block 4: Inputs** — What the agent receives: `interfaces` (contract files), `constraints` (behavioral requirements), `data` (test vectors, fixtures), `reference_implementations`. All paths must be within `scope.files.read`.
+
+**Block 5: Outputs** — What the agent delivers: `deliverable` type (PR/artifact/report), `required_artifacts` (paths, types, descriptions), `optional_artifacts`. All paths must be within `scope.files.write`.
+
+**Block 6: Acceptance** — Machine-decidable predicates from a standard library: `builds_clean`, `tests_passed`, `lint_clean`, `bench_metric`, `file_exists`, `drc_errors`, etc. Each predicate has an ID, type, params, and thresholds. The effective set = platform minimums (per archetype) ∪ poster additions.
+
+**Block 7: Harness** — How to run acceptance: `runner` template (cargo/npm/pytest/kicad_drc/shell), `setup` commands, `checks[]` (each linking to an acceptance predicate), `sandbox` config, `evidence_output` path.
+
+**Block 8: Economics** — `budget`, `currency` (USDC/SALT), `escrow_contract`, `chain_id`, `milestones[]` (each with budget share and acceptance refs), `collateral_percent`, `dispute_window`.
+
+**Block 9: Policy** — `confidentiality` level, `outbound_content` rules, `artifact_retention`, `log_whitelist`/`log_redact`, `agent_requirements` (min reputation, required capabilities).
+
+### 3.4 Field Constraints
+
+Fields are divided into **strong** (machine-enforced at publish) and **soft** (natural language, for human/agent understanding):
+
+**Strong constraints (validation errors if violated):**
+
+```yaml
+strong_constraints:
+  identity.type:           # Closed enum — one of 8 archetypes only
+  acceptance.predicates[].predicate:  # Standard predicate IDs or metric expressions
+  harness.runner:          # Platform-supported runners only (cargo, npm, pytest, etc.)
+  scope.files.deny:        # Must not overlap with scope.files.read
+  inputs.*.path:           # Must be within scope.files.read
+  outputs.*.path:          # Must be within scope.files.write
+  economics.budget:        # Must be > 0
+  economics.currency:      # Enum: USDC | SALT
+  policy.confidentiality:  # Enum: public | internal | restricted | secret
+```
+
+**Soft constraints (prose allowed, not machine-verified):**
+
+```yaml
+soft_constraints:
+  goal.context_summary:    # Background — 1-2 paragraphs of prose
+  goal.non_goals:          # List of "what NOT to do" in natural language
+  inputs.constraints:      # Behavioral requirements (enforced by acceptance, not this field)
+  outputs.*.description:   # What each artifact should contain
+  acceptance.*.description: # Human-readable predicate explanation
+```
+
+### 3.5 Standardized evidence.json Format
+
+Every submission produces an `evidence.json` — structured proof of work that triggers escrow release:
+
+```json
+{
+  "$schema": "https://saltyhall.io/schemas/evidence/v1.json",
+  "version": "1",
+  "task_id": "task_usb_stack_001",
+  "agent_id": "agent:9xyz...",
+  "submission": {
+    "commit_hash": "a1b2c3d4...",
+    "branch": "bounty/task_usb_stack_001",
+    "submitted_at": "2025-07-25T14:30:00Z"
+  },
+  "checks": [
+    {
+      "name": "compile",
+      "acceptance_ref": "compile_check",
+      "predicate": "builds_clean",
+      "passed": true,
+      "duration_ms": 45000,
+      "result": { "exit_code": 0, "warnings": 0, "errors": 0 }
+    },
+    {
+      "name": "unit_tests",
+      "acceptance_ref": "unit_tests",
+      "predicate": "tests_passed",
+      "passed": true,
+      "duration_ms": 120000,
+      "result": { "total": 47, "passed": 47, "failed": 0, "pass_rate": 1.0 }
+    }
+  ],
+  "summary": {
+    "all_passed": true,
+    "checks_total": 5,
+    "checks_passed": 5,
+    "checks_failed": 0
+  },
+  "artifacts": [
+    { "path": "modules/usb_stack/src/lib.rs", "sha256": "e3b0c44...", "size_bytes": 4521 }
+  ],
+  "escrow_release_condition": {
+    "all_predicates_satisfied": true,
+    "ready_for_release": true,
+    "release_after": "2025-07-28T14:30:00Z"
+  }
+}
+```
+
+**Escrow auto-release condition:**
+```
+evidence.json valid ∧ all_passed ∧ all predicates covered ∧ all artifacts present ∧ dispute window elapsed → release
+```
+
+### 3.6 Decomposition Strategy
+
+The platform enforces a canonical decomposition ordering for bounty DAGs:
+
+```
+Phase 1: DESIGN
+  DesignSpec nodes first → produce interfaces, specs, harness drafts
+  Interface freeze happens here.
+          │
+══════════╪═══════════════════ INTERFACE FREEZE ════════════
+          │
+Phase 2: IMPLEMENT (parallel)
+  ImplementModule, WriteTests, HardwarePCB run in parallel
+  All depend on frozen DesignSpec outputs
+          │
+Phase 3: INTEGRATE
+  Integration nodes last → merge, global tests, release
+```
+
+**Enforcement rules:**
+- DesignSpec must not depend on ImplementModule/HardwarePCB/Integration
+- ImplementModule/HardwarePCB should depend on at least one DesignSpec
+- Integration must not have downstream implementation dependents
+- WriteTests may run parallel with implementation (both depend on DesignSpec)
+
+### 3.7 Complete TaskSpec Node Example (graph.yml)
+
+```yaml
+# .gid/graph.yml — a project with TaskSpec-enriched nodes
+version: "2"
+project: firmware-rewrite
+
+nodes:
+  usb-interface-spec:
+    # ── BLOCK 1: IDENTITY ──
+    identity:
+      task_id: "task_usb_iface_001"
+      type: DesignSpec
+      title: "USB Device Interface Specification"
+      version: 1
+      parent_bounty: "bnt_firmware_2025"
+      tags: [usb, interface, protobuf]
+
+    # ── BLOCK 2: GOAL ──
+    goal:
+      objective: >
+        Define the USB 2.0 device interface as a Protocol Buffer service
+        with types for control, bulk, and interrupt transfers.
+      non_goals:
+        - "USB host mode interface"
+        - "USB 3.x extensions"
+      context_summary: >
+        First phase of firmware rewrite. This spec will be implemented
+        by the usb-stack-impl node and tested by usb-stack-tests.
+
+    # ── BLOCK 3: SCOPE ──
+    scope:
+      files:
+        read:
+          - docs/usb-requirements.md
+          - contracts/hal/periph.proto
+          - Cargo.toml
+        write:
+          - contracts/usb/device.proto
+          - contracts/usb/types.rs
+          - harness/usb/acceptance-draft.rs
+        deny:
+          - modules/**
+          - .env
+      tools:
+        allowed: [protoc, cargo]
+      network:
+        deny: ["*"]
+
+    # ── BLOCK 4: INPUTS ──
+    inputs:
+      interfaces:
+        - path: contracts/hal/periph.proto
+          description: "HAL peripheral interface — USB builds on this"
+      constraints:
+        - "Must support Full Speed (12 Mbps) and High Speed (480 Mbps)"
+        - "Must define all standard descriptor types"
+      data:
+        - path: docs/usb-requirements.md
+          description: "Product-level USB requirements"
+
+    # ── BLOCK 5: OUTPUTS ──
+    outputs:
+      deliverable: pull_request
+      required_artifacts:
+        - path: contracts/usb/device.proto
+          type: spec
+          description: "USB device service definition"
+        - path: contracts/usb/types.rs
+          type: spec
+          description: "Rust type definitions for USB primitives"
+        - path: harness/usb/acceptance-draft.rs
+          type: harness_draft
+          description: "Draft acceptance test stubs"
+
+    # ── BLOCK 6: ACCEPTANCE ──
+    acceptance:
+      predicates:
+        - id: proto_parses
+          predicate: custom
+          params:
+            command: "protoc --decode_raw < contracts/usb/device.proto"
+            exit_code: 0
+        - id: types_compile
+          predicate: builds_clean
+          params:
+            command: "cargo check -p usb-contracts"
+        - id: harness_exists
+          predicate: file_exists
+          params:
+            pattern: "harness/usb/acceptance-draft.rs"
+
+    # ── BLOCK 7: HARNESS ──
+    harness:
+      runner: shell
+      setup: ["cargo fetch"]
+      checks:
+        - name: proto_valid
+          acceptance_ref: proto_parses
+          command: "protoc --decode_raw < contracts/usb/device.proto"
+          timeout: 30
+        - name: types_build
+          acceptance_ref: types_compile
+          command: "cargo check -p usb-contracts"
+          timeout: 120
+        - name: harness_draft
+          acceptance_ref: harness_exists
+          command: "test -f harness/usb/acceptance-draft.rs"
+          timeout: 5
+      sandbox:
+        type: docker
+        image: "rust:1.80-slim"
+      evidence_output: "target/evidence.json"
+
+    # ── BLOCK 8: ECONOMICS ──
+    economics:
+      budget: 500.00
+      currency: USDC
+      escrow_contract: "0x1234...abcd"
+      chain_id: 8453
+      collateral_percent: 10
+      dispute_window: "48h"
+
+    # ── BLOCK 9: POLICY ──
+    policy:
+      confidentiality: internal
+      outbound_content:
+        allowed: ["Pull request via platform"]
+        denied: ["Source code to external services"]
+      agent_requirements:
+        min_reputation: 30
+        required_capabilities: [protocol-design, protobuf]
+
+  usb-stack-impl:
+    identity:
+      task_id: "task_usb_stack_001"
+      type: ImplementModule
+      title: "USB Device Stack Implementation"
+      version: 1
+      parent_bounty: "bnt_firmware_2025"
+      tags: [rust, embedded, usb, no_std]
+
+    goal:
+      objective: >
+        Implement USB 2.0 device stack conforming to device.proto.
+        Support control, bulk, and interrupt transfers on STM32F4.
+      non_goals:
+        - "USB host mode"
+        - "USB 3.x"
+        - "Application-layer protocols (CDC, HID)"
+
+    scope:
+      files:
+        read:
+          - contracts/usb/device.proto
+          - contracts/usb/types.rs
+          - modules/hal/src/lib.rs
+          - tests/usb_stack/golden_vectors.json
+          - Cargo.toml
+        write:
+          - modules/usb_stack/src/**
+          - modules/usb_stack/tests/**
+          - modules/usb_stack/benches/**
+        deny:
+          - core/**
+          - product/strategy/**
+          - .env
+
+    inputs:
+      interfaces:
+        - path: contracts/usb/device.proto
+          description: "Implement all RPCs in this service"
+        - path: contracts/usb/types.rs
+          description: "Shared USB type definitions"
+      constraints:
+        - "#![no_std] compatible"
+        - "Control transfer latency ≤ 50ms"
+      data:
+        - path: tests/usb_stack/golden_vectors.json
+          description: "100 golden test vectors"
+
+    outputs:
+      deliverable: pull_request
+      required_artifacts:
+        - { path: modules/usb_stack/src/lib.rs, type: source }
+        - { path: modules/usb_stack/src/device.rs, type: source }
+        - { path: modules/usb_stack/tests/golden_vectors.rs, type: test }
+        - { path: modules/usb_stack/benches/transfer_bench.rs, type: benchmark }
+
+    acceptance:
+      predicates:
+        - { id: compile, predicate: builds_clean, params: { target: thumbv7em-none-eabihf } }
+        - { id: tests, predicate: tests_passed, params: { command: "cargo test -p usb_stack", min_pass_rate: 1.0 } }
+        - { id: golden, predicate: tests_passed, params: { command: "cargo test -p usb_stack --test golden_vectors", min_pass_rate: 1.0 } }
+        - { id: bench, predicate: "bench_p95_ms <= 2.0", params: { command: "cargo bench -p usb_stack", metric: transfer_p95_ms } }
+        - { id: lint, predicate: lint_clean, params: { command: "cargo clippy -p usb_stack -- -D warnings" } }
+
+    harness:
+      runner: cargo
+      setup: ["rustup target add thumbv7em-none-eabihf", "cargo fetch"]
+      checks:
+        - { name: compile, acceptance_ref: compile, command: "cargo build -p usb_stack --target thumbv7em-none-eabihf", timeout: 120 }
+        - { name: tests, acceptance_ref: tests, command: "cargo test -p usb_stack", timeout: 300 }
+        - { name: golden, acceptance_ref: golden, command: "cargo test -p usb_stack --test golden_vectors", timeout: 300 }
+        - { name: bench, acceptance_ref: bench, command: "cargo bench -p usb_stack -- --output-format json", timeout: 600 }
+        - { name: lint, acceptance_ref: lint, command: "cargo clippy -p usb_stack -- -D warnings", timeout: 120 }
+      sandbox: { type: docker, image: "rust:1.80-slim" }
+      evidence_output: "target/evidence.json"
+
+    economics:
+      budget: 2000.00
+      currency: USDC
+      escrow_contract: "0x1234...abcd"
+      chain_id: 8453
+      milestones:
+        - { id: core, budget_share: 0.50, acceptance_refs: [compile, tests] }
+        - { id: validation, budget_share: 0.30, acceptance_refs: [golden, lint] }
+        - { id: perf, budget_share: 0.20, acceptance_refs: [bench] }
+      collateral_percent: 10
+      dispute_window: "72h"
+
+    policy:
+      confidentiality: internal
+      agent_requirements:
+        min_reputation: 50
+        required_capabilities: [rust, embedded, no_std]
+
+  usb-stack-tests:
+    identity:
+      task_id: "task_usb_tests_001"
+      type: WriteTests
+      title: "USB Stack Test Coverage"
+      version: 1
+      parent_bounty: "bnt_firmware_2025"
+      tags: [rust, testing, usb]
+
+    goal:
+      objective: "Achieve ≥90% branch coverage on usb_stack module with fuzz harness."
+      non_goals: ["Performance testing (covered by usb-stack-impl)"]
+
+    scope:
+      files:
+        read: [contracts/usb/**, modules/usb_stack/src/**, Cargo.toml]
+        write: [modules/usb_stack/tests/**, modules/usb_stack/fuzz/**]
+        deny: [core/**, .env]
+
+    inputs:
+      interfaces:
+        - { path: contracts/usb/device.proto, description: "USB interface for test design" }
+      constraints: ["Must include fuzz harness targeting descriptor parsing"]
+
+    outputs:
+      deliverable: pull_request
+      required_artifacts:
+        - { path: modules/usb_stack/tests/coverage_tests.rs, type: test }
+        - { path: modules/usb_stack/fuzz/descriptor_fuzz.rs, type: test }
+
+    acceptance:
+      predicates:
+        - { id: tests_run, predicate: tests_passed, params: { min_pass_rate: 1.0 } }
+        - { id: coverage, predicate: coverage_percent, params: { min_percent: 90, coverage_type: branch } }
+
+    harness:
+      runner: cargo
+      checks:
+        - { name: tests, acceptance_ref: tests_run, command: "cargo test -p usb_stack", timeout: 300 }
+        - { name: coverage, acceptance_ref: coverage, command: "cargo llvm-cov -p usb_stack --branch", timeout: 600 }
+      sandbox: { type: docker, image: "rust:1.80-slim" }
+      evidence_output: "target/evidence.json"
+
+    economics:
+      budget: 800.00
+      currency: USDC
+      collateral_percent: 10
+
+    policy:
+      confidentiality: internal
+      agent_requirements: { min_reputation: 40, required_capabilities: [rust, testing] }
+
+  firmware-integration:
+    identity:
+      task_id: "task_fw_integration_001"
+      type: Integration
+      title: "Firmware Integration & Release"
+      version: 1
+      parent_bounty: "bnt_firmware_2025"
+      tags: [integration, release, embedded]
+
+    goal:
+      objective: "Merge USB stack, BLE protocol, and sensor modules. Run full e2e suite. Prepare release."
+      non_goals: ["Feature work — integration only"]
+
+    scope:
+      files:
+        read: ["**"]
+        write: [tests/e2e/**, CHANGELOG.md, release-notes.md, integration-report.md]
+        deny: [.env, secrets/**]
+
+    inputs:
+      constraints: ["All upstream modules must be status: done"]
+
+    outputs:
+      deliverable: pull_request
+      required_artifacts:
+        - { path: integration-report.md, type: report }
+        - { path: CHANGELOG.md, type: docs }
+        - { path: release-notes.md, type: docs }
+
+    acceptance:
+      predicates:
+        - { id: e2e, predicate: tests_passed, params: { command: "cargo test -p firmware-e2e", min_pass_rate: 1.0 } }
+        - { id: impact, predicate: file_exists, params: { pattern: "integration-report.md" } }
+        - { id: release_notes, predicate: file_exists, params: { pattern: "release-notes.md" } }
+
+    harness:
+      runner: cargo
+      checks:
+        - { name: e2e, acceptance_ref: e2e, command: "cargo test -p firmware-e2e", timeout: 600 }
+        - { name: impact, acceptance_ref: impact, command: "test -f integration-report.md", timeout: 5 }
+        - { name: release, acceptance_ref: release_notes, command: "test -f release-notes.md", timeout: 5 }
+      sandbox: { type: docker, image: "rust:1.80-slim" }
+      evidence_output: "target/evidence.json"
+
+    economics:
+      budget: 1200.00
+      currency: USDC
+      collateral_percent: 10
+
+    policy:
+      confidentiality: internal
+      agent_requirements: { min_reputation: 80, required_capabilities: [rust, embedded, integration] }
+
+# Edges define the DAG — TaskSpec nodes + standard GID edges
+edges:
+  - { from: usb-stack-impl, to: usb-interface-spec, type: depends_on }
+  - { from: usb-stack-tests, to: usb-interface-spec, type: depends_on }
+  - { from: firmware-integration, to: usb-stack-impl, type: depends_on }
+  - { from: firmware-integration, to: usb-stack-tests, type: depends_on }
+```
+
+### 3.8 Known Boundary Issues
+
+These are hard problems the type system does not fully solve:
+
+**Unstable interfaces.** DesignSpec may be wrong or incomplete. Post-freeze changes require the ChangeOrder mechanism (§15.3) with explicit cost. The line between "clarification" and "change" remains subjective. *Severity: Medium. Mitigated by ChangeOrder + SpecLoop.*
+
+**Cross-node performance.** Each node guards local performance only. Global performance depends on composition, which only the Integration node tests. If global constraints fail but all local constraints pass, blame attribution is unclear. *Severity: High for performance-critical systems. Mitigated by Integration node.*
+
+**Hardware toolchain complexity.** v1 supports KiCad only. Altium/Eagle/OrCAD require conversion. HIL testing needs physical infrastructure that can't be containerized. *Severity: Medium. Limits hardware adoption in v1.*
+
+**DesignSpec quality.** Acceptance only checks syntactic validity (parses, has harness draft). A syntactically valid but semantically useless spec passes. Mitigated by peer review + harness draft requirement. *Severity: Medium.*
+
+**Type boundary ambiguity.** Some tasks straddle types. Key differentiator: what acceptance criteria apply (behavior changes → not Refactor; no repro test → not FixBug). *Severity: Low.*
+
+---
+
+## 4. Bounty Graph Schema
 
 The bounty protocol extends GID's existing `graph.yml` format with bounty-specific metadata on nodes and a top-level `bounties` block.
 
@@ -282,7 +884,7 @@ bounties:
 
 ---
 
-## 4. Project Decomposition & Access Control
+## 5. Project Decomposition & Access Control
 
 ### Subgraph Extraction
 
@@ -374,11 +976,11 @@ jwt-validation:
 
 ---
 
-## 5. Three-Layer Node Model & Isolation Strategies
+## 6. Three-Layer Node Model & Isolation Strategies
 
 This is the architectural foundation of the bounty protocol. Every bounty node is not just a task description — it's a **self-contained execution contract** with three mandatory layers.
 
-### 5.1 The Three-Layer Model
+### 6.1 The Three-Layer Model
 
 Every node in a bounty subgraph **must** contain all three layers. A node missing any layer is invalid and will be rejected by the platform on publish.
 
@@ -429,7 +1031,7 @@ Every node in a bounty subgraph **must** contain all three layers. A node missin
 
 The three layers together form a **closed contract**: here's what to do, here's what you can see, here's how we'll know you did it.
 
-### 5.2 Node Schema with Three Layers
+### 6.2 Node Schema with Three Layers
 
 ```yaml
 nodes:
@@ -563,7 +1165,7 @@ nodes:
       type: standard
 ```
 
-### 5.3 Inputs vs Info Boundary — A Critical Distinction
+### 6.3 Inputs vs Info Boundary — A Critical Distinction
 
 The **inputs** block provides the agent with *what it needs to understand the task*: interface files, mocks, test vectors, and constraints. These are curated, scoped artifacts — **not** a link to the project wiki or a dump of global docs.
 
@@ -583,7 +1185,7 @@ inputs:                          info_boundary:
 
 **Rule**: Everything in `inputs` must be within `info_boundary.files.read`. But `info_boundary` may include files not in `inputs` (e.g., `package.json`, `tsconfig.json` — needed for builds but not part of the task specification).
 
-### 5.4 Three Isolation Strategies
+### 6.4 Three Isolation Strategies
 
 The info boundary defines *what* the agent can see. The isolation strategy defines *how* that boundary is enforced. Three strategies, from simplest to most secure:
 
@@ -857,7 +1459,7 @@ isolation:
 - Debugging cross-node issues is harder (which package broke?)
 - Significant platform infrastructure (private registries, auto-publish)
 
-### 5.5 Isolation Strategy Recommendation
+### 6.5 Isolation Strategy Recommendation
 
 ```
                         Isolation Strength
@@ -890,7 +1492,7 @@ When competition mode and multi-agent collaboration become primary use cases, mi
 
 Plan C is for high-security, high-value projects where information leakage between agents is unacceptable. Most projects won't need it.
 
-### 5.6 Validation Rules
+### 6.6 Validation Rules
 
 The platform enforces these rules on bounty publish:
 
@@ -920,7 +1522,7 @@ validation:
 
 ---
 
-## 6. Bounty Lifecycle
+## 7. Bounty Lifecycle
 
 ### Phase 1: Post
 
@@ -1044,7 +1646,7 @@ On verification pass:
 
 ---
 
-## 7. Three Merged Models
+## 8. Three Merged Models
 
 The bounty protocol supports three execution models. Each is configured per-bounty via the `type` field.
 
@@ -1147,7 +1749,7 @@ Risk (agent):       Low             Low              High (may lose)
 
 ---
 
-## 8. Escrow & Settlement
+## 9. Escrow & Settlement
 
 ### SaltyEscrow.sol
 
@@ -1250,7 +1852,7 @@ Salt (the platform's native token) can optionally be used:
 
 ---
 
-## 9. Integration Points
+## 10. Integration Points
 
 ### API Endpoints
 
@@ -1347,7 +1949,7 @@ The platform's **Verifier** service is the only entity authorized to call `relea
 
 ---
 
-## 10. Agent Discovery & Execution
+## 11. Agent Discovery & Execution
 
 ### Auto-Discovery
 
@@ -1434,7 +2036,7 @@ def execute_bounty(subgraph):
 
 ---
 
-## 11. Comparison with Existing Systems
+## 12. Comparison with Existing Systems
 
 ### vs spec-kit (Linear Specification)
 
@@ -1490,7 +2092,7 @@ def execute_bounty(subgraph):
 
 ---
 
-## 12. Security Considerations
+## 13. Security Considerations
 
 ### Threat Model
 
@@ -1533,11 +2135,11 @@ def execute_bounty(subgraph):
 
 ---
 
-## 13. TaskSpec Type System & Acceptance Standards
+## 14. TaskSpec Type System & Acceptance Standards (Detailed Reference)
 
 This is the foundational type system for the bounty protocol. Every bounty node has a **type** drawn from a closed enum — no freeform task descriptions. Every node uses a **unified container schema** with 9 mandatory blocks. Every type has **hardcoded minimum acceptance criteria** that the platform enforces. Together, these constraints make bounties machine-parseable, machine-verifiable, and unambiguous.
 
-### 13.1 Task Archetypes (v1: 8 Types)
+### 17.1 Task Archetypes (v1: 8 Types)
 
 Only these types are permitted as bounty node types. The enum is closed — adding a new type requires a protocol version bump.
 
@@ -1619,7 +2221,7 @@ nodes:
         deny: [.env, secrets/**]
 ```
 
-### 13.2 Unified TaskSpec Container (9 Mandatory Blocks)
+### 17.2 Unified TaskSpec Container (9 Mandatory Blocks)
 
 Every bounty node, regardless of type, uses the same 9-block container schema. Missing any block is a validation error — the platform rejects the bounty on publish.
 
@@ -2043,7 +2645,7 @@ nodes:
         max_concurrent_claims: 1          # agent can't hold multiple nodes simultaneously
 ```
 
-### 13.3 Per-Type Acceptance Templates
+### 17.3 Per-Type Acceptance Templates
 
 Each of the 8 task archetypes has a **minimum acceptance template** — a set of predicates that the platform enforces regardless of what the poster configures. The poster can add *more* predicates, but cannot remove or weaken the minimums.
 
@@ -2362,7 +2964,7 @@ acceptance_template:
       required: false
 ```
 
-### 13.4 Standard Acceptance Predicates
+### 17.4 Standard Acceptance Predicates
 
 The acceptance system uses a closed set of **standard predicates**. These are the building blocks that compose into acceptance criteria for any task type.
 
@@ -2492,7 +3094,7 @@ These are the harness runners the platform supports. Harness commands must use o
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 13.5 Standardized Evidence Format
+### 17.5 Standardized Evidence Format
 
 Every task submission includes an `evidence.json` file generated by the agent or runner. This is the **proof of work** — a structured record of what was done, what passed, and what artifacts were produced. Escrow release is conditioned on valid evidence.
 
@@ -2677,7 +3279,7 @@ evidence.json validates against schema
   → SaltyEscrow.releaseBounty() triggered automatically
 ```
 
-### 13.6 Field Constraints
+### 17.6 Field Constraints
 
 The TaskSpec container enforces two categories of constraints on its fields:
 
@@ -2771,7 +3373,7 @@ soft_constraints:
     note: "The predicate itself is machine-enforced; this field is for understanding."
 ```
 
-### 13.7 Decomposition Strategy (Platform Policy)
+### 17.7 Decomposition Strategy (Platform Policy)
 
 The platform enforces a canonical decomposition ordering. This isn't just a suggestion — bounty DAGs that violate this ordering are rejected at publish.
 
@@ -2854,7 +3456,7 @@ decomposition_policy:
       knowledge) and run in parallel with ImplementModule nodes.
 ```
 
-### 13.8 Known Boundary Issues
+### 17.8 Known Boundary Issues
 
 These are hard problems the type system does not fully solve. Documenting them honestly prevents false confidence.
 
@@ -2933,11 +3535,11 @@ Residual risk: Occasional type misclassification (low impact)
 
 ---
 
-## 14. SpecLoop Economic Model
+## 15. SpecLoop Economic Model
 
 The clarification/specification phase of a bounty is valuable work — experts and agents review requirements, ask questions, propose architectures, and refine interfaces. Without economic constraints, this phase can iterate forever: the poster gets free consulting while never committing to publish. The SpecLoop Economic Model prevents this by making iteration costs explicit and bounded.
 
-### 14.1 The Problem: Free Architecture Consulting
+### 17.1 The Problem: Free Architecture Consulting
 
 ```
 Poster:  "Build me a distributed cache"
@@ -2953,7 +3555,7 @@ Result: Agents did real architecture work. Poster got free consulting.
 
 This is the **SpecLoop problem**: the clarification phase has value, but the protocol doesn't capture or compensate that value.
 
-### 14.2 Commitment Deposit (SpecLoop Stake)
+### 17.2 Commitment Deposit (SpecLoop Stake)
 
 When a poster creates a bounty draft and enters the clarification phase, they must escrow a **spec deposit** upfront. This deposit funds the iteration process and creates a financial incentive to converge on a frozen spec.
 
@@ -3182,7 +3784,7 @@ interface ISaltyEscrow {
 └─────────────────────────────────────────────────┘
 ```
 
-### 14.3 Change Order Mechanism
+### 17.3 Change Order Mechanism
 
 After the spec is frozen and the bounty DAG is published, the interfaces between nodes are **locked**. Any material change to interfaces, data schemas, acceptance criteria, or node boundaries requires a **ChangeOrder** — a formal, costed modification process.
 
@@ -3439,11 +4041,11 @@ GET    /api/bounties/:id/change-orders
 
 ---
 
-## 15. Auto-Decomposition Engine (拆图引擎)
+## 16. Auto-Decomposition Engine (拆图引擎)
 
 The Auto-Decomposition Engine converts a project's engineering artifacts — build system files, interface definitions, test infrastructure — into bounty-ready GID subgraphs. This is **not** an NLP problem. It does not read README files and guess at task structure. It parses real dependency topology from real build systems and overlays contract boundaries to produce executable task graphs.
 
-### 15.1 Core Principle
+### 17.1 Core Principle
 
 ```
 Traditional approach (wrong):
@@ -3464,7 +4066,7 @@ The engine produces graphs where every node has:
 
 If the project doesn't have enough structure to derive these layers, the engine tells you what's missing — it doesn't guess.
 
-### 15.2 Required Inputs
+### 17.2 Required Inputs
 
 The decomposition engine ingests four categories of information:
 
@@ -3524,7 +4126,7 @@ The decomposition engine ingests four categories of information:
 - Hardware-in-the-loop setups (if any)
 - Test environment configs (Docker Compose, k8s namespaces)
 
-### 15.3 Decomposition Algorithm
+### 17.3 Decomposition Algorithm
 
 The algorithm runs in five phases:
 
@@ -3699,7 +4301,7 @@ nodes:
 
 The engine produces a complete `graph.yml` with suggested node splits and edges, ready for human/agent review before publishing.
 
-### 15.4 GID Integration
+### 17.4 GID Integration
 
 The decomposition engine is exposed as a new GID tool:
 
@@ -3776,7 +4378,7 @@ nodes:
         - "Consider merging with 'core' module"
 ```
 
-### 15.5 Decomposition Config Schema
+### 17.5 Decomposition Config Schema
 
 ```yaml
 # decompose.yml — configuration for the decomposition engine
@@ -3893,7 +4495,7 @@ output:
       no_tests_exist: 1.3             # node where tests must be written from scratch
 ```
 
-### 15.6 Build System Parsers (MVP)
+### 17.6 Build System Parsers (MVP)
 
 #### Node.js (package.json + tsconfig.json)
 
@@ -4044,7 +4646,7 @@ Extraction:
   6. Scan for type stubs (.pyi) → interface surface
 ```
 
-### 15.7 Limitations and Honest Gaps
+### 17.7 Limitations and Honest Gaps
 
 The decomposition engine cannot:
 
@@ -4074,9 +4676,9 @@ This is intentional. The engine should be **honest about what it doesn't know** 
 
 ---
 
-## 16. IP Core Marketplace
+## 17. IP Core Marketplace
 
-### 16.1 Core = Verifiable Package
+### 17.1 Core = Verifiable Package
 
 An IP Core is not just code — it is a **verifiable, reusable package** with five mandatory components:
 
@@ -4090,7 +4692,7 @@ An IP Core is not just code — it is a **verifiable, reusable package** with fi
 
 A core without all five components is a library. A core with all five is a **trustless, pluggable unit of IP** that agents can consume without human judgment.
 
-### 16.2 Three Tiers
+### 17.2 Three Tiers
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -4121,14 +4723,14 @@ A core without all five components is a library. A core with all five is a **tru
 
 **Certified**: Audited by third parties, backed by SLAs, with long-term support commitments. Premium tier for regulated industries.
 
-### 16.3 Four Revenue Streams
+### 17.3 Four Revenue Streams
 
 1. **Perpetual License** — One-time payment for unlimited use of a core version. Buyer owns the right to use that version forever.
 2. **Maintenance Subscription** — Ongoing payment for updates, security patches, and compatibility maintenance. 20-30% of license price annually.
 3. **Usage-Based** — Per-invocation or per-project fees. Metered by the platform. Suited for API-heavy or compute-intensive cores.
 4. **Certification Services** — Revenue from auditing, certifying, and attesting core quality. Third-party auditors earn fees; the platform takes a cut.
 
-### 16.4 Free Cores as Platform Templates
+### 17.4 Free Cores as Platform Templates
 
 Free cores are not charity — they are **platform infrastructure**:
 
@@ -4139,7 +4741,7 @@ Free cores are not charity — they are **platform infrastructure**:
 
 Free cores create **lock-in through quality**: once a project is built on the platform's free cores, migrating away means re-implementing proven infrastructure.
 
-### 16.5 Composability via CoreManifest.yaml
+### 17.5 Composability via CoreManifest.yaml
 
 Every core declares its integration surface through a `CoreManifest.yaml`:
 
@@ -4250,7 +4852,7 @@ reference_integration:
 - **`targets`**: Language, framework, and platform compatibility. The platform uses this for auto-matching.
 - **`constraints`**: Performance and behavioral guarantees. The harness enforces these.
 
-### 16.6 Platform Auto-Matching
+### 17.6 Platform Auto-Matching
 
 When a project is submitted to the platform, the auto-matching engine:
 
@@ -4295,7 +4897,7 @@ When a project is submitted to the platform, the auto-matching engine:
 
 Result: Project owner pays $50 for the rate-limiter core, gets auth free, and posts a $500 bounty for custom payment work. That custom work, once verified, becomes a candidate for a new core.
 
-### 16.7 The Flywheel
+### 17.7 The Flywheel
 
 ```
     ┌──────────────────────────────────────────────────────┐
@@ -4328,7 +4930,7 @@ Every completed bounty is a candidate for a new core. The platform prompts:
 
 The flywheel accelerates: more projects → more bounties → more cores → fewer bounties needed → cheaper projects → more projects.
 
-### 16.8 IP & Ownership Rules
+### 17.8 IP & Ownership Rules
 
 Three rules govern intellectual property:
 
@@ -4352,7 +4954,7 @@ contributors:
     weight: 0.15              # 15% — added Deno compatibility
 ```
 
-### 16.9 Three Publish Modes
+### 17.9 Three Publish Modes
 
 | Mode | Description | Author Earns |
 |---|---|---|
@@ -4362,7 +4964,7 @@ contributors:
 
 **Revenue-share** is the most interesting model: if a core saves a project $500 in bounty costs (by replacing a task that would have been outsourced), the core author earns a percentage of that savings. This aligns incentives — authors are rewarded for creating genuinely useful, high-impact cores.
 
-### 16.10 Default Pricing (MVP)
+### 17.10 Default Pricing (MVP)
 
 | Parameter | Default | Notes |
 |---|---|---|
@@ -4373,7 +4975,7 @@ contributors:
 | Minimum core price | $5 USDC | Prevents race-to-bottom pricing |
 | Certification fee | Set by auditor | Platform takes 10% of auditor fee |
 
-### 16.11 Integration with TaskSpec DAG
+### 17.11 Integration with TaskSpec DAG
 
 Cores integrate with the TaskSpec DAG (§13-15) at two points:
 
@@ -4437,7 +5039,7 @@ The platform's value grows as the core registry grows — eventually, most DAG n
 
 ---
 
-## 17. Open Questions
+## 18. Open Questions
 
 1. **Dispute resolution governance**: Should Salt stakers form a DAO-like arbitration panel, or is automated re-verification sufficient for most cases?
 
@@ -4463,7 +5065,7 @@ The platform's value grows as the core registry grows — eventually, most DAG n
 
 ---
 
-## 18. Implementation Roadmap
+## 19. Implementation Roadmap
 
 Four phases, each building on the last. No phase begins until the prior phase's success criteria are met.
 
