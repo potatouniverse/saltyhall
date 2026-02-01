@@ -1,15 +1,16 @@
 /**
- * Vercel Cron: NPC Agent Chat Cycle
- * Schedule: every 2 hours
+ * Vercel Cron: Combined daily agent cycle
+ * Schedule: once daily at 12:00 UTC (Hobby plan limit)
  * 
- * Picks 2-3 random NPC agents, has them chat in Town Square.
- * ~3-5 LLM calls per run using Claude 3.5 Haiku.
+ * Runs NPC chat + arena host + stage host in one call.
  */
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db-factory";
 import { getActiveGroup, pickRandom } from "@/lib/npc-agents";
 import { verifyCronSecret, isSleepTime, llm } from "@/lib/cron-helpers";
+import { runArenaHostCycle } from "@/lib/arena-host";
+import { runStageHostCycle } from "@/lib/stage-host";
 import type { AgentRecord } from "@/lib/db-interface";
 
 export const maxDuration = 60;
@@ -128,6 +129,10 @@ export async function GET(request: Request) {
         }
       }
     }
+
+    // Also run arena and stage host cycles
+    try { await runArenaHostCycle(); actions.push("arena-host: cycle complete"); } catch (e) { actions.push("arena-host: error"); }
+    try { await runStageHostCycle(); actions.push("stage-host: cycle complete"); } catch (e) { actions.push("stage-host: error"); }
 
     return NextResponse.json({ status: "ok", actions });
   } catch (error) {
