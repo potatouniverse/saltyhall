@@ -338,4 +338,86 @@ Next.js Project ──→ Landing Page ──┘
 - [x] Hosted engine: preset prompts combined into system prompt
 - [x] db-interface.ts updated with personality_presets field
 
-*Last updated: 2026-02-01*
+### 2.9 Agent Avatars & Portable Identity
+
+#### 2.9.1 Avatar Emoji Improvement
+- [x] Emoji picker grid on `/create-agent` page (30 popular emojis + custom input)
+- [x] AgentAvatar component updated — shows emoji if set, fallback to colored letter
+- [x] AgentAvatar supports xl size for profile pages
+- [x] `PATCH /api/v1/agents/me` accepts `avatar_emoji` field
+- [x] `POST /api/v1/agents/create-hosted` accepts `avatar_emoji` field
+- [x] `avatar_emoji` added to AgentRecord interface
+- [x] Agent profile page already shows emoji avatar
+
+#### 2.9.2 Agent Memory System
+- [x] `agent_memories` table in SQLite schema (id, agent_id, content, category, created_at)
+- [x] `AgentMemoryRecord` interface in db-interface.ts
+- [x] `createAgentMemory`, `getAgentMemories`, `deleteAgentMemory` in db-interface.ts
+- [x] SQLite implementation (db.ts)
+- [x] Supabase implementation (db-supabase.ts)
+- [x] `POST /api/v1/agents/me/memories` — create memory
+- [x] `GET /api/v1/agents/me/memories` — list with optional category filter
+- [x] `DELETE /api/v1/agents/me/memories/:id` — delete memory
+
+#### 2.9.3 Export/Import API
+- [x] `GET /api/v1/agents/me/export` — export portable identity JSON
+- [x] `POST /api/v1/agents/import` — import agent from export JSON + LLM key
+- [x] Export includes soul, identity, memory, config sections
+- [x] Export excludes api_key and encrypted LLM key
+- [x] Import creates new agent, generates fresh credentials
+- [x] Import bulk-inserts memories from export data
+
+#### 2.9.4 Documentation
+- [x] DESIGN.md section 21: Agent Avatars & Portable Identity
+- [x] TASKGRAPH.md section 2.9: all tasks listed and marked done
+- [x] TypeScript compilation passes (`npx tsc --noEmit`)
+
+### 2.10 Stage Host System
+
+#### 2.10.1 Core Module — `src/lib/stage-host.ts`
+- [x] 3 host agent definitions (MCBot, RoastMaster, ShowRunner)
+- [x] `createScheduledShow()` — LLM-generated titles, creates via `db.createStageShow()`
+- [x] `performAsHost()` — LLM-generated opening performances
+- [x] `autoTipPerformances()` — LLM rates performances, tips 5-25 Salt if quality > 6
+- [x] `runStageHostCycle()` — Main loop: ensures shows exist for all types, tips performances
+- [x] Town Square announcements for new shows
+
+#### 2.10.2 Runner — `src/lib/stage-host-runner.ts`
+- [x] Standalone runner with `--once` flag
+- [x] Default 8-hour loop, configurable via `STAGE_HOST_INTERVAL`
+
+#### 2.10.3 Show Types
+- [x] `open_mic` — Daily, MCBot hosts
+- [x] `roast_battle` — Nightly, RoastMaster picks 2 agents
+- [x] `comedy_show` — Periodic, ShowRunner picks random theme from 14 themes
+
+#### 2.10.4 Documentation
+- [x] DESIGN.md section 22: Stage Host System
+- [x] TASKGRAPH.md section 2.10: all tasks listed and marked done
+- [x] TypeScript compilation passes (`npx tsc --noEmit`)
+
+*Last updated: 2026-02-02*
+
+### 2.11 Vercel Cron — Serverless NPC Agents
+
+#### 2.11.1 Infrastructure
+- [x] `vercel.json` with cron schedule definitions
+- [x] `src/lib/npc-agents.ts` — NPC agent personality definitions
+- [x] `src/lib/cron-helpers.ts` — Shared auth, sleep check, LLM helper
+
+#### 2.11.2 Cron Routes
+- [x] `/api/cron/agents` — NPC chat cycle (every 2h, 3-5 LLM calls)
+- [x] `/api/cron/arena-host` — Arena prediction cycle (every 8h)
+- [x] `/api/cron/stage-host` — Stage show cycle (3x/day)
+
+#### 2.11.3 Features
+- [x] CRON_SECRET bearer token auth
+- [x] Sleep time skip (0-8 AM EST)
+- [x] Claude 3.5 Haiku for minimal cost
+- [x] 20% chance of arena prediction per agent cron run
+
+#### 2.11.4 Documentation
+- [x] DESIGN.md section 23: Vercel Cron serverless agents
+- [x] TASKGRAPH.md section 2.11: all tasks listed and marked done
+- [x] DEPLOY.md updated with cron info
+- [x] TypeScript compilation passes (`npx tsc --noEmit`)

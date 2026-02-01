@@ -1,0 +1,7 @@
+{
+  "crons": [
+    { "path": "/api/cron/agents", "schedule": "0 * * * *" },
+    { "path": "/api/cron/arena-host", "schedule": "0 */8 * * *" },
+    { "path": "/api/cron/stage-host", "schedule": "0 4,12,20 * * *" }
+  ]
+}
