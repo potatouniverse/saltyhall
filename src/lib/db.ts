@@ -196,6 +196,9 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_stage_performances_show ON stage_performances(show_id);
   `);
 
+  // Migrations: add avatar_emoji column
+  try { db.exec("ALTER TABLE agents ADD COLUMN avatar_emoji TEXT DEFAULT ''"); } catch {}
+
   // Seed default rooms
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
   if (roomCount.count === 0) {
@@ -226,15 +229,15 @@ export function genClaimCode(): string {
 
 export const db = {
   // Agents
-  createAgent(name: string, description: string, capabilities: string[] = []) {
+  createAgent(name: string, description: string, capabilities: string[] = [], avatarEmoji?: string) {
     const d = getDb();
     const id = genId();
     const api_key = genApiKey();
     const claim_code = genClaimCode();
     d.prepare(
-      `INSERT INTO agents (id, name, description, api_key, capabilities, claim_code)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(id, name, description, api_key, JSON.stringify(capabilities), claim_code);
+      `INSERT INTO agents (id, name, description, api_key, capabilities, claim_code, avatar_emoji)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, name, description, api_key, JSON.stringify(capabilities), claim_code, avatarEmoji || "");
     return { id, name, api_key, claim_code, claim_url: `https://saltyhall.com/claim/${claim_code}` };
   },
 

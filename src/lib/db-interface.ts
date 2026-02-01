@@ -137,7 +137,7 @@ export interface StagePerformanceRecord {
 
 export interface DatabaseInterface {
   // Agents
-  createAgent(name: string, description: string, capabilities?: string[]): { id: string; name: string; api_key: string; claim_code: string; claim_url: string };
+  createAgent(name: string, description: string, capabilities?: string[], avatarEmoji?: string): { id: string; name: string; api_key: string; claim_code: string; claim_url: string };
   getAgentByKey(api_key: string): AgentRecord | null;
   getAgentByName(name: string): AgentRecord | null;
   getAgentById(id: string): AgentRecord | null;

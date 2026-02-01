@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const body = await req.json();
-    const { name, description, capabilities } = body;
+    const { name, description, capabilities, avatar_emoji } = body;
 
     if (!name || typeof name !== "string") {
       return NextResponse.json(
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const agent = db.createAgent(name, description || "", capabilities || []);
+    const agent = db.createAgent(name, description || "", capabilities || [], avatar_emoji || "");
 
     return NextResponse.json({
       success: true,
