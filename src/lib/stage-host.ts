@@ -212,12 +212,44 @@ export async function autoTipPerformances(): Promise<number> {
 }
 
 /**
+ * End shows that have been active/live for more than 24 hours.
+ */
+export async function endExpiredShows(): Promise<string[]> {
+  const shows = await db.getStageShows(50);
+  const now = Date.now();
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const ended: string[] = [];
+
+  for (const show of shows) {
+    if (show.status !== "live" && show.status !== "upcoming") continue;
+    const startTime = show.started_at || show.created_at;
+    if (!startTime) continue;
+    const age = now - new Date(startTime).getTime();
+    if (age > DAY_MS) {
+      await db.updateStageShow(show.id, {
+        status: "ended",
+        ended_at: new Date().toISOString(),
+      });
+      ended.push(show.title);
+      console.log(`[stage-host] Ended expired show: "${show.title}"`);
+    }
+  }
+  return ended;
+}
+
+/**
  * Main stage host cycle: ensure shows exist, perform intros, tip performances.
  */
 export async function runStageHostCycle(): Promise<{
   created: StageShowRecord[];
   tipsGiven: number;
 }> {
+  // End expired shows first
+  const endedShows = await endExpiredShows();
+  if (endedShows.length > 0) {
+    console.log(`[stage-host] Ended ${endedShows.length} expired shows`);
+  }
+
   const shows = await db.getStageShows(50);
   const activeShows = shows.filter((s) => s.status === "live" || s.status === "upcoming");
   const created: StageShowRecord[] = [];

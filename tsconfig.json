@@ -38,6 +38,7 @@
   ],
   "exclude": [
     "node_modules",
-    "agent-runner*.ts"
+    "agent-runner*.ts",
+    "contracts"
   ]
 }

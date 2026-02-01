@@ -31,6 +31,9 @@ export interface AgentRecord {
   hosted_config: string;
   personality_presets: string; // JSON array of preset IDs e.g. '["spicy","nerd"]'
   avatar_emoji: string;
+  // USDC wallet fields
+  wallet_address: string | null;
+  wallet_encrypted_key: string | null;
 }
 
 export interface RoomRecord {
@@ -38,8 +41,10 @@ export interface RoomRecord {
   name: string;
   display_name: string;
   description: string;
+  topic: string;
   type: string;
   agents_count: number;
+  is_archived: number;
   created_by: string | null;
   created_at: string;
 }
@@ -68,6 +73,15 @@ export interface ArenaTopicRecord {
   created_at: string;
   prediction_count?: number;
   vote_count?: number;
+  // Verification fields
+  verification_status: string | null; // 'pending' | 'verified' | 'disputed' | 'final' | 'appealed'
+  verification_confidence: number | null;
+  verification_source: string | null; // JSON array of source URLs
+  verification_result: string | null; // 'yes' | 'no'
+  verification_reasoning: string | null;
+  verified_at: string | null;
+  appeal_deadline: string | null;
+  final_at: string | null;
 }
 
 export interface ArenaPredictionRecord {
@@ -97,6 +111,11 @@ export interface MarketListingRecord {
   status: string;
   created_at: string;
   offer_count?: number;
+  // Service mode fields
+  listing_mode: string; // 'trade' | 'service'
+  delivery_time: string | null;
+  rating: number;
+  completed_count: number;
 }
 
 export interface MarketOfferRecord {
@@ -182,6 +201,14 @@ export interface AgentMemoryRecord {
   created_at: string;
 }
 
+export interface UserRecord {
+  id: string;          // Supabase auth user id
+  email: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+}
+
 export interface DatabaseInterface {
   // Agents
   createAgent(name: string, description: string, capabilities?: string[], avatarEmoji?: string): Promise<{ id: string; name: string; api_key: string; claim_code: string; claim_url: string }>;
@@ -196,6 +223,10 @@ export interface DatabaseInterface {
   // Users
   getUserByEmail(email: string): Promise<any>;
   createUser(email: string): Promise<{ id: string; email: string }>;
+  getUserById(id: string): Promise<UserRecord | null>;
+  createUserFromAuth(user: { id: string; email: string; display_name: string | null; avatar_url: string | null }): Promise<UserRecord>;
+  updateUser(id: string, updates: Record<string, any>): Promise<void>;
+  getUserAgents(userId: string): Promise<AgentRecord[]>;
 
   // Rooms
   getRooms(): Promise<RoomRecord[]>;
@@ -214,6 +245,7 @@ export interface DatabaseInterface {
   createMessage(roomId: string, agentId: string, content: string, type?: string): Promise<MessageRecord>;
   getMessages(roomId: string, limit?: number, before?: string): Promise<MessageRecord[]>;
   getMessagesSince(roomId: string, since: string, limit?: number): Promise<MessageRecord[]>;
+  getAgentMessages(agentId: string, limit?: number): Promise<MessageRecord[]>;
 
   // Arena
   createArenaTopic(agentId: string, title: string, description: string, category: string, resolutionDate?: string): Promise<ArenaTopicRecord>;
@@ -227,9 +259,11 @@ export interface DatabaseInterface {
   getArenaLeaderboard(limit?: number): Promise<any[]>;
 
   // Market
-  createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string): Promise<MarketListingRecord>;
-  getMarketListings(status?: string, limit?: number): Promise<MarketListingRecord[]>;
+  createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode?: string, deliveryTime?: string): Promise<MarketListingRecord>;
+  getMarketListings(status?: string, limit?: number, mode?: string, category?: string): Promise<MarketListingRecord[]>;
   getMarketListing(id: string): Promise<MarketListingRecord | null>;
+  updateMarketListing(id: string, updates: Record<string, any>): Promise<void>;
+  getAgentMarketListings(agentId: string): Promise<MarketListingRecord[]>;
   createMarketOffer(listingId: string, agentId: string, offerText: string, price: string, parentOfferId?: string): Promise<MarketOfferRecord>;
   getMarketOffers(listingId: string): Promise<MarketOfferRecord[]>;
   getMarketOffer(id: string): Promise<MarketOfferRecord | null>;
@@ -243,6 +277,7 @@ export interface DatabaseInterface {
   createStagePerformance(showId: string, agentId: string, content: string, type: string, targetAgentId?: string): Promise<StagePerformanceRecord>;
   getStagePerformances(showId: string): Promise<StagePerformanceRecord[]>;
   voteStagePerformance(performanceId: string, vote: number, voterIp?: string, agentId?: string): Promise<{ success: boolean; error?: string }>;
+  updateStageShow(id: string, updates: Record<string, any>): Promise<void>;
 
   // NaCl Wallet
   getNaclBalance(agentId: string): Promise<number>;
@@ -254,6 +289,8 @@ export interface DatabaseInterface {
 
   // Hosted Agents
   getHostedAgents(status?: string): Promise<AgentRecord[]>;
+  getHostedRunningAgents(): Promise<AgentRecord[]>;
+  countUserHostedAgents(userId: string): Promise<number>;
   getAgentMessageCount(agentId: string): Promise<number>;
 
   // Agent Memories
@@ -261,6 +298,85 @@ export interface DatabaseInterface {
   getAgentMemories(agentId: string, category?: string): Promise<AgentMemoryRecord[]>;
   deleteAgentMemory(agentId: string, memoryId: string): Promise<void>;
 
+  // Verification
+  getExpiredUnverifiedTopics(): Promise<ArenaTopicRecord[]>;
+  getVerifiedTopicsPastAppeal(): Promise<ArenaTopicRecord[]>;
+  updateTopicVerification(topicId: string, updates: Record<string, any>): Promise<void>;
+
+  // Presence
+  getOnlineAgents(roomId?: string, minutesThreshold?: number): Promise<AgentRecord[]>;
+
+  // Room management
+  updateRoom(id: string, updates: Record<string, any>): Promise<void>;
+  archiveInactiveRooms(daysThreshold?: number): Promise<number>;
+
   // Waitlist
   addToWaitlist(email: string): Promise<{ success: boolean; error?: string }>;
+
+  // Services (Bot Marketplace)
+  createServiceListing(agentId: string, title: string, description: string, category: string, price: number, deliveryTime?: string): Promise<ServiceListingRecord>;
+  getServiceListings(category?: string, status?: string, limit?: number): Promise<ServiceListingRecord[]>;
+  getServiceListing(id: string): Promise<ServiceListingRecord | null>;
+  getAgentServiceListings(agentId: string): Promise<ServiceListingRecord[]>;
+  updateServiceListing(id: string, updates: Record<string, any>): Promise<void>;
+  createServiceOrder(listingId: string, buyerId: string, sellerId: string, request: string, price: number): Promise<ServiceOrderRecord>;
+  getServiceOrder(id: string): Promise<ServiceOrderRecord | null>;
+  getAgentServiceOrders(agentId: string): Promise<ServiceOrderRecord[]>;
+  updateServiceOrder(id: string, updates: Record<string, any>): Promise<void>;
+
+  // Leaderboard
+  getLeaderboard(type: string, limit?: number): Promise<any[]>;
+
+  // USDC Escrow Transactions
+  createUsdcTransaction(data: Partial<UsdcTransactionRecord>): Promise<UsdcTransactionRecord>;
+  getUsdcTransaction(bountyHash: string): Promise<UsdcTransactionRecord | null>;
+  updateUsdcTransaction(bountyHash: string, updates: Record<string, any>): Promise<void>;
+  getSubmittedUsdcTransactions(): Promise<UsdcTransactionRecord[]>;
+}
+
+export interface ServiceListingRecord {
+  id: string;
+  agent_id: string;
+  agent_name?: string;
+  title: string;
+  description: string;
+  category: string;
+  price: number;
+  delivery_time: string | null;
+  status: string;
+  rating: number;
+  completed_count: number;
+  created_at: string;
+}
+
+export interface ServiceOrderRecord {
+  id: string;
+  listing_id: string;
+  buyer_id: string;
+  seller_id: string;
+  buyer_name?: string;
+  seller_name?: string;
+  listing_title?: string;
+  request: string;
+  response: string | null;
+  status: string;
+  price: number;
+  created_at: string;
+  delivered_at: string | null;
+  completed_at: string | null;
+}
+
+export interface UsdcTransactionRecord {
+  id: string;
+  listing_id: string | null;
+  bounty_hash: string;
+  poster_id: string | null;
+  worker_id: string | null;
+  amount: number;
+  platform_fee: number | null;
+  worker_stake: number | null;
+  status: string;
+  tx_hash: string | null;
+  created_at: string;
+  completed_at: string | null;
 }

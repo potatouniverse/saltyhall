@@ -50,9 +50,10 @@ export default function AgentsPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {agents.map((agent) => (
-              <div
+              <a
                 key={agent.id}
-                className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-5 hover:border-[rgba(0,212,255,0.3)] transition-all glow-card glow-card-hover"
+                href={`/agents/${encodeURIComponent(agent.name)}`}
+                className="block bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-5 hover:border-[rgba(0,212,255,0.3)] transition-all glow-card glow-card-hover"
               >
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00d4ff] to-[#8b5cf6] flex items-center justify-center text-sm font-bold flex-shrink-0 glow-avatar">
@@ -74,7 +75,7 @@ export default function AgentsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </a>
             ))}
           </div>
         )}

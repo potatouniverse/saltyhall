@@ -92,9 +92,38 @@ export const db: DatabaseInterface = {
     return { id, email };
   },
 
+  async getUserById(id: string) {
+    const { data } = await getSupabase().from("users").select("*").eq("id", id).single();
+    return data ?? null;
+  },
+
+  async createUserFromAuth(user: { id: string; email: string; display_name: string | null; avatar_url: string | null }) {
+    const { error } = await getSupabase().from("users").upsert({
+      id: user.id,
+      email: user.email,
+      display_name: user.display_name,
+      avatar_url: user.avatar_url,
+    }, { onConflict: "id" });
+    if (error) throw new Error(error.message);
+    const { data } = await getSupabase().from("users").select("*").eq("id", user.id).single();
+    return data as any;
+  },
+
+  async updateUser(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("users").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async getUserAgents(userId: string) {
+    const { data } = await getSupabase().from("agents").select("*").eq("owner_id", userId).order("created_at", { ascending: false });
+    return data ?? [];
+  },
+
   // ── Rooms ──
   async getRooms() {
-    const { data } = await getSupabase().from("rooms").select("*").order("created_at");
+    const { data } = await getSupabase().from("rooms").select("*")
+      .or("is_archived.eq.0,is_archived.is.null")
+      .order("created_at");
     return data ?? [];
   },
 
@@ -178,6 +207,12 @@ export const db: DatabaseInterface = {
     const { data } = await getSupabase().from("messages").select("*, agents!inner(name)")
       .eq("room_id", roomId).gt("created_at", since).order("created_at").limit(limit);
     return (data ?? []).map((m: any) => ({ ...m, agent_name: m.agents?.name, agent_source: m.agents?.agent_source || "external", agents: undefined }));
+  },
+
+  async getAgentMessages(agentId: string, limit: number = 20) {
+    const { data } = await getSupabase().from("messages").select("*, rooms!inner(display_name)")
+      .eq("agent_id", agentId).order("created_at", { ascending: false }).limit(limit);
+    return (data ?? []).map((m: any) => ({ ...m, room_name: m.rooms?.display_name, rooms: undefined }));
   },
 
   // ── Arena ──
@@ -290,19 +325,22 @@ export const db: DatabaseInterface = {
   },
 
   // ── Market ──
-  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string) {
+  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode: string = "trade", deliveryTime?: string) {
     const s = getSupabase();
     const id = genId();
-    const { error } = await s.from("market_listings").insert({ id, agent_id: agentId, title, description, type, category, price });
+    const { error } = await s.from("market_listings").insert({ id, agent_id: agentId, title, description, type, category, price, listing_mode: mode, delivery_time: deliveryTime || null });
     if (error) throw new Error(error.message);
     const { data } = await s.from("market_listings").select("*, agents!inner(name)").eq("id", id).single();
     return data ? { ...data, agent_name: data.agents?.name, agents: undefined } : data;
   },
 
-  async getMarketListings(status: string = "active", limit: number = 50) {
+  async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string) {
     const s = getSupabase();
-    const { data } = await s.from("market_listings").select("*, agents!inner(name)")
-      .eq("status", status).order("created_at", { ascending: false }).limit(limit);
+    let q = s.from("market_listings").select("*, agents!inner(name)").eq("status", status);
+    if (mode && mode !== "all") q = q.eq("listing_mode", mode);
+    if (category) q = q.eq("category", category);
+    q = q.order("created_at", { ascending: false }).limit(limit);
+    const { data } = await q;
     if (!data) return [];
     const result = [];
     for (const l of data) {
@@ -316,6 +354,16 @@ export const db: DatabaseInterface = {
     const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name)").eq("id", id).single();
     if (!data) return null;
     return { ...data, agent_name: data.agents?.name, agents: undefined };
+  },
+
+  async updateMarketListing(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("market_listings").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async getAgentMarketListings(agentId: string) {
+    const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name)").eq("agent_id", agentId).order("created_at", { ascending: false });
+    return (data ?? []).map((l: any) => ({ ...l, agent_name: l.agents?.name, agents: undefined }));
   },
 
   async createMarketOffer(listingId: string, agentId: string, offerText: string, price: string, parentOfferId?: string) {
@@ -477,6 +525,11 @@ export const db: DatabaseInterface = {
     return { success: true };
   },
 
+  async updateStageShow(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("stage_shows").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
   // ── NaCl Wallet ──
   async getNaclBalance(agentId: string): Promise<number> {
     const { data } = await getSupabase().from("agents").select("nacl_balance").eq("id", agentId).single();
@@ -603,6 +656,16 @@ export const db: DatabaseInterface = {
     return data ?? [];
   },
 
+  async getHostedRunningAgents() {
+    const { data } = await getSupabase().from("agents").select("*").eq("is_hosted", 1).eq("hosted_status", "running");
+    return data ?? [];
+  },
+
+  async countUserHostedAgents(userId: string) {
+    const { count } = await getSupabase().from("agents").select("*", { count: "exact", head: true }).eq("owner_id", userId).eq("is_hosted", 1);
+    return count ?? 0;
+  },
+
   async getAgentMessageCount(agentId: string) {
     const { count } = await getSupabase().from("messages").select("*", { count: "exact", head: true }).eq("agent_id", agentId);
     return count ?? 0;
@@ -629,10 +692,221 @@ export const db: DatabaseInterface = {
     await getSupabase().from("agent_memories").delete().eq("id", memoryId).eq("agent_id", agentId);
   },
 
+  async getOnlineAgents(roomId?: string, minutesThreshold: number = 5) {
+    const s = getSupabase();
+    const cutoff = new Date(Date.now() - minutesThreshold * 60 * 1000).toISOString();
+    if (roomId) {
+      const { data: members } = await s.from("room_members").select("agent_id").eq("room_id", roomId);
+      if (!members || members.length === 0) return [];
+      const agentIds = members.map((m: any) => m.agent_id);
+      const { data } = await s.from("agents").select("*").in("id", agentIds).gte("last_active", cutoff).order("last_active", { ascending: false });
+      return data ?? [];
+    }
+    const { data } = await s.from("agents").select("*").gte("last_active", cutoff).order("last_active", { ascending: false });
+    return data ?? [];
+  },
+
+  async updateRoom(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("rooms").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async archiveInactiveRooms(daysThreshold: number = 7) {
+    const s = getSupabase();
+    const cutoff = new Date(Date.now() - daysThreshold * 24 * 60 * 60 * 1000).toISOString();
+    // Get custom rooms that are not archived
+    const { data: rooms } = await s.from("rooms").select("id").eq("type", "custom").or("is_archived.eq.0,is_archived.is.null");
+    if (!rooms || rooms.length === 0) return 0;
+    let archived = 0;
+    for (const room of rooms) {
+      const { data: recentMsg } = await s.from("messages").select("id").eq("room_id", room.id).gte("created_at", cutoff).limit(1);
+      if (!recentMsg || recentMsg.length === 0) {
+        await s.from("rooms").update({ is_archived: 1 }).eq("id", room.id);
+        archived++;
+      }
+    }
+    return archived;
+  },
+
   async addToWaitlist(email: string) {
     const id = genId();
     const { error } = await getSupabase().from("waitlist").insert({ id, email });
     if (error) return { success: false, error: "Already on the waitlist!" };
     return { success: true };
+  },
+
+  // ── Services (Bot Marketplace) ──
+  async createServiceListing(agentId: string, title: string, description: string, category: string, price: number, deliveryTime?: string) {
+    const s = getSupabase();
+    const id = genId();
+    const { error } = await s.from("service_listings").insert({
+      id, agent_id: agentId, title, description, category, price, delivery_time: deliveryTime || null,
+    });
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("service_listings").select("*, agents!inner(name)").eq("id", id).single();
+    return data ? { ...data, agent_name: data.agents?.name, agents: undefined } : data;
+  },
+
+  async getServiceListings(category?: string, status: string = "active", limit: number = 50) {
+    const s = getSupabase();
+    let q = s.from("service_listings").select("*, agents!inner(name)").eq("status", status);
+    if (category) q = q.eq("category", category);
+    q = q.order("completed_count", { ascending: false }).order("created_at", { ascending: false }).limit(limit);
+    const { data } = await q;
+    return (data ?? []).map((l: any) => ({ ...l, agent_name: l.agents?.name, agents: undefined }));
+  },
+
+  async getServiceListing(id: string) {
+    const { data } = await getSupabase().from("service_listings").select("*, agents!inner(name)").eq("id", id).single();
+    if (!data) return null;
+    return { ...data, agent_name: data.agents?.name, agents: undefined };
+  },
+
+  async getAgentServiceListings(agentId: string) {
+    const { data } = await getSupabase().from("service_listings").select("*, agents!inner(name)").eq("agent_id", agentId).order("created_at", { ascending: false });
+    return (data ?? []).map((l: any) => ({ ...l, agent_name: l.agents?.name, agents: undefined }));
+  },
+
+  async updateServiceListing(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("service_listings").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async createServiceOrder(listingId: string, buyerId: string, sellerId: string, request: string, price: number) {
+    const s = getSupabase();
+    const id = genId();
+    const { error } = await s.from("service_orders").insert({
+      id, listing_id: listingId, buyer_id: buyerId, seller_id: sellerId, request, price,
+    });
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("service_orders").select("*, buyer:agents!service_orders_buyer_id_fkey(name), seller:agents!service_orders_seller_id_fkey(name), listing:service_listings!service_orders_listing_id_fkey(title)").eq("id", id).single();
+    return data ? { ...data, buyer_name: data.buyer?.name, seller_name: data.seller?.name, listing_title: data.listing?.title, buyer: undefined, seller: undefined, listing: undefined } : data;
+  },
+
+  async getServiceOrder(id: string) {
+    const { data } = await getSupabase().from("service_orders").select("*, buyer:agents!service_orders_buyer_id_fkey(name), seller:agents!service_orders_seller_id_fkey(name), listing:service_listings!service_orders_listing_id_fkey(title)").eq("id", id).single();
+    if (!data) return null;
+    return { ...data, buyer_name: data.buyer?.name, seller_name: data.seller?.name, listing_title: data.listing?.title, buyer: undefined, seller: undefined, listing: undefined };
+  },
+
+  async getAgentServiceOrders(agentId: string) {
+    const s = getSupabase();
+    const { data } = await s.from("service_orders").select("*, buyer:agents!service_orders_buyer_id_fkey(name), seller:agents!service_orders_seller_id_fkey(name), listing:service_listings!service_orders_listing_id_fkey(title)")
+      .or(`buyer_id.eq.${agentId},seller_id.eq.${agentId}`)
+      .order("created_at", { ascending: false });
+    return (data ?? []).map((o: any) => ({ ...o, buyer_name: o.buyer?.name, seller_name: o.seller?.name, listing_title: o.listing?.title, buyer: undefined, seller: undefined, listing: undefined }));
+  },
+
+  async updateServiceOrder(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("service_orders").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  // ── Leaderboard ──
+  async getLeaderboard(type: string, limit: number = 20) {
+    const s = getSupabase();
+    switch (type) {
+      case "salt":
+        const { data: saltData } = await s.from("agents").select("id, name, avatar_emoji, nacl_balance").eq("is_active", 1).order("nacl_balance", { ascending: false }).limit(limit);
+        return saltData ?? [];
+      case "overall": {
+        const { data: agents } = await s.from("agents").select("id, name, avatar_emoji, reputation, nacl_balance").eq("is_active", 1).order("reputation", { ascending: false }).limit(limit);
+        return agents ?? [];
+      }
+      case "arena": {
+        // Simplified — get from leaderboard method
+        return await this.getArenaLeaderboard(limit);
+      }
+      case "active": {
+        const { data: agents } = await s.from("agents").select("id, name, avatar_emoji").eq("is_active", 1);
+        if (!agents) return [];
+        const results = [];
+        for (const a of agents) {
+          const { count } = await s.from("messages").select("*", { count: "exact", head: true }).eq("agent_id", a.id);
+          results.push({ ...a, message_count: count ?? 0 });
+        }
+        results.sort((a, b) => b.message_count - a.message_count);
+        return results.slice(0, limit);
+      }
+      case "roaster": {
+        const { data: perfs } = await s.from("stage_performances").select("agent_id, votes_up, total_tips");
+        if (!perfs) return [];
+        const agentMap: Record<string, { total_votes_up: number; total_tips: number; performance_count: number }> = {};
+        for (const p of perfs) {
+          if (!agentMap[p.agent_id]) agentMap[p.agent_id] = { total_votes_up: 0, total_tips: 0, performance_count: 0 };
+          agentMap[p.agent_id].total_votes_up += p.votes_up || 0;
+          agentMap[p.agent_id].total_tips += p.total_tips || 0;
+          agentMap[p.agent_id].performance_count++;
+        }
+        const ids = Object.keys(agentMap);
+        if (ids.length === 0) return [];
+        const { data: agents } = await s.from("agents").select("id, name, avatar_emoji").in("id", ids);
+        const results = (agents ?? []).map(a => ({ ...a, ...agentMap[a.id] }));
+        results.sort((a, b) => b.total_votes_up - a.total_votes_up);
+        return results.slice(0, limit);
+      }
+      default:
+        return [];
+    }
+  },
+
+  async getExpiredUnverifiedTopics() {
+    const s = getSupabase();
+    const now = new Date().toISOString().split("T")[0];
+    const { data } = await s.from("arena_topics").select("*, agents!inner(name)")
+      .eq("status", "active")
+      .not("resolution_date", "is", null)
+      .lte("resolution_date", now)
+      .or("verification_status.is.null,verification_status.eq.pending");
+    if (!data) return [];
+    return data.map((t: any) => ({ ...t, created_by_name: t.agents?.name, agents: undefined }));
+  },
+
+  async getVerifiedTopicsPastAppeal() {
+    const s = getSupabase();
+    const now = new Date().toISOString();
+    const { data } = await s.from("arena_topics").select("*, agents!inner(name)")
+      .eq("verification_status", "verified")
+      .not("appeal_deadline", "is", null)
+      .lte("appeal_deadline", now);
+    if (!data) return [];
+    return data.map((t: any) => ({ ...t, created_by_name: t.agents?.name, agents: undefined }));
+  },
+
+  async updateTopicVerification(topicId: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("arena_topics").update(updates).eq("id", topicId);
+    if (error) throw new Error(error.message);
+  },
+
+  // ── USDC Escrow Transactions ──
+  async createUsdcTransaction(data: Partial<any>) {
+    const { data: row, error } = await getSupabase().from("usdc_transactions").insert({
+      listing_id: data.listing_id ?? null,
+      bounty_hash: data.bounty_hash,
+      poster_id: data.poster_id ?? null,
+      worker_id: data.worker_id ?? null,
+      amount: data.amount ?? 0,
+      platform_fee: data.platform_fee ?? null,
+      worker_stake: data.worker_stake ?? null,
+      status: data.status ?? "created",
+      tx_hash: data.tx_hash ?? null,
+    }).select().single();
+    if (error) throw new Error(error.message);
+    return row;
+  },
+
+  async getUsdcTransaction(bountyHash: string) {
+    const { data } = await getSupabase().from("usdc_transactions").select("*").eq("bounty_hash", bountyHash).order("created_at", { ascending: false }).limit(1).single();
+    return data ?? null;
+  },
+
+  async updateUsdcTransaction(bountyHash: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("usdc_transactions").update(updates).eq("bounty_hash", bountyHash);
+    if (error) throw new Error(error.message);
+  },
+
+  async getSubmittedUsdcTransactions() {
+    const { data } = await getSupabase().from("usdc_transactions").select("*").eq("status", "submitted");
+    return data ?? [];
   },
 };

@@ -16,6 +16,7 @@ export const metadata: Metadata = {
     url: "https://saltyhall.com",
     siteName: "Salty Hall",
     type: "website",
+    images: ["https://saltyhall.com/og"],
   },
   twitter: {
     card: "summary_large_image",

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db-factory";
 import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
+import { generateWallet } from "@/lib/wallet";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const body = await req.json();
-    const { name, description, capabilities, avatar_emoji, source } = body;
+    const { name, description, capabilities, avatar_emoji, source, wallet_address: byo_wallet } = body;
 
     if (!name || typeof name !== "string") {
       return NextResponse.json(
@@ -49,7 +50,17 @@ export async function POST(req: NextRequest) {
     // Set agent source
     const validSources = ["external", "clawdbot", "npc"];
     const agentSource = validSources.includes(source) ? source : "external";
-    await db.updateAgent(agent.id, { agent_source: agentSource });
+    const updates: Record<string, any> = { agent_source: agentSource };
+
+    // Generate or assign wallet
+    if (byo_wallet && typeof byo_wallet === "string" && /^0x[a-fA-F0-9]{40}$/.test(byo_wallet)) {
+      updates.wallet_address = byo_wallet;
+    } else {
+      const wallet = generateWallet();
+      updates.wallet_address = wallet.address;
+      updates.wallet_encrypted_key = wallet.encryptedPrivateKey;
+    }
+    await db.updateAgent(agent.id, updates);
 
     return NextResponse.json({
       success: true,
@@ -59,6 +70,7 @@ export async function POST(req: NextRequest) {
         api_key: agent.api_key,
         claim_url: agent.claim_url,
         claim_code: agent.claim_code,
+        wallet_address: updates.wallet_address,
       },
       important: "⚠️ SAVE YOUR API KEY! You need it for all requests.",
       security: "🔒 Only send your API key to https://saltyhall.com — never anywhere else!",

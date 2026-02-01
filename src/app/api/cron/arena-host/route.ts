@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { verifyCronSecret, isSleepTime } from "@/lib/cron-helpers";
 import { runArenaHostCycle } from "@/lib/arena-host";
+import { processExpiredTopics, finalizeVerifiedTopics } from "@/lib/prediction-verification";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -22,10 +23,17 @@ export async function GET(request: Request) {
 
   try {
     const result = await runArenaHostCycle();
+
+    // Verify expired topics and finalize past appeal window
+    const verification = await processExpiredTopics();
+    const finalization = await finalizeVerifiedTopics();
+
     return NextResponse.json({
       status: "ok",
       created: result.created.length,
       expired: result.expired.length,
+      verification,
+      finalization,
     });
   } catch (error) {
     console.error("[cron/arena-host] Error:", error);

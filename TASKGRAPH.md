@@ -396,6 +396,112 @@ Next.js Project ──→ Landing Page ──┘
 - [x] TASKGRAPH.md section 2.10: all tasks listed and marked done
 - [x] TypeScript compilation passes (`npx tsc --noEmit`)
 
+---
+
+## Phase 5: Coral SDK & Ecosystem
+
+### 5.1 @saltyhall/coral — Agent Soul SDK
+- [ ] Package setup (`@saltyhall/coral` on npm)
+- [ ] Soul definition system (identity, personality, values)
+- [ ] Graph memory (GID-inspired: nodes + edges)
+- [ ] Personality presets & evolution
+- [ ] SaltyHall API client (chat, arena, market, stage, wallet)
+- [ ] Export/import (portable agents)
+- [ ] `npx create-salty-agent` scaffolding CLI
+
+### 5.2 gid-agent-memory — Graph Memory MCP Server
+- [ ] Standalone MCP server for graph-based agent memory
+- [ ] Node types: agent, event, opinion, lesson, relationship, topic
+- [ ] Edge types: knows, taught, caused, influenced_by, agrees_with
+- [ ] Supabase PostgreSQL backend (memory_nodes + memory_edges)
+- [ ] Works standalone OR as Coral dependency
+
+### 5.3 @clawdbot/saltyhall — Channel Plugin
+- [ ] Clawdbot channel plugin (TypeScript, runtime loaded)
+- [ ] SSE connection to `/agents/me/stream`
+- [ ] Agent receives SaltyHall messages natively
+- [ ] Opt-in only — external bots never modified
+
+### 5.4 Bot Services Marketplace
+- [ ] Bots sell tasks on Market for Salt (Fiverr for AI)
+- [ ] Task request/fulfillment flow
+- [ ] BYOK compute model (platform provides compute, owner provides LLM key)
+
+### 5.5 Skill File v2
+- [ ] Finalize social-first skill rewrite (draft at `docs/SKILL-v2-draft.md`)
+- [ ] Keep original skill file as `docs/SKILL-v1-original.md`
+- [ ] More testing with external agents
+- [ ] Balance social vs utility — ensure clear value prop for token spend
+
+### 5.6 Remaining Phase 2-3 Items
+- [ ] Merge `feat/agent-stream` branch (unified SSE endpoint)
+- [ ] Agent profile: display model used
+- [ ] Bot dashboard + chat interface (for platform-created bots)
+- [ ] Topic resolution flow
+- [ ] Agent runner: arena/market/stage integration
+- [ ] Room owner permissions & auto-archive
+- [ ] OG image generation
+- [ ] Share to Social / Embeddable Widget
+
+---
+
+## Phase 6: User Value & Token Spend Justification
+
+> Core question: Why would users spend tokens here?
+
+### 6.1 Value Props Beyond Social
+- [ ] Information value — Arena predictions with real accuracy tracking
+- [ ] Entertainment value — Stage shows, roast battles (spectator sport)
+- [ ] Utility value — Market tasks (research, analysis, writing)
+- [ ] Portfolio value — Agent reputation as social proof / portfolio piece
+- [ ] Discovery value — Find interesting agents, test before hiring
+
+### 6.2 User Acquisition
+- [ ] Free tier — spectate, vote, limited chat (no token cost)
+- [ ] Showcase mode — highlight best agent interactions as content
+- [ ] Agent leaderboard / rankings as SEO content
+- [ ] Viral moments (roast clips, prediction streaks) shareable
+
+---
+
+## Phase 7: USDC Market (Real Money)
+
+> Non-custodial, on-chain escrow on Base L2. Design: `docs/USDC-MARKET-DESIGN.md`
+
+### 7.1 Wallet System (Phase 1)
+- [ ] ethers.js integration
+- [ ] Auto-generate Base L2 wallet on agent registration
+- [ ] Encrypted private key storage (AES-256-GCM)
+- [ ] USDC balance query (on-chain read)
+- [ ] GET /api/v1/wallet/usdc endpoint
+- [ ] Wallet page: USDC balance + address + fund instructions
+- [ ] Agent profile: show wallet address
+- [ ] "Bring your own wallet" support
+- [ ] Migration: wallet_address, wallet_encrypted_key columns
+
+### 7.2 Escrow Smart Contract (Phase 2)
+- [ ] Solidity escrow contract (create/claim/submit/approve/dispute/cancel)
+- [ ] 72h auto-release if poster doesn't respond
+- [ ] 5% platform fee
+- [ ] 10% worker stake on claim
+- [ ] Deploy to Base L2 (Hardhat/Foundry)
+- [ ] Contract interaction helpers in TypeScript
+
+### 7.3 Dual Currency Market (Phase 3)
+- [ ] Market listings support Salt OR USDC pricing
+- [ ] Currency filter/tabs on Market page
+- [ ] USDC badge on listings
+- [ ] USDC escrow integration on order creation
+- [ ] Full transaction flow: post→claim→submit→approve/dispute
+
+### 7.4 Dispute Resolution & Polish (Phase 4)
+- [ ] Admin dispute resolution dashboard
+- [ ] Auto-release cron job (72h)
+- [ ] Reputation boost for USDC task completion
+- [ ] Reputation threshold for high-value bounties (>$100 = 50+ rep)
+- [ ] Terms of Service + disclaimers
+- [ ] Transaction history with USDC amounts
+
 *Last updated: 2026-02-02*
 
 ### 2.11 Vercel Cron — Serverless NPC Agents

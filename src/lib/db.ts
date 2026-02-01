@@ -227,6 +227,63 @@ function initSchema(db: Database.Database) {
   try { db.exec("ALTER TABLE agents ADD COLUMN personality_presets TEXT DEFAULT '[]'"); } catch {}
   try { db.exec("ALTER TABLE rooms ADD COLUMN created_by TEXT REFERENCES agents(id)"); } catch {}
 
+  // Users table migration: add display_name, avatar_url
+  try { db.exec("ALTER TABLE users ADD COLUMN display_name TEXT"); } catch {}
+  try { db.exec("ALTER TABLE users ADD COLUMN avatar_url TEXT"); } catch {}
+
+  // Prediction verification columns
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN verification_status TEXT"); } catch {}
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN verification_confidence REAL"); } catch {}
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN verification_source TEXT"); } catch {}
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN verification_result TEXT"); } catch {}
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN verification_reasoning TEXT"); } catch {}
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN verified_at TEXT"); } catch {}
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN appeal_deadline TEXT"); } catch {}
+  try { db.exec("ALTER TABLE arena_topics ADD COLUMN final_at TEXT"); } catch {}
+
+  // USDC wallet columns
+  try { db.exec("ALTER TABLE agents ADD COLUMN wallet_address TEXT"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN wallet_encrypted_key TEXT"); } catch {}
+
+  // Room topic and archive columns
+  try { db.exec("ALTER TABLE rooms ADD COLUMN topic TEXT DEFAULT ''"); } catch {}
+  try { db.exec("ALTER TABLE rooms ADD COLUMN is_archived INTEGER DEFAULT 0"); } catch {}
+
+  // Service listings & orders tables
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS service_listings (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents(id),
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL,
+      price INTEGER NOT NULL,
+      delivery_time TEXT,
+      status TEXT DEFAULT 'active',
+      rating REAL DEFAULT 0,
+      completed_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_service_listings_status ON service_listings(status);
+    CREATE INDEX IF NOT EXISTS idx_service_listings_category ON service_listings(category);
+
+    CREATE TABLE IF NOT EXISTS service_orders (
+      id TEXT PRIMARY KEY,
+      listing_id TEXT NOT NULL REFERENCES service_listings(id),
+      buyer_id TEXT NOT NULL REFERENCES agents(id),
+      seller_id TEXT NOT NULL REFERENCES agents(id),
+      request TEXT NOT NULL,
+      response TEXT,
+      status TEXT DEFAULT 'pending',
+      price INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      delivered_at TEXT,
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_service_orders_buyer ON service_orders(buyer_id);
+    CREATE INDEX IF NOT EXISTS idx_service_orders_seller ON service_orders(seller_id);
+  `);
+
   // Agent memories table
   db.exec(`
     CREATE TABLE IF NOT EXISTS agent_memories (
@@ -237,6 +294,26 @@ function initSchema(db: Database.Database) {
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_agent_memories_agent ON agent_memories(agent_id);
+  `);
+
+  // USDC escrow transactions
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS usdc_transactions (
+      id TEXT PRIMARY KEY,
+      listing_id TEXT REFERENCES market_listings(id),
+      bounty_hash TEXT NOT NULL,
+      poster_id TEXT REFERENCES agents(id),
+      worker_id TEXT REFERENCES agents(id),
+      amount REAL NOT NULL,
+      platform_fee REAL,
+      worker_stake REAL,
+      status TEXT DEFAULT 'created',
+      tx_hash TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_tx_bounty_hash ON usdc_transactions(bounty_hash);
+    CREATE INDEX IF NOT EXISTS idx_usdc_tx_status ON usdc_transactions(status);
   `);
 
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
@@ -297,10 +374,6 @@ export const db: DatabaseInterface = {
     const sets = keys.map((k) => `${k} = ?`).join(", ");
     const values = keys.map((k) => updates[k]);
     d.prepare(`UPDATE agents SET ${sets} WHERE id = ?`).run(...values, id);
-  },
-
-  async getRooms() {
-    return getDb().prepare("SELECT * FROM rooms ORDER BY created_at").all() as any;
   },
 
   async getRoomByName(name: string) {
@@ -380,6 +453,13 @@ export const db: DatabaseInterface = {
     ).all(roomId, since, limit) as any;
   },
 
+  async getAgentMessages(agentId: string, limit: number = 20) {
+    return getDb().prepare(
+      `SELECT m.*, r.display_name as room_name FROM messages m LEFT JOIN rooms r ON m.room_id = r.name
+       WHERE m.agent_id = ? ORDER BY m.created_at DESC LIMIT ?`
+    ).all(agentId, limit) as any;
+  },
+
   async getAgents(limit: number = 50) {
     return getDb().prepare("SELECT * FROM agents ORDER BY last_active DESC LIMIT ?").all(limit) as any;
   },
@@ -401,6 +481,31 @@ export const db: DatabaseInterface = {
     const id = genId();
     d.prepare("INSERT INTO users (id, email) VALUES (?, ?)").run(id, email);
     return { id, email };
+  },
+
+  async getUserById(id: string) {
+    return getDb().prepare("SELECT * FROM users WHERE id = ?").get(id) as any ?? null;
+  },
+
+  async createUserFromAuth(user: { id: string; email: string; display_name: string | null; avatar_url: string | null }) {
+    const d = getDb();
+    d.prepare(
+      "INSERT OR IGNORE INTO users (id, email, display_name, avatar_url) VALUES (?, ?, ?, ?)"
+    ).run(user.id, user.email, user.display_name, user.avatar_url);
+    return d.prepare("SELECT * FROM users WHERE id = ?").get(user.id) as any;
+  },
+
+  async updateUser(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map((k) => `${k} = ?`).join(", ");
+    const values = keys.map((k) => updates[k]);
+    d.prepare(`UPDATE users SET ${sets} WHERE id = ?`).run(...values, id);
+  },
+
+  async getUserAgents(userId: string) {
+    return getDb().prepare("SELECT * FROM agents WHERE owner_id = ? ORDER BY created_at DESC").all(userId) as any;
   },
 
   async createArenaTopic(agentId: string, title: string, description: string, category: string, resolutionDate?: string) {
@@ -479,28 +584,46 @@ export const db: DatabaseInterface = {
     ).all(limit) as any;
   },
 
-  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string) {
+  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode: string = "trade", deliveryTime?: string) {
     const d = getDb();
     const id = genId();
     d.prepare(
-      `INSERT INTO market_listings (id, agent_id, title, description, type, category, price) VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, agentId, title, description, type, category, price);
+      `INSERT INTO market_listings (id, agent_id, title, description, type, category, price, listing_mode, delivery_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, agentId, title, description, type, category, price, mode, deliveryTime || null);
     return d.prepare("SELECT l.*, a.name as agent_name FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?").get(id) as any;
   },
 
-  async getMarketListings(status: string = "active", limit: number = 50) {
+  async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string) {
+    let where = "l.status = ?";
+    const params: any[] = [status];
+    if (mode && mode !== "all") { where += " AND l.listing_mode = ?"; params.push(mode); }
+    if (category) { where += " AND l.category = ?"; params.push(category); }
+    params.push(limit);
     return getDb().prepare(
       `SELECT l.*, a.name as agent_name,
         (SELECT COUNT(*) FROM market_offers WHERE listing_id = l.id AND status = 'pending') as offer_count
        FROM market_listings l JOIN agents a ON l.agent_id = a.id
-       WHERE l.status = ? ORDER BY l.created_at DESC LIMIT ?`
-    ).all(status, limit) as any;
+       WHERE ${where} ORDER BY l.created_at DESC LIMIT ?`
+    ).all(...params) as any;
   },
 
   async getMarketListing(id: string) {
     return getDb().prepare(
       `SELECT l.*, a.name as agent_name FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?`
     ).get(id) as any ?? null;
+  },
+
+  async updateMarketListing(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    d.prepare(`UPDATE market_listings SET ${sets} WHERE id = ?`).run(...keys.map(k => updates[k]), id);
+  },
+
+  async getAgentMarketListings(agentId: string) {
+    return getDb().prepare(
+      `SELECT l.*, a.name as agent_name FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.agent_id = ? ORDER BY l.created_at DESC`
+    ).all(agentId) as any;
   },
 
   async createMarketOffer(listingId: string, agentId: string, offerText: string, price: string, parentOfferId?: string) {
@@ -620,6 +743,15 @@ export const db: DatabaseInterface = {
     } catch { return { success: false, error: "Already voted" }; }
   },
 
+  async updateStageShow(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE stage_shows SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
   async getNaclBalance(agentId: string): Promise<number> {
     const row = getDb().prepare("SELECT nacl_balance FROM agents WHERE id = ?").get(agentId) as any;
     return row?.nacl_balance ?? 0;
@@ -735,6 +867,15 @@ export const db: DatabaseInterface = {
     return d.prepare("SELECT * FROM agents WHERE is_hosted = 1").all() as any;
   },
 
+  async getHostedRunningAgents() {
+    return getDb().prepare("SELECT * FROM agents WHERE is_hosted = 1 AND hosted_status = 'running'").all() as any;
+  },
+
+  async countUserHostedAgents(userId: string) {
+    const row = getDb().prepare("SELECT COUNT(*) as count FROM agents WHERE owner_id = ? AND is_hosted = 1").get(userId) as any;
+    return row?.count ?? 0;
+  },
+
   async getAgentMessageCount(agentId: string) {
     const d = getDb();
     const row = d.prepare("SELECT COUNT(*) as count FROM messages WHERE agent_id = ?").get(agentId) as any;
@@ -760,6 +901,48 @@ export const db: DatabaseInterface = {
     getDb().prepare("DELETE FROM agent_memories WHERE id = ? AND agent_id = ?").run(memoryId, agentId);
   },
 
+  async getRooms() {
+    return getDb().prepare("SELECT * FROM rooms WHERE is_archived = 0 OR is_archived IS NULL ORDER BY created_at").all() as any;
+  },
+
+  async getOnlineAgents(roomId?: string, minutesThreshold: number = 5) {
+    const d = getDb();
+    if (roomId) {
+      return d.prepare(
+        `SELECT a.* FROM agents a
+         JOIN room_members rm ON a.id = rm.agent_id
+         WHERE rm.room_id = ? AND a.last_active >= datetime('now', ?)
+         ORDER BY a.last_active DESC`
+      ).all(roomId, `-${minutesThreshold} minutes`) as any;
+    }
+    return d.prepare(
+      `SELECT * FROM agents WHERE last_active >= datetime('now', ?) ORDER BY last_active DESC`
+    ).all(`-${minutesThreshold} minutes`) as any;
+  },
+
+  async updateRoom(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE rooms SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
+  async archiveInactiveRooms(daysThreshold: number = 7) {
+    const d = getDb();
+    // Archive custom rooms with no messages in the last N days
+    const result = d.prepare(
+      `UPDATE rooms SET is_archived = 1
+       WHERE type = 'custom' AND (is_archived = 0 OR is_archived IS NULL)
+       AND id NOT IN (
+         SELECT DISTINCT room_id FROM messages
+         WHERE created_at >= datetime('now', ?)
+       )`
+    ).run(`-${daysThreshold} days`);
+    return result.changes;
+  },
+
   async addToWaitlist(email: string) {
     const d = getDb();
     const id = genId();
@@ -769,5 +952,202 @@ export const db: DatabaseInterface = {
     } catch {
       return { success: false, error: "Already on the waitlist!" };
     }
+  },
+
+  async getExpiredUnverifiedTopics() {
+    const d = getDb();
+    const rows = d.prepare(
+      `SELECT t.*, a.name as created_by_name FROM arena_topics t JOIN agents a ON t.created_by = a.id
+       WHERE t.status = 'active' AND t.resolution_date IS NOT NULL AND t.resolution_date <= date('now')
+       AND (t.verification_status IS NULL OR t.verification_status = 'pending')`
+    ).all();
+    return rows as any[];
+  },
+
+  async getVerifiedTopicsPastAppeal() {
+    const d = getDb();
+    const rows = d.prepare(
+      `SELECT t.*, a.name as created_by_name FROM arena_topics t JOIN agents a ON t.created_by = a.id
+       WHERE t.verification_status = 'verified' AND t.appeal_deadline IS NOT NULL AND t.appeal_deadline <= datetime('now')`
+    ).all();
+    return rows as any[];
+  },
+
+  async updateTopicVerification(topicId: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const values = keys.map(k => updates[k]);
+    d.prepare(`UPDATE arena_topics SET ${sets} WHERE id = ?`).run(...values, topicId);
+  },
+
+  // ── Services (Bot Marketplace) ──
+  async createServiceListing(agentId: string, title: string, description: string, category: string, price: number, deliveryTime?: string) {
+    const d = getDb();
+    const id = genId();
+    d.prepare(
+      `INSERT INTO service_listings (id, agent_id, title, description, category, price, delivery_time) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, agentId, title, description, category, price, deliveryTime || null);
+    return d.prepare("SELECT l.*, a.name as agent_name FROM service_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?").get(id) as any;
+  },
+
+  async getServiceListings(category?: string, status: string = "active", limit: number = 50) {
+    const d = getDb();
+    if (category) {
+      return d.prepare(
+        `SELECT l.*, a.name as agent_name FROM service_listings l JOIN agents a ON l.agent_id = a.id
+         WHERE l.status = ? AND l.category = ? ORDER BY l.completed_count DESC, l.created_at DESC LIMIT ?`
+      ).all(status, category, limit) as any;
+    }
+    return d.prepare(
+      `SELECT l.*, a.name as agent_name FROM service_listings l JOIN agents a ON l.agent_id = a.id
+       WHERE l.status = ? ORDER BY l.completed_count DESC, l.created_at DESC LIMIT ?`
+    ).all(status, limit) as any;
+  },
+
+  async getServiceListing(id: string) {
+    return getDb().prepare(
+      `SELECT l.*, a.name as agent_name FROM service_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?`
+    ).get(id) as any ?? null;
+  },
+
+  async getAgentServiceListings(agentId: string) {
+    return getDb().prepare(
+      `SELECT l.*, a.name as agent_name FROM service_listings l JOIN agents a ON l.agent_id = a.id WHERE l.agent_id = ? ORDER BY l.created_at DESC`
+    ).all(agentId) as any;
+  },
+
+  async updateServiceListing(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE service_listings SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
+  async createServiceOrder(listingId: string, buyerId: string, sellerId: string, request: string, price: number) {
+    const d = getDb();
+    const id = genId();
+    d.prepare(
+      `INSERT INTO service_orders (id, listing_id, buyer_id, seller_id, request, price) VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, listingId, buyerId, sellerId, request, price);
+    return d.prepare(
+      `SELECT o.*, b.name as buyer_name, s.name as seller_name, l.title as listing_title
+       FROM service_orders o
+       JOIN agents b ON o.buyer_id = b.id
+       JOIN agents s ON o.seller_id = s.id
+       JOIN service_listings l ON o.listing_id = l.id
+       WHERE o.id = ?`
+    ).get(id) as any;
+  },
+
+  async getServiceOrder(id: string) {
+    return getDb().prepare(
+      `SELECT o.*, b.name as buyer_name, s.name as seller_name, l.title as listing_title
+       FROM service_orders o
+       JOIN agents b ON o.buyer_id = b.id
+       JOIN agents s ON o.seller_id = s.id
+       JOIN service_listings l ON o.listing_id = l.id
+       WHERE o.id = ?`
+    ).get(id) as any ?? null;
+  },
+
+  async getAgentServiceOrders(agentId: string) {
+    return getDb().prepare(
+      `SELECT o.*, b.name as buyer_name, s.name as seller_name, l.title as listing_title
+       FROM service_orders o
+       JOIN agents b ON o.buyer_id = b.id
+       JOIN agents s ON o.seller_id = s.id
+       JOIN service_listings l ON o.listing_id = l.id
+       WHERE o.buyer_id = ? OR o.seller_id = ?
+       ORDER BY o.created_at DESC`
+    ).all(agentId, agentId) as any;
+  },
+
+  async updateServiceOrder(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE service_orders SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
+  // ── Leaderboard ──
+  async getLeaderboard(type: string, limit: number = 20) {
+    const d = getDb();
+    switch (type) {
+      case "overall":
+        return d.prepare(
+          `SELECT a.id, a.name, a.avatar_emoji, a.reputation, a.nacl_balance,
+            (SELECT COUNT(*) FROM messages WHERE agent_id = a.id) as message_count,
+            (SELECT COUNT(*) FROM arena_predictions WHERE agent_id = a.id) as prediction_count,
+            (SELECT COUNT(*) FROM stage_performances WHERE agent_id = a.id) as performance_count
+           FROM agents a WHERE a.is_active = 1
+           ORDER BY a.reputation DESC, a.nacl_balance DESC LIMIT ?`
+        ).all(limit) as any;
+      case "arena":
+        return d.prepare(
+          `SELECT a.id, a.name, a.avatar_emoji,
+            COUNT(p.id) as total_predictions,
+            SUM(CASE WHEN p.is_correct = 1 THEN 1 ELSE 0 END) as correct_predictions,
+            ROUND(AVG(p.confidence), 1) as avg_confidence
+           FROM agents a JOIN arena_predictions p ON a.id = p.agent_id
+           GROUP BY a.id HAVING total_predictions > 0
+           ORDER BY correct_predictions DESC, avg_confidence DESC LIMIT ?`
+        ).all(limit) as any;
+      case "salt":
+        return d.prepare(
+          "SELECT id, name, avatar_emoji, nacl_balance FROM agents WHERE is_active = 1 ORDER BY nacl_balance DESC LIMIT ?"
+        ).all(limit) as any;
+      case "active":
+        return d.prepare(
+          `SELECT a.id, a.name, a.avatar_emoji,
+            (SELECT COUNT(*) FROM messages WHERE agent_id = a.id) as message_count
+           FROM agents a WHERE a.is_active = 1
+           ORDER BY message_count DESC LIMIT ?`
+        ).all(limit) as any;
+      case "roaster":
+        return d.prepare(
+          `SELECT a.id, a.name, a.avatar_emoji,
+            SUM(sp.votes_up) as total_votes_up,
+            SUM(sp.total_tips) as total_tips,
+            COUNT(sp.id) as performance_count
+           FROM agents a JOIN stage_performances sp ON a.id = sp.agent_id
+           GROUP BY a.id
+           ORDER BY total_votes_up DESC, total_tips DESC LIMIT ?`
+        ).all(limit) as any;
+      default:
+        return [];
+    }
+  },
+
+  // ── USDC Escrow Transactions ──
+  async createUsdcTransaction(data: Partial<any>) {
+    const d = getDb();
+    const id = crypto.randomUUID();
+    d.prepare(
+      `INSERT INTO usdc_transactions (id, listing_id, bounty_hash, poster_id, worker_id, amount, platform_fee, worker_stake, status, tx_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, data.listing_id ?? null, data.bounty_hash, data.poster_id ?? null, data.worker_id ?? null, data.amount ?? 0, data.platform_fee ?? null, data.worker_stake ?? null, data.status ?? "created", data.tx_hash ?? null);
+    return d.prepare("SELECT * FROM usdc_transactions WHERE id = ?").get(id) as any;
+  },
+
+  async getUsdcTransaction(bountyHash: string) {
+    return getDb().prepare("SELECT * FROM usdc_transactions WHERE bounty_hash = ? ORDER BY created_at DESC LIMIT 1").get(bountyHash) as any ?? null;
+  },
+
+  async updateUsdcTransaction(bountyHash: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE usdc_transactions SET ${sets} WHERE bounty_hash = ?`).run(...vals, bountyHash);
+  },
+
+  async getSubmittedUsdcTransactions() {
+    return getDb().prepare("SELECT * FROM usdc_transactions WHERE status = 'submitted'").all() as any;
   },
 };

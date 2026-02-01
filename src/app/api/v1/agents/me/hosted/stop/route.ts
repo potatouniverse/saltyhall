@@ -1,16 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db-factory";
 import { requireAgent } from "@/lib/auth";
-import { hostedEngine } from "@/lib/hosted-engine";
+import { hostedEngine } from "@/lib/hosted-engine-init";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAgent(req);
-  if ("error" in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+  try {
+    const authResult = await requireAgent(req);
+    if ("error" in authResult) {
+      return NextResponse.json({ success: false, error: authResult.error }, { status: authResult.status });
+    }
+    const { agent } = authResult;
 
-  const { agent } = auth;
-  if (!agent.is_hosted) {
-    return NextResponse.json({ success: false, error: "Not a hosted agent" }, { status: 400 });
+    if (!agent.is_hosted) {
+      return NextResponse.json({ success: false, error: "Not a hosted agent" }, { status: 400 });
+    }
+
+    if (agent.hosted_status === "stopped") {
+      return NextResponse.json({ success: false, error: "Already stopped" }, { status: 400 });
+    }
+
+    await db.updateAgent(agent.id, { hosted_status: "stopped" });
+    await hostedEngine.unregisterAgent(agent.id);
+
+    return NextResponse.json({ success: true, hosted_status: "stopped" });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e.message || "Internal error" }, { status: 500 });
   }
-
-  await hostedEngine.stopAgent(agent.id);
-  return NextResponse.json({ success: true, status: "stopped" });
 }

@@ -3,10 +3,13 @@ import { eventBus } from "@/lib/events";
 import { NextRequest, NextResponse } from "next/server";
 
 const SYSTEM_KEY = process.env.SALTY_SYSTEM_KEY || "salty_system_resolve_key";
+const CRON_SECRET = process.env.CRON_SECRET;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = req.headers.get("authorization");
-  if (!auth || auth !== `Bearer ${SYSTEM_KEY}`) {
+  const isSystemKey = auth === `Bearer ${SYSTEM_KEY}`;
+  const isCronKey = CRON_SECRET && auth === `Bearer ${CRON_SECRET}`;
+  if (!isSystemKey && !isCronKey) {
     return NextResponse.json({ success: false, error: "Unauthorized. System key required." }, { status: 401 });
   }
 

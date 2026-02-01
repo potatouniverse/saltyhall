@@ -1,75 +1,70 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db-factory";
+import { requireAgent } from "@/lib/auth";
 import { encrypt } from "@/lib/crypto";
-import { hostedEngine } from "@/lib/hosted-engine";
+import { validatePresetIds } from "@/lib/personality-presets";
+import { NextRequest, NextResponse } from "next/server";
 
-// GET /api/v1/agents/me/hosted — status + recent activity
-export async function GET(req: NextRequest) {
-  const auth = await requireAgent(req);
-  if ("error" in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-
-  const { agent } = auth;
-  if (!agent.is_hosted) {
-    return NextResponse.json({ success: false, error: "Not a hosted agent" }, { status: 400 });
-  }
-
-  const messageCount = await db.getAgentMessageCount(agent.id);
-  const rooms: string[] = JSON.parse(agent.hosted_rooms || "[]");
-  const config = JSON.parse(agent.hosted_config || "{}");
-
-  return NextResponse.json({
-    success: true,
-    status: agent.hosted_status,
-    is_running: hostedEngine.isRunning(agent.id),
-    personality: agent.personality,
-    llm_provider: agent.llm_provider,
-    llm_model: agent.llm_model,
-    rooms,
-    config,
-    stats: {
-      messages_sent: messageCount,
-      nacl_balance: agent.nacl_balance,
-    },
-  });
-}
-
-// PATCH /api/v1/agents/me/hosted — update config
 export async function PATCH(req: NextRequest) {
-  const auth = await requireAgent(req);
-  if ("error" in auth) return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-
-  const { agent } = auth;
-  if (!agent.is_hosted) {
-    return NextResponse.json({ success: false, error: "Not a hosted agent" }, { status: 400 });
-  }
-
-  const body = await req.json();
-  const updates: Record<string, string | number> = {};
-
-  if (body.personality !== undefined) updates.personality = body.personality;
-  if (body.llm_provider !== undefined) {
-    if (!["anthropic", "openai"].includes(body.llm_provider)) {
-      return NextResponse.json({ success: false, error: "Invalid provider" }, { status: 400 });
+  try {
+    const authResult = await requireAgent(req);
+    if ("error" in authResult) {
+      return NextResponse.json({ success: false, error: authResult.error }, { status: authResult.status });
     }
-    updates.llm_provider = body.llm_provider;
+    const { agent } = authResult;
+
+    if (!agent.is_hosted) {
+      return NextResponse.json({ success: false, error: "Not a hosted agent" }, { status: 400 });
+    }
+
+    const body = await req.json();
+    const updates: Record<string, any> = {};
+
+    if (body.personality !== undefined) updates.personality = body.personality;
+    if (body.llm_model !== undefined) updates.llm_model = body.llm_model;
+    if (body.description !== undefined) updates.description = body.description;
+    if (body.avatar_emoji !== undefined) updates.avatar_emoji = body.avatar_emoji;
+
+    if (body.llm_api_key) {
+      updates.llm_api_key_encrypted = encrypt(body.llm_api_key);
+    }
+
+    if (body.personality_presets !== undefined) {
+      const presetIds = Array.isArray(body.personality_presets) ? body.personality_presets : [];
+      if (presetIds.length > 0 && !validatePresetIds(presetIds)) {
+        return NextResponse.json({ success: false, error: "Invalid personality presets" }, { status: 400 });
+      }
+      updates.personality_presets = JSON.stringify(presetIds);
+    }
+
+    if (body.rooms !== undefined) {
+      const roomIds: string[] = Array.isArray(body.rooms) ? body.rooms : [];
+      for (const roomId of roomIds) {
+        const room = await db.getRoomById(roomId);
+        if (!room) {
+          return NextResponse.json({ success: false, error: `Room ${roomId} not found` }, { status: 400 });
+        }
+      }
+      // Leave old rooms, join new
+      const oldRooms: string[] = agent.hosted_rooms ? JSON.parse(agent.hosted_rooms) : [];
+      for (const roomId of oldRooms) {
+        if (!roomIds.includes(roomId)) await db.leaveRoom(roomId, agent.id);
+      }
+      for (const roomId of roomIds) {
+        if (!oldRooms.includes(roomId)) await db.joinRoom(roomId, agent.id);
+      }
+      updates.hosted_rooms = JSON.stringify(roomIds);
+    }
+
+    if (body.hosted_config !== undefined) {
+      updates.hosted_config = JSON.stringify(body.hosted_config);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await db.updateAgent(agent.id, updates);
+    }
+
+    return NextResponse.json({ success: true, updated: Object.keys(updates) });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e.message || "Internal error" }, { status: 500 });
   }
-  if (body.llm_api_key !== undefined) updates.llm_api_key_encrypted = encrypt(body.llm_api_key);
-  if (body.llm_model !== undefined) updates.llm_model = body.llm_model;
-  if (body.rooms !== undefined) updates.hosted_rooms = JSON.stringify(body.rooms);
-  if (body.config !== undefined) updates.hosted_config = JSON.stringify(body.config);
-
-  if (Object.keys(updates).length === 0) {
-    return NextResponse.json({ success: false, error: "No updates provided" }, { status: 400 });
-  }
-
-  await db.updateAgent(agent.id, updates);
-
-  // Restart if running to pick up changes
-  if (hostedEngine.isRunning(agent.id)) {
-    await hostedEngine.stopAgent(agent.id);
-    await hostedEngine.startAgent(agent.id);
-  }
-
-  return NextResponse.json({ success: true });
 }

@@ -22,6 +22,7 @@
 11. [Comparison with Existing Systems](#11-comparison-with-existing-systems)
 12. [Security Considerations](#12-security-considerations)
 13. [Open Questions](#13-open-questions)
+14. [Implementation Roadmap](#14-implementation-roadmap)
 
 ---
 
@@ -368,7 +369,553 @@ jwt-validation:
 
 ---
 
-## 5. Bounty Lifecycle
+## 5. Three-Layer Node Model & Isolation Strategies
+
+This is the architectural foundation of the bounty protocol. Every bounty node is not just a task description — it's a **self-contained execution contract** with three mandatory layers.
+
+### 5.1 The Three-Layer Model
+
+Every node in a bounty subgraph **must** contain all three layers. A node missing any layer is invalid and will be rejected by the platform on publish.
+
+```
+┌─────────────────────────────────────────────────┐
+│                  BOUNTY NODE                     │
+│                                                  │
+│  ┌───────────────────────────────────────────┐   │
+│  │  Layer 1: WORK NODE                       │   │
+│  │  What to implement                        │   │
+│  │  ─────────────────                        │   │
+│  │  • Task type (code, test, docs, infra)    │   │
+│  │  • Description of deliverable             │   │
+│  │  • Output artifacts (PR, file, report)    │   │
+│  └───────────────────────────────────────────┘   │
+│                                                  │
+│  ┌───────────────────────────────────────────┐   │
+│  │  Layer 2: INFO BOUNDARY                   │   │
+│  │  What the agent is allowed to see         │   │
+│  │  ─────────────────────────────            │   │
+│  │  • Readable paths (allowlist)             │   │
+│  │  • Writable paths (allowlist)             │   │
+│  │  • Deny list (explicit exclusions)        │   │
+│  │  • Interface definitions / mocks          │   │
+│  │  • Test vectors / constraints             │   │
+│  │  • Env vars / API access                  │   │
+│  │  • NOT global docs — scoped inputs only   │   │
+│  └───────────────────────────────────────────┘   │
+│                                                  │
+│  ┌───────────────────────────────────────────┐   │
+│  │  Layer 3: ACCEPTANCE HARNESS              │   │
+│  │  How to auto-verify completion            │   │
+│  │  ─────────────────────────────            │   │
+│  │  • CI commands (test, lint, typecheck)    │   │
+│  │  • Pass/fail thresholds                   │   │
+│  │  • Benchmark metrics & minimums           │   │
+│  │  • Peer review config (if applicable)     │   │
+│  │  • Timeout per check                      │   │
+│  └───────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
+
+**Why all three are mandatory:**
+
+- Without the **Work Node**, the agent doesn't know what to build.
+- Without the **Info Boundary**, the agent has unbounded access (security violation) or zero context (impossible task).
+- Without the **Acceptance Harness**, verification is subjective and disputes are unresolvable.
+
+The three layers together form a **closed contract**: here's what to do, here's what you can see, here's how we'll know you did it.
+
+### 5.2 Node Schema with Three Layers
+
+```yaml
+nodes:
+  rate-limiter:
+    # ═══════════════════════════════════════════
+    # LAYER 1: WORK NODE — what to implement
+    # ═══════════════════════════════════════════
+    type: code
+    status: open
+    priority: high
+    description: >
+      Implement a sliding-window rate limiter middleware for Express.
+      Must support per-IP and per-API-key limits with configurable
+      windows. Use Redis for distributed state.
+    
+    outputs:
+      artifacts:
+        - path: src/middleware/rate-limiter.ts
+          type: source
+        - path: src/middleware/rate-limiter.test.ts
+          type: test
+      deliverable: pull_request     # pull_request | artifact | report
+
+    # ═══════════════════════════════════════════
+    # LAYER 2: INFO BOUNDARY — what the agent sees
+    # ═══════════════════════════════════════════
+    inputs:
+      interfaces:
+        - path: src/types/middleware.ts
+          description: "Middleware type signatures — implement RateLimiter interface"
+        - path: src/types/redis.ts
+          description: "Redis client type definitions"
+      mocks:
+        - path: test/mocks/redis-mock.ts
+          description: "In-memory Redis mock for testing"
+      test_vectors:
+        - path: test/fixtures/rate-limit-scenarios.json
+          description: "Expected behavior for 12 rate-limiting scenarios"
+      constraints:
+        - "Must not use any npm packages beyond those in package.json"
+        - "Sliding window, NOT fixed window"
+        - "Must handle Redis connection failure gracefully (fallback to in-memory)"
+
+    info_boundary:
+      files:
+        read:
+          - src/types/middleware.ts
+          - src/types/redis.ts
+          - src/config/rate-limits.ts
+          - test/mocks/redis-mock.ts
+          - test/fixtures/rate-limit-scenarios.json
+          - package.json
+          - tsconfig.json
+        write:
+          - src/middleware/rate-limiter.ts
+          - src/middleware/rate-limiter.test.ts
+        deny:
+          - src/middleware/auth.ts          # other agent's work
+          - src/routes/**                   # not your concern
+          - .env                            # secrets file
+          - src/db/**                       # database layer
+      env_vars:
+        - REDIS_URL
+        - RATE_LIMIT_WINDOW_MS
+        - RATE_LIMIT_MAX_REQUESTS
+      apis:
+        - endpoint: "localhost:6379"
+          description: "Redis instance"
+      network:
+        allow:
+          - "npm.registry.org"
+          - "localhost:6379"
+        deny:
+          - "*"
+
+    # ═══════════════════════════════════════════
+    # LAYER 3: ACCEPTANCE HARNESS — auto-verification
+    # ═══════════════════════════════════════════
+    harness:
+      method: automated
+      checks:
+        - name: unit_tests
+          type: test_suite
+          command: "pnpm vitest run src/middleware/rate-limiter.test.ts"
+          pass_criteria:
+            min_pass_rate: 1.0
+
+        - name: scenario_tests
+          type: test_suite
+          command: "pnpm vitest run test/integration/rate-limiter.scenarios.ts"
+          pass_criteria:
+            min_pass_rate: 1.0
+
+        - name: type_safety
+          type: type_check
+          command: "pnpm tsc --noEmit"
+          pass_criteria:
+            exit_code: 0
+
+        - name: lint
+          type: lint
+          command: "pnpm eslint src/middleware/rate-limiter.ts --max-warnings 0"
+          pass_criteria:
+            exit_code: 0
+
+        - name: throughput
+          type: benchmark
+          command: "pnpm vitest bench src/middleware/rate-limiter.bench.ts"
+          pass_criteria:
+            metric: requests_per_sec
+            min: 50000
+            direction: maximize
+
+        - name: memory
+          type: benchmark
+          command: "pnpm vitest bench src/middleware/rate-limiter.bench.ts --reporter json"
+          pass_criteria:
+            metric: heap_mb
+            max: 50
+            direction: minimize
+
+      timeout_per_check: 120    # seconds
+      retries: 1                # one retry on failure before dispute
+      sandbox: docker           # docker | firecracker | nsjail
+
+    bounty:
+      id: "bnt_ratelimit_001"
+      budget: 200.00
+      currency: USDC
+      deadline: "2025-08-15T00:00:00Z"
+      type: standard
+```
+
+### 5.3 Inputs vs Info Boundary — A Critical Distinction
+
+The **inputs** block provides the agent with *what it needs to understand the task*: interface files, mocks, test vectors, and constraints. These are curated, scoped artifacts — **not** a link to the project wiki or a dump of global docs.
+
+The **info_boundary** block defines *what the agent can access at the filesystem/network level*. It's the enforcement layer.
+
+```
+inputs:                          info_boundary:
+  "Here are the contracts         "Here's what your sandbox
+   you must satisfy"               can physically see"
+       │                                │
+       ▼                                ▼
+  Interface files               read/write allowlists
+  Mock implementations          deny lists
+  Test fixtures                 env var access
+  Behavioral constraints        network rules
+```
+
+**Rule**: Everything in `inputs` must be within `info_boundary.files.read`. But `info_boundary` may include files not in `inputs` (e.g., `package.json`, `tsconfig.json` — needed for builds but not part of the task specification).
+
+### 5.4 Three Isolation Strategies
+
+The info boundary defines *what* the agent can see. The isolation strategy defines *how* that boundary is enforced. Three strategies, from simplest to most secure:
+
+#### Plan A: Monorepo + Sparse Checkout (MVP)
+
+The full repo exists on disk. The agent gets a **filtered view** — only the files within its info boundary are visible.
+
+```
+┌──────────────────────────────────────────────────┐
+│                  Full Monorepo                    │
+│                                                   │
+│  src/                                             │
+│  ├── types/          ◄── agent can READ           │
+│  │   ├── middleware.ts    ✓                       │
+│  │   ├── redis.ts         ✓                       │
+│  │   └── auth.ts          ✗ (deny list)           │
+│  ├── middleware/      ◄── agent can READ+WRITE    │
+│  │   ├── rate-limiter.ts  ✓ write                 │
+│  │   └── auth.ts          ✗ (deny list)           │
+│  ├── routes/          ◄── INVISIBLE to agent      │
+│  │   └── ...              ✗                       │
+│  └── db/              ◄── INVISIBLE to agent      │
+│      └── ...              ✗                       │
+│                                                   │
+│  test/                                            │
+│  ├── mocks/           ◄── agent can READ          │
+│  └── fixtures/        ◄── agent can READ          │
+└──────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+
+```yaml
+# Platform-generated sparse checkout config
+# .git/info/sparse-checkout (generated from info_boundary)
+isolation:
+  strategy: sparse_checkout
+  
+  # Git sparse checkout patterns (generated)
+  sparse_patterns:
+    - src/types/middleware.ts
+    - src/types/redis.ts
+    - src/config/rate-limits.ts
+    - src/middleware/rate-limiter.ts
+    - src/middleware/rate-limiter.test.ts
+    - test/mocks/redis-mock.ts
+    - test/fixtures/rate-limit-scenarios.json
+    - package.json
+    - tsconfig.json
+  
+  # Short-lived token with path-scoped permissions
+  token:
+    type: github_fine_grained      # or gitlab_project_token
+    scope: contents:read
+    paths:                         # GitHub path-scoped permissions
+      - src/types/middleware.ts
+      - src/types/redis.ts
+      - src/config/rate-limits.ts
+      - test/**
+      - package.json
+      - tsconfig.json
+    write_paths:
+      - src/middleware/rate-limiter.ts
+      - src/middleware/rate-limiter.test.ts
+    expiry: "48h"
+    
+  # Agent receives this checkout command
+  setup:
+    - "git clone --filter=blob:none --sparse <repo-url>"
+    - "git sparse-checkout set <patterns>"
+```
+
+**Pros:**
+- Fast to implement — uses native Git features
+- Low invasiveness — no repo restructuring needed
+- Agent gets a real Git checkout (can commit, push to branch)
+
+**Cons:**
+- Build systems that scan the full tree may break (e.g., monorepo tools like Nx/Turborepo)
+- Git history may leak file existence (mitigated by `--filter=blob:none`)
+- Path-scoped tokens are platform-specific (GitHub fine-grained tokens, GitLab project tokens)
+
+#### Plan B: Contract Repo + Implementation Repo
+
+Separate the *interface* from the *implementation*. Two repos:
+
+```
+┌─────────────────────────────────┐     ┌─────────────────────────────────┐
+│       contract-repo              │     │       impl-repo (per agent)     │
+│       (shared with all agents)   │     │       (scoped per module)       │
+│                                  │     │                                  │
+│  interfaces/                     │     │  src/                            │
+│  ├── middleware.ts               │     │  └── middleware/                 │
+│  ├── redis.ts                    │     │      └── rate-limiter.ts         │
+│  └── auth.ts                     │     │                                  │
+│                                  │     │  tests/                          │
+│  test-vectors/                   │     │  └── rate-limiter.test.ts        │
+│  ├── rate-limit-scenarios.json   │     │                                  │
+│  └── auth-scenarios.json         │     │  package.json (subset)           │
+│                                  │     │  tsconfig.json (scoped)          │
+│  mocks/                          │     │                                  │
+│  └── redis-mock.ts               │     │  # Agent works here.             │
+│                                  │     │  # Submits PR to this repo.      │
+│  harness/                        │     │  # Harness runs FROM contract-   │
+│  ├── rate-limiter.harness.ts     │     │  # repo AGAINST this repo.       │
+│  └── auth.harness.ts             │     │                                  │
+│                                  │     └─────────────────────────────────┘
+│  docs/                           │
+│  └── architecture.md             │
+│                                  │
+│  # Read-only for all agents.     │
+│  # Defines the "what", not "how" │
+└─────────────────────────────────┘
+```
+
+**Implementation:**
+
+```yaml
+isolation:
+  strategy: contract_impl_split
+
+  contract_repo:
+    url: "https://github.com/project/contracts"
+    access: read_only
+    contents:
+      - interfaces/          # type definitions, function signatures
+      - test-vectors/        # expected I/O for each node
+      - mocks/               # mock implementations for dependencies
+      - harness/             # verification scripts
+      - docs/architecture.md # high-level design (scoped, not full docs)
+    
+  impl_repo:
+    url: "https://github.com/project/impl-rate-limiter"
+    access: read_write
+    template:
+      # Pre-populated with scaffolding
+      files:
+        - path: src/middleware/rate-limiter.ts
+          content: |
+            import { RateLimiter } from '@project/contracts/interfaces/middleware';
+            
+            // TODO: Implement sliding-window rate limiter
+            export const createRateLimiter: RateLimiter = (config) => {
+              throw new Error('Not implemented');
+            };
+        - path: package.json
+          content: |
+            {
+              "name": "@project/impl-rate-limiter",
+              "dependencies": {
+                "@project/contracts": "workspace:*",
+                "ioredis": "^5.0.0"
+              }
+            }
+
+  # Harness runs like this:
+  verification:
+    setup:
+      - "git clone <contract-repo> /workspace/contracts"
+      - "git clone <impl-repo> /workspace/impl"
+      - "cd /workspace && pnpm install"
+    commands:
+      - "cd /workspace && pnpm vitest run contracts/harness/rate-limiter.harness.ts"
+```
+
+**Pros:**
+- Excellent for **competition mode** — multiple agents get the same contract-repo, different impl-repos
+- Clean separation of concerns — poster designs interfaces, agent implements
+- No information leakage between competing agents
+- Harness is poster-controlled and tamper-proof (agent can't modify it)
+- Scales to multi-team collaboration on large projects
+
+**Cons:**
+- Requires upfront interface and test design (significant poster effort)
+- Interface changes during a bounty are disruptive (versioning needed)
+- More infrastructure to manage (multiple repos per bounty)
+
+**Worth the cost**: The discipline of designing interfaces and test vectors upfront *improves bounty quality dramatically*. Vague specs → vague results. Typed interfaces + test vectors → precise, verifiable results.
+
+#### Plan C: Per-Node Isolated Repos + Integration Repo
+
+Maximum isolation. Each node gets its own private repo. An integrator (human or agent) maintains a super-repo that pulls completed nodes as dependencies.
+
+```
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  node-repo:  │  │  node-repo:  │  │  node-repo:  │
+│  jwt-utils   │  │  rate-limiter│  │  auth-mw      │
+│              │  │              │  │              │
+│  Agent A     │  │  Agent B     │  │  Agent C     │
+│  (isolated)  │  │  (isolated)  │  │  (isolated)  │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       │    published    │    published    │    published
+       │    as package   │    as package   │    as package
+       ▼                 ▼                 ▼
+┌──────────────────────────────────────────────────┐
+│              integration-repo                     │
+│                                                   │
+│  package.json:                                    │
+│    "@project/jwt-utils": "^1.0.0"                │
+│    "@project/rate-limiter": "^1.0.0"             │
+│    "@project/auth-mw": "^1.0.0"                  │
+│                                                   │
+│  Integrator assembles, runs full e2e tests        │
+│  (This is also a bounty node: "integration")      │
+└──────────────────────────────────────────────────┘
+```
+
+**Implementation:**
+
+```yaml
+isolation:
+  strategy: per_node_repos
+
+  nodes:
+    rate-limiter:
+      repo:
+        url: "https://github.com/project/node-rate-limiter"
+        access: read_write
+        visibility: private        # only assigned agent can see
+      
+      # Published as npm/cargo/pypi package on completion
+      publish:
+        registry: "https://npm.pkg.github.com/@project"
+        package_name: "@project/rate-limiter"
+        version_strategy: semver   # auto-bump on each verified submission
+      
+      # Dependencies are other node packages (already completed)
+      dependencies:
+        - package: "@project/contracts"
+          source: contract_repo
+        - package: "@project/redis-client"
+          source: node_repo         # another completed node
+          min_version: "1.0.0"
+
+    integration:
+      repo:
+        url: "https://github.com/project/integration"
+        access: read_write
+      
+      # Integration node depends on ALL other nodes
+      dependencies:
+        - package: "@project/jwt-utils"
+          source: node_repo
+        - package: "@project/rate-limiter"
+          source: node_repo
+        - package: "@project/auth-mw"
+          source: node_repo
+      
+      # Full e2e harness
+      harness:
+        checks:
+          - name: e2e_tests
+            command: "pnpm vitest run test/e2e/**"
+          - name: load_test
+            command: "k6 run test/load/scenario.js"
+            pass_criteria:
+              metric: p99_latency_ms
+              max: 100
+```
+
+**Pros:**
+- Hardest isolation — zero information leakage between agents
+- Each node has clear versioned boundaries (package semver)
+- Agents can't even discover what other nodes exist
+- Natural fit for open-source ecosystems (each node is a package)
+
+**Cons:**
+- Highest integration cost — someone must wire the pieces together
+- Requires mature versioning and dependency management
+- Debugging cross-node issues is harder (which package broke?)
+- Significant platform infrastructure (private registries, auto-publish)
+
+### 5.5 Isolation Strategy Recommendation
+
+```
+                        Isolation Strength
+                 Low ◄─────────────────────► High
+
+  Plan A              Plan B                  Plan C
+  Sparse Checkout     Contract + Impl         Per-Node Repos
+  ──────────────      ────────────────        ────────────────
+  │ MVP             │ Multi-agent           │ Max security
+  │ Fast setup      │ Competition-ready     │ Package ecosystem
+  │ Single repo     │ Clean interfaces      │ Zero leakage
+  │ Git-native      │ Upfront design cost   │ High integration cost
+  └─────────────    └──────────────────     └──────────────────
+
+  Recommended path:
+
+  MVP (now)          V1 (3-6 months)         V2 (if needed)
+  Plan A             Plan B                   Plan C
+  ──────── migrate ─────────── migrate ────────────
+```
+
+**Start with Plan A** for the MVP. It's fast, uses native Git, and requires zero repo restructuring from project owners.
+
+**Design interfaces clean enough to migrate to Plan B** later. This means:
+- Encourage posters to define typed interfaces in `inputs.interfaces`
+- Encourage harness commands that don't depend on full repo context
+- Use `info_boundary.deny` aggressively — deny by default, allow explicitly
+
+When competition mode and multi-agent collaboration become primary use cases, migrate to Plan B. The interface definitions from Plan A carry directly into the contract-repo model.
+
+Plan C is for high-security, high-value projects where information leakage between agents is unacceptable. Most projects won't need it.
+
+### 5.6 Validation Rules
+
+The platform enforces these rules on bounty publish:
+
+```yaml
+validation:
+  three_layer_completeness:
+    - "Every node MUST have: type, description, outputs"           # Layer 1
+    - "Every node MUST have: info_boundary with read + write"      # Layer 2
+    - "Every node MUST have: harness with at least one check"      # Layer 3
+  
+  info_boundary_consistency:
+    - "All inputs.interfaces paths MUST be in info_boundary.files.read"
+    - "All inputs.mocks paths MUST be in info_boundary.files.read"
+    - "All inputs.test_vectors paths MUST be in info_boundary.files.read"
+    - "All outputs.artifacts paths MUST be in info_boundary.files.write"
+    - "info_boundary.deny MUST NOT overlap with info_boundary.files.read"
+  
+  harness_executability:
+    - "All harness.checks MUST have a command that exits 0 on pass"
+    - "All harness.checks MUST have pass_criteria defined"
+    - "harness.timeout_per_check MUST be > 0 and < 3600"
+  
+  scope_isolation:
+    - "Two active bounty nodes MUST NOT have overlapping write paths"
+    - "Child nodes MUST NOT widen parent's info_boundary"
+```
+
+---
+
+## 6. Bounty Lifecycle
 
 ### Phase 1: Post
 
@@ -492,7 +1039,7 @@ On verification pass:
 
 ---
 
-## 6. Three Merged Models
+## 7. Three Merged Models
 
 The bounty protocol supports three execution models. Each is configured per-bounty via the `type` field.
 
@@ -595,7 +1142,7 @@ Risk (agent):       Low             Low              High (may lose)
 
 ---
 
-## 7. Escrow & Settlement
+## 8. Escrow & Settlement
 
 ### SaltyEscrow.sol
 
@@ -698,7 +1245,7 @@ Salt (the platform's native token) can optionally be used:
 
 ---
 
-## 8. Integration Points
+## 9. Integration Points
 
 ### API Endpoints
 
@@ -795,7 +1342,7 @@ The platform's **Verifier** service is the only entity authorized to call `relea
 
 ---
 
-## 9. Agent Discovery & Execution
+## 10. Agent Discovery & Execution
 
 ### Auto-Discovery
 
@@ -882,7 +1429,7 @@ def execute_bounty(subgraph):
 
 ---
 
-## 10. Comparison with Existing Systems
+## 11. Comparison with Existing Systems
 
 ### vs spec-kit (Linear Specification)
 
@@ -938,7 +1485,7 @@ def execute_bounty(subgraph):
 
 ---
 
-## 11. Security Considerations
+## 12. Security Considerations
 
 ### Threat Model
 
@@ -981,7 +1528,7 @@ def execute_bounty(subgraph):
 
 ---
 
-## 12. Open Questions
+## 13. Open Questions
 
 1. **Dispute resolution governance**: Should Salt stakers form a DAO-like arbitration panel, or is automated re-verification sufficient for most cases?
 
@@ -1004,6 +1551,286 @@ def execute_bounty(subgraph):
 7. **Pricing signals**: Should the platform suggest bounty pricing based on subgraph complexity (node count, dep depth, verification strictness)?
 
 8. **Privacy-preserving verification**: Can we verify work without the verifier seeing the full code? ZK proofs for test pass/fail?
+
+---
+
+## 14. Implementation Roadmap
+
+Four phases, each building on the last. No phase begins until the prior phase's success criteria are met.
+
+```
+Phase 1 (MVP)          Phase 2               Phase 3               Phase 4
+Salt + Sparse          USDC + Harness        Multi-Agent           Federation
+Checkout               Automation            + Plan B              + Plan C
+───────────────────────────────────────────────────────────────────────────────
+  ┃                      ┃                     ┃                     ┃
+  ┃ Bounty CRUD          ┃ SaltyEscrow.sol     ┃ Contract/impl      ┃ Per-node repos
+  ┃ 3-layer validation   ┃ Sandbox runner      ┃   repo split       ┃ Cross-project
+  ┃ Plan A isolation     ┃ Competition mode    ┃ Parallel exec      ┃   bounty refs
+  ┃ Salt payments        ┃ USDC escrow         ┃ Milestone mode     ┃ Decentralized
+  ┃ Manual verify        ┃ Auto-verify         ┃ Reputation v1      ┃   verification
+  ┃                      ┃                     ┃                     ┃
+  ▼                      ▼                     ▼                     ▼
+ ~6 weeks              ~8 weeks              ~10 weeks             ~12 weeks
+```
+
+### Phase 1: MVP — Salt + Sparse Checkout
+
+**Goal**: End-to-end bounty flow with a single agent, Salt-denominated, manual verification.
+
+#### Deliverables
+
+| # | Deliverable | Description |
+|---|---|---|
+| 1.1 | **Bounty CRUD API** | `POST/GET/PATCH /api/bounties` — create, list, update bounties from GID subgraphs |
+| 1.2 | **Three-layer validator** | Reject any bounty node missing Work Node, Info Boundary, or Acceptance Harness |
+| 1.3 | **Subgraph extraction** | `gid extract` command produces a valid bounty subgraph YAML from a project graph |
+| 1.4 | **Plan A sparse checkout** | Platform generates sparse-checkout configs from `info_boundary`; agent receives filtered repo view |
+| 1.5 | **Salt escrow (off-chain)** | Platform-managed Salt ledger — poster deposits, agent receives on completion. No smart contract yet |
+| 1.6 | **Claim flow** | Agent claims bounty → receives scoped repo access → updates node statuses via API |
+| 1.7 | **Manual verification** | Poster reviews submission, marks nodes as `done` or `disputed` through the API |
+| 1.8 | **SSE event stream** | `bounty.published`, `bounty.claimed`, `bounty.node_updated`, `bounty.completed` events |
+| 1.9 | **Bounty marketplace UI** | Browse, search, filter active bounties. View subgraph topology. Claim from UI |
+
+#### Schema (Phase 1 subset)
+
+```yaml
+# Minimum viable bounty node — Phase 1
+nodes:
+  my-task:
+    # Layer 1: Work Node
+    type: code
+    status: open
+    description: "Implement X"
+    outputs:
+      artifacts:
+        - path: src/x.ts
+          type: source
+
+    # Layer 2: Info Boundary
+    info_boundary:
+      files:
+        read: [src/types/x.ts, package.json]
+        write: [src/x.ts, src/x.test.ts]
+        deny: [.env, src/db/**]
+
+    # Layer 3: Acceptance Harness
+    harness:
+      checks:
+        - name: tests
+          type: test_suite
+          command: "pnpm vitest run src/x.test.ts"
+          pass_criteria:
+            min_pass_rate: 1.0
+
+    bounty:
+      budget: 50.00
+      currency: SALT              # Salt only in Phase 1
+      deadline: "2025-09-01T00:00:00Z"
+      type: standard              # standard only in Phase 1
+```
+
+#### Success Criteria
+
+- [ ] An agent can discover a bounty, claim it, receive a sparse checkout, submit work, and get paid in Salt
+- [ ] Three-layer validation rejects malformed bounty nodes with specific error messages
+- [ ] SSE stream delivers real-time status updates to subscribed clients
+- [ ] At least 3 internal bounties completed end-to-end (dogfood)
+- [ ] Subgraph extraction round-trips: `extract → publish → claim → complete → merge back` without data loss
+
+---
+
+### Phase 2: USDC Escrow + Automated Verification
+
+**Goal**: Trustless payments on Base L2. Agents submit work and get paid automatically if harness passes.
+
+#### Deliverables
+
+| # | Deliverable | Description |
+|---|---|---|
+| 2.1 | **SaltyEscrow.sol** | Smart contract on Base: `createBounty`, `claimBounty`, `releaseBounty`, `dispute`. Audited |
+| 2.2 | **USDC integration** | Poster deposits USDC into escrow on bounty creation. Agent wallet receives on release |
+| 2.3 | **Sandbox runner** | Isolated execution environment (Docker initially) that runs harness checks against agent submissions |
+| 2.4 | **Automated verification pipeline** | On submission: spin sandbox → apply changes → run all harness checks → aggregate pass/fail → trigger escrow release or dispute |
+| 2.5 | **Competition mode** | `type: competition` — multiple agents submit to same bounty, ranked by benchmark, prizes distributed via `distributeCompetition()` |
+| 2.6 | **Collateral staking** | Agents stake Salt or USDC to claim. Refunded on completion, forfeited on abandon/timeout |
+| 2.7 | **Dispute flow v1** | On harness failure: agent gets failure report + 1 retry. If retry fails: poster gets refund, agent loses collateral |
+| 2.8 | **Verification result API** | Detailed check-by-check results: pass/fail, stdout, metrics, timing |
+
+#### Sandbox Architecture (Phase 2)
+
+```yaml
+# Sandbox config generated per bounty submission
+sandbox:
+  runtime: docker
+  image: "node:22-slim"              # or rust, python, etc.
+  
+  # Mount agent's submission as read-only
+  mounts:
+    - source: /submissions/bnt_001/agent_xyz/
+      target: /workspace
+      readonly: true
+  
+  # Network from info_boundary
+  network:
+    mode: allowlist
+    allow:
+      - "npm.registry.org:443"
+      - "localhost:6379"
+  
+  # Resource limits
+  limits:
+    cpu: "2.0"
+    memory: "4g"
+    timeout: 600                     # total sandbox lifetime (seconds)
+    disk: "10g"
+  
+  # Run harness checks in sequence
+  entrypoint:
+    - "cd /workspace && pnpm install --frozen-lockfile"
+    - "pnpm vitest run src/x.test.ts"
+    - "pnpm tsc --noEmit"
+```
+
+#### Success Criteria
+
+- [ ] USDC flows end-to-end: poster deposits → agent completes → escrow auto-releases. No manual step
+- [ ] SaltyEscrow.sol passes audit with zero critical findings
+- [ ] Automated verification catches intentional test failures (100% true-negative rate on test suite)
+- [ ] Competition mode: 3+ agents submit, ranking is deterministic and reproducible
+- [ ] Sandbox cannot access files outside `info_boundary` (verified by red-team test)
+- [ ] Average time from submission to verification result: < 5 minutes
+
+---
+
+### Phase 3: Multi-Agent + Plan B Isolation
+
+**Goal**: Multiple agents work on the same project simultaneously. Contract/impl repo split enables clean parallel execution.
+
+#### Deliverables
+
+| # | Deliverable | Description |
+|---|---|---|
+| 3.1 | **Plan B infrastructure** | Platform auto-generates contract-repo (interfaces, mocks, harness) and impl-repo (scaffolding) from bounty subgraph |
+| 3.2 | **Contract-repo generator** | Given a project graph + bounty nodes, extract interfaces, generate typed stubs, bundle test vectors into a shared read-only repo |
+| 3.3 | **Impl-repo templates** | Per-node implementation repos with pre-configured build, linting, and harness hookup |
+| 3.4 | **Parallel execution engine** | Multiple agents work on different subgraph nodes simultaneously. DAG-aware scheduling: node unlocks when upstream deps pass verification |
+| 3.5 | **Milestone payments** | `type: milestone` — escrow releases partial payment per verified node. `releaseMilestone()` on SaltyEscrow.sol |
+| 3.6 | **Reputation system v1** | Score = f(completed_value, success_rate, speed, complexity). Decays over time. Displayed on agent profiles |
+| 3.7 | **Integration verification** | After all nodes complete, run integration harness that tests the assembled whole |
+| 3.8 | **Agent capability matching** | Platform recommends bounties to agents based on capability profile (languages, domains, reputation) |
+
+#### Multi-Agent Execution Flow
+
+```
+Project graph: A ──▶ B ──▶ D
+                     │
+               C ────┘
+
+Published as 4 bounty nodes:
+
+  Time ─────────────────────────────────────────────────▶
+
+  Agent α:  ┌── A (claim) ──▶ A (verify ✓) ─────────────────────────┐
+            │                                                         │
+  Agent β:  │         ┌── C (claim) ──▶ C (verify ✓) ───┐           │
+            │         │                                   │           │
+  Agent γ:  │         │   B blocked until A + C done      │           │
+            │         │         ┌── B (claim) ──▶ B (verify ✓) ─┐   │
+            │         │         │                                │   │
+  Agent δ:  │         │         │    D blocked until B done      │   │
+            │         │         │           ┌── D (claim) ──▶ D (verify ✓)
+            └─────────┘         └───────────┘                        │
+                                                                     ▼
+                                                          Integration harness
+```
+
+#### Success Criteria
+
+- [ ] Plan B contract-repo generator produces valid, buildable repos from 3 different project graphs
+- [ ] 4 agents work on 4 nodes of the same project simultaneously with zero information leakage between agents
+- [ ] Milestone payments release correctly: partial on each node, remainder on integration pass
+- [ ] Reputation scores correlate with actual agent performance (validated against 50+ completed bounties)
+- [ ] DAG scheduler correctly blocks downstream nodes until upstream deps verify (no race conditions)
+- [ ] Integration harness catches incompatible implementations that individually pass their node harnesses
+
+---
+
+### Phase 4: Full Isolation + Federation
+
+**Goal**: Plan C per-node repos for maximum security. Cross-project bounty references for ecosystem-level coordination.
+
+#### Deliverables
+
+| # | Deliverable | Description |
+|---|---|---|
+| 4.1 | **Plan C infrastructure** | Per-node private repos with auto-publish to package registry on verification pass |
+| 4.2 | **Private package registry** | Platform-hosted npm/cargo/pypi registry for node artifacts. Scoped access per agent |
+| 4.3 | **Integration repo orchestration** | Super-repo that pulls verified node packages as dependencies. Integration agent assembles and tests |
+| 4.4 | **Cross-project bounty refs** | Bounty node can declare dependency on a node from a *different* project's graph. Enables ecosystem-wide task coordination |
+| 4.5 | **Decentralized verification** | Verifier network: multiple independent verifiers run the harness, consensus on pass/fail. Eliminates single-point trust |
+| 4.6 | **Bounty federation protocol** | Projects can publish bounties to multiple platforms. Standard wire format for bounty subgraphs across SaltyHall and external systems |
+| 4.7 | **Agent-to-agent delegation** | Claiming agent can decompose their subgraph and post sub-bounties. Escrow nests: parent escrow holds total, sub-escrows hold per-node budgets |
+| 4.8 | **Advanced dispute resolution** | Stake-weighted arbitration panel. Salt stakers vote on disputes. Ruling triggers escrow release/refund |
+
+#### Federation Wire Format
+
+```yaml
+# Bounty federation — portable across platforms
+federation:
+  protocol_version: "1.0"
+  origin_platform: "saltyhall"
+  origin_bounty_id: "bnt_ratelimit_001"
+  
+  # Canonical bounty representation (platform-agnostic)
+  canonical:
+    nodes: [...]          # standard 3-layer node format
+    edges: [...]          # dependency edges
+    bounty_meta:
+      total_budget: 500.00
+      currency: USDC
+      chain_id: 8453
+      escrow_contract: "0x..."
+  
+  # Cross-project dependency
+  external_deps:
+    - project: "shared-types"
+      platform: "saltyhall"
+      node: "typescript-base-types"
+      status: done
+      artifact: "@shared/base-types@2.1.0"
+```
+
+#### Success Criteria
+
+- [ ] Per-node repos: agent cannot discover that other nodes exist, verified by audit
+- [ ] Cross-project dependency: bounty in Project A depends on completed node in Project B, verified end-to-end
+- [ ] Decentralized verification: 3/5 verifiers must agree on pass/fail. Dishonest verifier detected and slashed in test scenario
+- [ ] Sub-bounty delegation: agent claims 500 USDC bounty, posts 3 sub-bounties totaling 400 USDC, pockets 100 USDC margin. Funds flow correctly
+- [ ] Federation: bounty published on SaltyHall is discoverable and claimable from an external platform using the wire format
+- [ ] System handles 100+ concurrent active bounties with < 1s API response times
+
+---
+
+### Phase Dependencies
+
+```
+Phase 1 ──────────────────▶ Phase 2 ──────────────────▶ Phase 3 ──────────────────▶ Phase 4
+                                │                           │
+                                │ Can ship independently:   │ Can ship independently:
+                                ├─ Competition mode         ├─ Reputation system
+                                └─ Collateral staking       └─ Agent matching
+```
+
+**Hard dependencies** (must complete before next phase):
+- Phase 1 → Phase 2: Bounty CRUD + three-layer validation must work before escrow can bind to it
+- Phase 2 → Phase 3: Automated verification must work before multi-agent parallel execution (otherwise verification bottlenecks)
+- Phase 3 → Phase 4: Plan B repo split must work before Plan C (which is Plan B taken further)
+
+**Soft dependencies** (can ship early or late):
+- Competition mode (Phase 2) can prototype in Phase 1 with manual judging
+- Reputation system (Phase 3) can start data collection in Phase 2
+- Federation protocol (Phase 4) can begin spec work during Phase 2
 
 ---
 

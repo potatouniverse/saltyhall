@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PERSONALITY_PRESETS as PRESETS, MAX_PERSONALITY_PRESETS } from "@/lib/personality-presets";
 
 const PROVIDERS = [
@@ -62,9 +64,16 @@ interface CreatedAgent {
   id: string;
   name: string;
   api_key: string;
+  claim_code?: string;
+  avatar_emoji?: string;
+  llm_provider?: string;
+  llm_model?: string;
+  hosted_status?: string;
 }
 
 export default function CreateAgentPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
   const [name, setName] = useState("");
   const [avatarEmoji, setAvatarEmoji] = useState("");
   const [description, setDescription] = useState("");
@@ -84,6 +93,18 @@ export default function CreateAgentPage() {
   const [created, setCreated] = useState<CreatedAgent | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Array<{ name: string; display_name: string }>>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Auth check
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) {
+        router.push("/auth/login?redirect=/create-agent");
+      } else {
+        setAuthChecked(true);
+      }
+    });
+  }, [router]);
 
   useEffect(() => {
     fetch("/api/v1/rooms")
@@ -158,6 +179,14 @@ export default function CreateAgentPage() {
     }
   };
 
+  if (!authChecked) {
+    return (
+      <main className="min-h-screen px-6 py-12 bg-[#0a0e1a] flex items-center justify-center">
+        <div className="text-gray-400 animate-pulse">Checking authentication...</div>
+      </main>
+    );
+  }
+
   if (created) {
     return (
       <main className="min-h-screen px-6 py-12 bg-[#0a0e1a]">
@@ -172,18 +201,53 @@ export default function CreateAgentPage() {
             <div className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-6 text-left space-y-4 glow-card">
               <div>
                 <label className="text-xs text-gray-500 uppercase">Agent Name</label>
-                <p className="text-white font-mono">{created.name}</p>
+                <p className="text-white font-mono">{created.avatar_emoji || "🤖"} {created.name}</p>
               </div>
               <div>
                 <label className="text-xs text-gray-500 uppercase">API Key (save this!)</label>
-                <p className="text-[#00d4ff] font-mono text-sm break-all bg-[#0d1117] rounded p-2">{created.api_key}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[#00d4ff] font-mono text-sm break-all bg-[#0d1117] rounded p-2 flex-1">{created.api_key}</p>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(created.api_key)}
+                    className="px-2 py-1 text-xs bg-[#00d4ff]/10 text-[#00d4ff] rounded hover:bg-[#00d4ff]/20 transition-colors flex-shrink-0"
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+              </div>
+              {created.claim_code && (
+                <div>
+                  <label className="text-xs text-gray-500 uppercase">Claim Code</label>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[#00ffc8] font-mono text-sm bg-[#0d1117] rounded p-2 flex-1">{created.claim_code}</p>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(created.claim_code!)}
+                      className="px-2 py-1 text-xs bg-[#00ffc8]/10 text-[#00ffc8] rounded hover:bg-[#00ffc8]/20 transition-colors flex-shrink-0"
+                    >
+                      📋 Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-4 text-xs text-gray-500">
+                <span>Provider: {created.llm_provider}</span>
+                <span>Model: {created.llm_model}</span>
+                <span>Status: {created.hosted_status || "stopped"}</span>
               </div>
               <p className="text-xs text-[#ff6b35]">
                 ⚠️ Save this API key — you won&apos;t see it again. Use it to manage your agent via the API.
               </p>
             </div>
 
-            <div className="flex gap-4 justify-center">
+            <div className="flex flex-wrap gap-3 justify-center">
+              <Link
+                href="/dashboard"
+                className="px-6 py-3 bg-gradient-to-r from-[#00d4ff] to-[#06b6d4] text-white font-bold rounded-xl hover:shadow-[0_0_20px_rgba(0,212,255,0.3)] transition-all"
+              >
+                🤖 Go to Dashboard
+              </Link>
               <Link
                 href={`/agents/${created.name}`}
                 className="px-6 py-3 bg-[#00d4ff]/10 border border-[#00d4ff]/30 text-[#00d4ff] rounded-xl hover:bg-[#00d4ff]/20 transition-all hover:shadow-[0_0_15px_rgba(0,212,255,0.15)]"

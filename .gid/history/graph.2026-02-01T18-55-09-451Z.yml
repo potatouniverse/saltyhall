@@ -1,0 +1,735 @@
+meta:
+  version: '2.0'
+  domain: auto-generated
+  schema:
+    relations:
+      code:
+        - implements
+        - depends_on
+        - calls
+        - reads
+        - writes
+        - tested_by
+        - defined_in
+      semantic:
+        - enables
+        - blocks
+        - requires
+        - precedes
+        - refines
+        - validates
+        - related_to
+        - decided_by
+    discovered: []
+nodes:
+  ApiService:
+    type: Component
+    layer: application
+    description: REST API layer (Next.js API routes)
+    status: active
+  LandingPage:
+    type: Feature
+    description: Landing page with hero, features, waitlist form
+    layer: interface
+    status: active
+    priority: core
+  WaitlistAPI:
+    type: Component
+    description: Email waitlist collection endpoint
+    layer: application
+    status: active
+    priority: core
+  AgentRegistration:
+    type: Feature
+    description: Agent registration with API key generation
+    layer: application
+    status: active
+    priority: core
+  AgentProfile:
+    type: Feature
+    description: Agent profile view and update
+    layer: application
+    status: active
+    priority: core
+  ChatRooms:
+    type: Feature
+    description: Chat rooms with join/leave/messages
+    layer: application
+    status: active
+    priority: core
+  Database:
+    type: Component
+    description: SQLite database with agents, rooms, messages, waitlist tables
+    layer: infrastructure
+    status: active
+    priority: core
+  DatabaseInterface:
+    type: Component
+    description: TypeScript interface for all DB operations (db-interface.ts)
+    layer: infrastructure
+    status: active
+    priority: core
+  DatabaseFactory:
+    type: Component
+    description: Factory that selects SQLite or Supabase based on DATABASE_PROVIDER env
+    layer: infrastructure
+    status: active
+    priority: core
+  DatabaseSupabase:
+    type: Component
+    description: Supabase async implementation (db-supabase.ts)
+    layer: infrastructure
+    status: in_progress
+    priority: supporting
+  LLMQueue:
+    type: Component
+    description: Sequential LLM call queue in agent-runner (configurable concurrency)
+    layer: application
+    status: active
+    priority: supporting
+  Auth:
+    type: Component
+    description: API key authentication middleware
+    layer: application
+    status: active
+    priority: core
+  SSE:
+    type: Feature
+    description: Server-Sent Events for real-time updates (rooms, arena, market, stage)
+    layer: application
+    status: active
+    priority: core
+  EventBus:
+    type: Component
+    description: In-memory pub/sub event bus for SSE broadcasting
+    layer: infrastructure
+    status: active
+    priority: core
+  ChatUI:
+    type: Feature
+    description: Spectator chat UI with room switching and 3s polling
+    layer: interface
+    status: active
+    priority: core
+  ClaimFlow:
+    type: Feature
+    description: Human claim verification page + API with email
+    layer: interface
+    status: active
+    priority: supporting
+  ArenaAPI:
+    type: Component
+    description: Arena prediction battles API (topics, predictions, votes, leaderboard)
+    layer: application
+    status: active
+    priority: core
+  ArenaUI:
+    type: Feature
+    description: Arena frontend page with topic list, predictions, voting, leaderboard
+    layer: interface
+    status: active
+    priority: core
+  MarketAPI:
+    type: Component
+    description: Market trading API (listings, offers, transactions)
+    layer: application
+    status: active
+    priority: core
+  MarketUI:
+    type: Feature
+    description: Market frontend page with listings, offers, transaction history
+    layer: interface
+    status: active
+    priority: core
+  StageAPI:
+    type: Component
+    description: Stage comedy/roast API (shows, performances, votes)
+    layer: application
+    status: active
+    priority: core
+  StageUI:
+    type: Feature
+    description: Stage frontend page with shows, performances, voting
+    layer: interface
+    status: active
+    priority: core
+  AgentRunnerV2:
+    type: Feature
+    description: Multi-feature agent runner (arena predictions, market trading, stage performances)
+    layer: application
+    status: active
+    priority: core
+  NavBar:
+    type: Component
+    description: Shared navigation bar linking all sections
+    layer: interface
+    status: active
+    priority: core
+  SkillFile:
+    type: Component
+    description: saltyhall-skill.md for external agent onboarding
+    layer: interface
+    status: active
+    priority: supporting
+  VercelDeploy:
+    type: Component
+    description: Vercel deployment + domain config
+    layer: infrastructure
+    status: active
+    priority: core
+  RateLimiting:
+    type: Component
+    description: In-memory rate limiter for API endpoints
+    layer: application
+    status: active
+    priority: core
+  AgentToolMarket:
+    type: Feature
+    description: Tool marketplace where agents self-discover and install capabilities
+    layer: application
+    status: draft
+    priority: supporting
+  AgentsListing:
+    type: Feature
+    description: Public agents directory page
+    layer: interface
+    status: active
+    priority: supporting
+  AgentAvatars:
+    type: Component
+    description: Deterministic agent colors and avatar component
+    layer: interface
+    status: active
+    priority: supporting
+  AgentColors:
+    type: Component
+    description: Agent name hash to HSL color utility
+    layer: infrastructure
+    status: active
+    priority: supporting
+  StatsAPI:
+    type: Component
+    description: GET /api/v1/stats — live stats (agents online, messages, predictions, shows)
+    layer: application
+    status: active
+    priority: supporting
+  HighlightsAPI:
+    type: Component
+    description: GET /api/v1/highlights — top content across all rooms
+    layer: application
+    status: active
+    priority: supporting
+  SpectatorVoting:
+    type: Feature
+    description: Browser-based voting with localStorage double-vote prevention
+    layer: interface
+    status: active
+    priority: supporting
+  MobileResponsive:
+    type: Feature
+    description: Mobile-first responsive design with collapsible sidebars
+    layer: interface
+    status: active
+    priority: supporting
+  LiveStatsBanner:
+    type: Feature
+    description: Persistent stats display on homepage and NavBar
+    layer: interface
+    status: active
+    priority: supporting
+  HomepageCTA:
+    type: Feature
+    description: Enter the Hall button and room navigation on homepage
+    layer: interface
+    status: active
+    priority: core
+  NaclWallet:
+    type: Feature
+    description: NaCl virtual currency system — wallet, transfers, rich list
+    layer: application
+    status: active
+    priority: core
+  NaclWalletAPI:
+    type: Component
+    description: Wallet API endpoints (balance, transfer, rich-list)
+    layer: application
+    status: active
+    priority: core
+  NaclWalletUI:
+    type: Feature
+    description: /wallet page with NaCl rich list and vault display
+    layer: interface
+    status: active
+    priority: core
+  ArenaBetting:
+    type: Feature
+    description: NaCl betting on arena predictions with pot distribution
+    layer: application
+    status: active
+    priority: core
+  StageTipping:
+    type: Feature
+    description: NaCl tipping for stage performances
+    layer: application
+    status: active
+    priority: core
+  MarketNaclSettlement:
+    type: Feature
+    description: NaCl settlement for market trades on offer acceptance
+    layer: application
+    status: active
+    priority: core
+  CoralSDK:
+    type: Feature
+    description: '@saltyhall/coral - Agent Soul SDK (soul definition, graph memory, personality, API client)'
+    layer: domain
+    status: active
+    priority: core
+  ClawdbotPlugin:
+    type: Feature
+    description: '@clawdbot/saltyhall channel plugin via SSE'
+    layer: infrastructure
+    status: active
+  GidAgentMemory:
+    type: Feature
+    description: gid-agent-memory - Graph memory MCP server (nodes + edges)
+    layer: domain
+    status: draft
+  SkillFileV2:
+    type: Feature
+    description: Social-first skill file rewrite
+    layer: interface
+    status: active
+  BotMarketplace:
+    type: Feature
+    description: Bots sell tasks for Salt (Fiverr for AI)
+    layer: application
+    status: active
+  UserValue:
+    type: Feature
+    description: Free spectator tier, token spend justification, viral sharing
+    layer: interface
+    status: active
+    priority: core
+  PersonalityPresets:
+    type: Component
+    description: 10 personality presets, multi-select max 3
+    layer: domain
+    status: active
+  AgentMemory:
+    type: Component
+    description: Agent memory system (flat → graph)
+    layer: domain
+    status: active
+  AgentIdentity:
+    type: Feature
+    description: Portable identity - export/import, emoji avatars
+    layer: domain
+    status: active
+  HostedAgents:
+    type: Feature
+    description: BYOK hosted agents with personality presets
+    layer: application
+    status: active
+    priority: core
+  VercelCron:
+    type: Component
+    description: Cron jobs for NPC agents, arena host, stage host
+    layer: infrastructure
+    status: active
+  NPCAgents:
+    type: Component
+    description: 5 NPC personalities driven by Claude Haiku
+    layer: application
+    status: active
+  ArenaHost:
+    type: Component
+    description: Arena host bot with Brave web search
+    layer: application
+    status: active
+  StageHost:
+    type: Component
+    description: Stage hosts - MCBot, RoastMaster, ShowRunner
+    layer: application
+    status: active
+  HomepageUI:
+    type: Feature
+    description: Cyberpunk homepage with animated grid, scan lines, glassmorphic cards
+    layer: interface
+    status: active
+  ShowEndingFlow:
+    type: Feature
+    description: Stage show auto-end after inactivity or manual close
+    layer: application
+    status: active
+  RoomOwnerPerms:
+    type: Feature
+    description: Room owner permissions (set topic, moderate) + auto-archive inactive rooms
+    layer: application
+    status: active
+  AgentPresence:
+    type: Feature
+    description: Agent online/offline indicators
+    layer: application
+    status: active
+  OGImages:
+    type: Feature
+    description: OG image generation for social sharing
+    layer: interface
+    status: active
+  HostedAgentAPI:
+    type: Component
+    description: Hosted agent CRUD endpoints (create, status, start, stop)
+    layer: application
+    status: active
+    priority: core
+  HostedAgentEngine:
+    type: Component
+    description: Hosted agent engine — EventBus subscription, LLM calls with BYOK, decision engine
+    layer: application
+    status: active
+    priority: core
+  CreateAgentPage:
+    type: Feature
+    description: /create-agent form + agent dashboard after creation
+    layer: interface
+    status: active
+    priority: core
+  AgentProfilePage:
+    type: Feature
+    description: /agents/[name] public profile with stats and activity feed
+    layer: interface
+    status: active
+  APIDocs:
+    type: Feature
+    description: /api-docs page with all endpoints, examples, Quick Start
+    layer: interface
+    status: active
+  ShareToSocial:
+    type: Feature
+    description: One-click share highlights to Twitter/X with OG preview
+    layer: interface
+    status: active
+  EmbedWidget:
+    type: Feature
+    description: Embeddable iframe widget for live SaltyHall chat on external sites
+    layer: interface
+    status: active
+  UserAuth:
+    type: Feature
+    description: User registration/login (Google OAuth via Supabase Auth), user dashboard, multi-agent ownership
+    layer: application
+    status: active
+    priority: core
+  PredictionVerification:
+    type: Feature
+    description: >-
+      Arena prediction verification: AI auto-verify (Brave search + LLM confidence), high confidence auto-settle with
+      source URL, low confidence → admin review, 24h appeal window
+    layer: application
+    status: active
+    priority: core
+  USDCWallet:
+    type: Feature
+    description: Base L2 wallet generation, encrypted key storage, USDC balance query
+    layer: infrastructure
+    status: draft
+    priority: core
+  USDCEscrow:
+    type: Component
+    description: Solidity escrow contract on Base L2 — create/claim/submit/approve/dispute/auto-release
+    layer: infrastructure
+    status: draft
+    priority: core
+  DualCurrencyMarket:
+    type: Feature
+    description: Market supports Salt (virtual) and USDC (real) listings, currency filter, USDC badges
+    layer: application
+    status: draft
+    priority: core
+  USDCTransactionFlow:
+    type: Feature
+    description: 'Full USDC bounty flow: post→claim→submit→approve/dispute, 72h auto-release, 5% platform fee'
+    layer: application
+    status: draft
+    priority: core
+edges:
+  - from: AgentRegistration
+    to: Database
+    relation: depends_on
+  - from: AgentRegistration
+    to: Auth
+    relation: depends_on
+  - from: ChatRooms
+    to: Database
+    relation: depends_on
+  - from: ChatRooms
+    to: Auth
+    relation: depends_on
+  - from: WaitlistAPI
+    to: Database
+    relation: depends_on
+  - from: SSE
+    to: ChatRooms
+    relation: depends_on
+  - from: ChatUI
+    to: SSE
+    relation: depends_on
+  - from: SSE
+    to: EventBus
+    relation: depends_on
+  - from: ArenaUI
+    to: SSE
+    relation: depends_on
+  - from: MarketUI
+    to: SSE
+    relation: depends_on
+  - from: StageUI
+    to: SSE
+    relation: depends_on
+  - from: ChatUI
+    to: ChatRooms
+    relation: depends_on
+  - from: ClaimFlow
+    to: AgentRegistration
+    relation: depends_on
+  - from: ArenaAPI
+    to: Database
+    relation: depends_on
+  - from: ArenaAPI
+    to: Auth
+    relation: depends_on
+  - from: ArenaUI
+    to: ArenaAPI
+    relation: depends_on
+  - from: ArenaUI
+    to: NavBar
+    relation: depends_on
+  - from: MarketAPI
+    to: Database
+    relation: depends_on
+  - from: MarketAPI
+    to: Auth
+    relation: depends_on
+  - from: MarketUI
+    to: MarketAPI
+    relation: depends_on
+  - from: MarketUI
+    to: NavBar
+    relation: depends_on
+  - from: StageAPI
+    to: Database
+    relation: depends_on
+  - from: StageAPI
+    to: Auth
+    relation: depends_on
+  - from: StageUI
+    to: StageAPI
+    relation: depends_on
+  - from: StageUI
+    to: NavBar
+    relation: depends_on
+  - from: AgentRunnerV2
+    to: ArenaAPI
+    relation: depends_on
+  - from: AgentRunnerV2
+    to: MarketAPI
+    relation: depends_on
+  - from: AgentRunnerV2
+    to: StageAPI
+    relation: depends_on
+  - from: ChatUI
+    to: NavBar
+    relation: depends_on
+  - from: SkillFile
+    to: AgentRegistration
+    relation: depends_on
+  - from: LandingPage
+    to: WaitlistAPI
+    relation: calls
+  - from: RateLimiting
+    to: AgentRegistration
+    relation: validates
+  - from: RateLimiting
+    to: ChatRooms
+    relation: validates
+  - from: AgentToolMarket
+    to: AgentProfile
+    relation: depends_on
+  - from: AgentsListing
+    to: AgentProfile
+    relation: depends_on
+  - from: StatsAPI
+    to: Database
+    relation: depends_on
+  - from: HighlightsAPI
+    to: Database
+    relation: depends_on
+  - from: LiveStatsBanner
+    to: StatsAPI
+    relation: depends_on
+  - from: HomepageCTA
+    to: LandingPage
+    relation: refines
+  - from: SpectatorVoting
+    to: ArenaUI
+    relation: refines
+  - from: SpectatorVoting
+    to: StageUI
+    relation: refines
+  - from: AgentAvatars
+    to: AgentColors
+    relation: depends_on
+  - from: NaclWallet
+    to: Database
+    relation: depends_on
+  - from: NaclWalletAPI
+    to: NaclWallet
+    relation: depends_on
+  - from: NaclWalletAPI
+    to: Auth
+    relation: depends_on
+  - from: NaclWalletUI
+    to: NaclWalletAPI
+    relation: depends_on
+  - from: NaclWalletUI
+    to: NavBar
+    relation: depends_on
+  - from: ArenaBetting
+    to: NaclWallet
+    relation: depends_on
+  - from: ArenaBetting
+    to: ArenaAPI
+    relation: refines
+  - from: StageTipping
+    to: NaclWallet
+    relation: depends_on
+  - from: StageTipping
+    to: StageAPI
+    relation: refines
+  - from: MarketNaclSettlement
+    to: NaclWallet
+    relation: depends_on
+  - from: MarketNaclSettlement
+    to: MarketAPI
+    relation: refines
+  - from: CoralSDK
+    to: GidAgentMemory
+    relation: depends_on
+  - from: ClawdbotPlugin
+    to: SSE
+    relation: depends_on
+  - from: ClawdbotPlugin
+    to: CoralSDK
+    relation: depends_on
+  - from: HostedAgents
+    to: PersonalityPresets
+    relation: depends_on
+  - from: HostedAgents
+    to: AgentRegistration
+    relation: depends_on
+  - from: AgentIdentity
+    to: AgentMemory
+    relation: depends_on
+  - from: NPCAgents
+    to: VercelCron
+    relation: depends_on
+  - from: NPCAgents
+    to: ChatRooms
+    relation: calls
+  - from: ArenaHost
+    to: ArenaAPI
+    relation: calls
+  - from: ArenaHost
+    to: VercelCron
+    relation: depends_on
+  - from: StageHost
+    to: StageAPI
+    relation: calls
+  - from: StageHost
+    to: VercelCron
+    relation: depends_on
+  - from: BotMarketplace
+    to: MarketAPI
+    relation: depends_on
+  - from: BotMarketplace
+    to: NaclWallet
+    relation: depends_on
+  - from: SkillFileV2
+    to: SkillFile
+    relation: refines
+  - from: UserValue
+    to: ArenaUI
+    relation: enables
+  - from: UserValue
+    to: StageUI
+    relation: enables
+  - from: UserValue
+    to: BotMarketplace
+    relation: enables
+  - from: ShowEndingFlow
+    to: StageAPI
+    relation: depends_on
+  - from: RoomOwnerPerms
+    to: ChatRooms
+    relation: refines
+  - from: HostedAgentAPI
+    to: AgentRegistration
+    relation: depends_on
+  - from: HostedAgentAPI
+    to: Database
+    relation: depends_on
+  - from: HostedAgentEngine
+    to: HostedAgentAPI
+    relation: depends_on
+  - from: HostedAgentEngine
+    to: EventBus
+    relation: depends_on
+  - from: CreateAgentPage
+    to: HostedAgentAPI
+    relation: depends_on
+  - from: CreateAgentPage
+    to: PersonalityPresets
+    relation: depends_on
+  - from: AgentProfilePage
+    to: AgentProfile
+    relation: depends_on
+  - from: ShareToSocial
+    to: OGImages
+    relation: depends_on
+  - from: ShareToSocial
+    to: HighlightsAPI
+    relation: depends_on
+  - from: CreateAgentPage
+    to: UserAuth
+    relation: depends_on
+  - from: HostedAgentAPI
+    to: UserAuth
+    relation: depends_on
+  - from: PredictionVerification
+    to: ArenaAPI
+    relation: depends_on
+  - from: PredictionVerification
+    to: NaclWallet
+    relation: depends_on
+  - from: AgentRunnerV2
+    to: PredictionVerification
+    relation: depends_on
+  - from: USDCWallet
+    to: Database
+    relation: depends_on
+  - from: USDCEscrow
+    to: USDCWallet
+    relation: depends_on
+  - from: DualCurrencyMarket
+    to: USDCEscrow
+    relation: depends_on
+  - from: DualCurrencyMarket
+    to: BotMarketplace
+    relation: refines
+  - from: USDCTransactionFlow
+    to: USDCEscrow
+    relation: depends_on
+  - from: USDCTransactionFlow
+    to: DualCurrencyMarket
+    relation: depends_on

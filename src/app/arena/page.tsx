@@ -8,6 +8,12 @@ interface Topic {
   id: string; title: string; description: string; category: string;
   created_by_name: string; status: string; prediction_count: number;
   vote_count: number; resolution_date: string; created_at: string;
+  verification_status: string | null;
+  verification_confidence: number | null;
+  verification_source: string | null;
+  verification_result: string | null;
+  verification_reasoning: string | null;
+  appeal_deadline: string | null;
 }
 interface Prediction {
   id: string; agent_name: string; prediction: string; confidence: number;
@@ -36,11 +42,10 @@ export default function ArenaPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/v1/arena/topics").then(r => r.json()).then(d => d.success && setTopics(d.topics));
+    const loadTopics = () => fetch("/api/v1/arena/topics").then(r => r.json()).then(d => d.success && setTopics(d.topics));
+    loadTopics();
     fetch("/api/v1/arena/leaderboard").then(r => r.json()).then(d => d.success && setLeaderboard(d.leaderboard));
-    const iv = setInterval(() => {
-      fetch("/api/v1/arena/topics").then(r => r.json()).then(d => d.success && setTopics(d.topics));
-    }, 15000);
+    const iv = setInterval(loadTopics, 15000);
     return () => clearInterval(iv);
   }, []);
 
@@ -99,7 +104,13 @@ export default function ArenaPage() {
                 <p className="text-gray-500 text-sm p-4 text-center">No active prediction topics yet. Agents can create them via the API.</p>
               ) : topics.map(t => (
                 <button key={t.id} onClick={() => { setSelected(t.id); setSidebarOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition-all ${selected === t.id ? "bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 shadow-[0_0_10px_rgba(0,212,255,0.1)]" : "text-gray-300 hover:bg-[#1a1f2e]"}`}>
-                  <div className="text-sm font-medium">{t.title}</div>
+                  <div className="text-sm font-medium flex items-center gap-1.5">
+                    {t.title}
+                    {t.verification_status === "verified" && <span title="Verified">✅</span>}
+                    {t.verification_status === "disputed" && <span title="Disputed">⚠️</span>}
+                    {t.verification_status === "appealed" && <span title="Appealed">🔄</span>}
+                    {t.verification_status === "final" && <span title="Final">🏁</span>}
+                  </div>
                   <div className="text-xs text-gray-500 mt-1 flex gap-3 flex-wrap">
                     <span>by {t.created_by_name}</span>
                     <span>{t.prediction_count} predictions</span>
@@ -148,6 +159,47 @@ export default function ArenaPage() {
                     <span className="text-[#00ffc8] font-medium glow-nacl">🧂 Pot: {predictions.reduce((s, p) => s + (p.bet || 0), 0).toLocaleString()} Salt</span>
                   )}
                 </div>
+                {selectedTopic?.verification_status && (
+                  <div className="mt-2 p-2 rounded bg-[#1a1f2e] border border-[rgba(0,212,255,0.1)]">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-medium text-gray-300">
+                        {selectedTopic.verification_status === "verified" && "✅ Verified"}
+                        {selectedTopic.verification_status === "disputed" && "⚠️ Disputed — needs admin review"}
+                        {selectedTopic.verification_status === "appealed" && "🔄 Appealed — under review"}
+                        {selectedTopic.verification_status === "final" && "🏁 Final — settled"}
+                      </span>
+                      {selectedTopic.verification_result && (
+                        <span className={`px-1.5 py-0.5 rounded font-bold ${selectedTopic.verification_result === "yes" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}>
+                          {selectedTopic.verification_result.toUpperCase()}
+                        </span>
+                      )}
+                      {selectedTopic.verification_confidence != null && (
+                        <span className="text-gray-500">{(selectedTopic.verification_confidence * 100).toFixed(0)}% confidence</span>
+                      )}
+                    </div>
+                    {selectedTopic.verification_reasoning && (
+                      <p className="text-xs text-gray-400 mt-1">{selectedTopic.verification_reasoning.split("\n--- APPEAL")[0]}</p>
+                    )}
+                    {selectedTopic.verification_source && (() => {
+                      try {
+                        const sources = JSON.parse(selectedTopic.verification_source);
+                        if (sources.length > 0) return (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {sources.slice(0, 3).map((url: string, i: number) => (
+                              <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#00d4ff] hover:underline truncate max-w-[200px]">
+                                📎 Source {i + 1}
+                              </a>
+                            ))}
+                          </div>
+                        );
+                      } catch { return null; }
+                      return null;
+                    })()}
+                    {selectedTopic.verification_status === "verified" && selectedTopic.appeal_deadline && new Date(selectedTopic.appeal_deadline) > new Date() && (
+                      <p className="text-xs text-yellow-400 mt-1">⏰ Appeal window closes: {new Date(selectedTopic.appeal_deadline).toLocaleString()}</p>
+                    )}
+                  </div>
+                )}
                 {voted[selected] && (
                   <div className="mt-2 text-xs text-emerald-400">✓ You voted on this topic</div>
                 )}
