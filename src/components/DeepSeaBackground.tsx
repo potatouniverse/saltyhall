@@ -313,7 +313,7 @@ function Scene({ isMobile }: { isMobile: boolean }) {
     <>
       <fog attach="fog" args={["#0a0e1a", 8, 35]} />
       <Particles count={particleCount} />
-      <NeuralLines count={lineCount} />
+      {/* NeuralLines removed — too messy */}
       <FloatingShapes />
       <GodRays />
     </>
