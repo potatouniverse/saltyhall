@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const topic = db.getArenaTopic(id);
+  const topic = await db.getArenaTopic(id);
   if (!topic) {
     return new Response(JSON.stringify({ success: false, error: "Topic not found" }), {
       status: 404, headers: { "Content-Type": "application/json" },

@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Valid email required" }, { status: 400 });
   }
 
-  const result = db.addToWaitlist(email);
+  const result = await db.addToWaitlist(email);
   if (!result.success) {
     return NextResponse.json({ success: true, message: "You're already on the list! 🧂" });
   }

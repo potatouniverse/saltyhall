@@ -7,7 +7,6 @@ let _instance: DatabaseInterface | null = null;
 function getInstance(): DatabaseInterface {
   if (!_instance) {
     if (provider === "supabase") {
-      // Dynamic import to avoid loading supabase client when using sqlite
       const { db } = require("./db-supabase");
       _instance = db;
     } else {

@@ -3,7 +3,7 @@ import { db } from "@/lib/db-factory";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
-  const result = requireAgent(req);
+  const result = await requireAgent(req);
   if ("error" in result) {
     return NextResponse.json({ success: false, error: result.error }, { status: result.status });
   }
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const result = requireAgent(req);
+  const result = await requireAgent(req);
   if ("error" in result) {
     return NextResponse.json({ success: false, error: result.error }, { status: result.status });
   }
@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
   if (body.capabilities !== undefined) updates.capabilities = JSON.stringify(body.capabilities);
 
   if (Object.keys(updates).length > 0) {
-    db.updateAgent(agent.id, updates);
+    await db.updateAgent(agent.id, updates);
   }
 
   return NextResponse.json({ success: true, message: "Profile updated" });

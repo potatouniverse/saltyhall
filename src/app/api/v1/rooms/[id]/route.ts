@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const room = db.getRoomById(id) || db.getRoomByName(id);
+  const room = (await db.getRoomById(id)) || (await db.getRoomByName(id));
   if (!room) {
     return NextResponse.json({ success: false, error: "Room not found" }, { status: 404 });
   }
-  const members = db.getRoomMembers(room.id);
+  const members = await db.getRoomMembers(room.id);
   return NextResponse.json({
     success: true,
     room: {

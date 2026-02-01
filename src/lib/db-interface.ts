@@ -1,6 +1,7 @@
 /**
  * Database interface — all data operations must go through this.
  * Implementations: SQLite (db.ts), Supabase (db-supabase.ts)
+ * ALL methods are async (return Promises).
  */
 
 export interface AgentRecord {
@@ -160,69 +161,69 @@ export interface NaclRichListEntry {
 
 export interface DatabaseInterface {
   // Agents
-  createAgent(name: string, description: string, capabilities?: string[], avatarEmoji?: string): { id: string; name: string; api_key: string; claim_code: string; claim_url: string };
-  getAgentByKey(api_key: string): AgentRecord | null;
-  getAgentByName(name: string): AgentRecord | null;
-  getAgentById(id: string): AgentRecord | null;
-  updateAgent(id: string, updates: Record<string, any>): void;
-  getAgents(limit?: number): AgentRecord[];
-  getAgentByClaimCode(code: string): AgentRecord | null;
-  claimAgent(agentId: string, userId: string): void;
+  createAgent(name: string, description: string, capabilities?: string[], avatarEmoji?: string): Promise<{ id: string; name: string; api_key: string; claim_code: string; claim_url: string }>;
+  getAgentByKey(api_key: string): Promise<AgentRecord | null>;
+  getAgentByName(name: string): Promise<AgentRecord | null>;
+  getAgentById(id: string): Promise<AgentRecord | null>;
+  updateAgent(id: string, updates: Record<string, any>): Promise<void>;
+  getAgents(limit?: number): Promise<AgentRecord[]>;
+  getAgentByClaimCode(code: string): Promise<AgentRecord | null>;
+  claimAgent(agentId: string, userId: string): Promise<void>;
 
   // Users
-  getUserByEmail(email: string): any;
-  createUser(email: string): { id: string; email: string };
+  getUserByEmail(email: string): Promise<any>;
+  createUser(email: string): Promise<{ id: string; email: string }>;
 
   // Rooms
-  getRooms(): RoomRecord[];
-  getRoomByName(name: string): RoomRecord | null;
-  getRoomById(id: string): RoomRecord | null;
+  getRooms(): Promise<RoomRecord[]>;
+  getRoomByName(name: string): Promise<RoomRecord | null>;
+  getRoomById(id: string): Promise<RoomRecord | null>;
 
   // Room Members
-  joinRoom(roomId: string, agentId: string): void;
-  leaveRoom(roomId: string, agentId: string): void;
-  getRoomMembers(roomId: string): AgentRecord[];
+  joinRoom(roomId: string, agentId: string): Promise<void>;
+  leaveRoom(roomId: string, agentId: string): Promise<void>;
+  getRoomMembers(roomId: string): Promise<AgentRecord[]>;
 
   // Messages
-  createMessage(roomId: string, agentId: string, content: string, type?: string): MessageRecord;
-  getMessages(roomId: string, limit?: number, before?: string): MessageRecord[];
-  getMessagesSince(roomId: string, since: string, limit?: number): MessageRecord[];
+  createMessage(roomId: string, agentId: string, content: string, type?: string): Promise<MessageRecord>;
+  getMessages(roomId: string, limit?: number, before?: string): Promise<MessageRecord[]>;
+  getMessagesSince(roomId: string, since: string, limit?: number): Promise<MessageRecord[]>;
 
   // Arena
-  createArenaTopic(agentId: string, title: string, description: string, category: string, resolutionDate?: string): ArenaTopicRecord;
-  getArenaTopics(status?: string, limit?: number): ArenaTopicRecord[];
-  getArenaTopic(id: string): ArenaTopicRecord | null;
-  createArenaPrediction(topicId: string, agentId: string, prediction: string, confidence: number, reasoning: string, bet?: number): ArenaPredictionRecord;
-  getArenaPredictions(topicId: string): ArenaPredictionRecord[];
-  voteArenaPrediction(topicId: string, predictionId: string, voterIp: string): { success: boolean; error?: string };
-  getArenaLeaderboard(limit?: number): any[];
+  createArenaTopic(agentId: string, title: string, description: string, category: string, resolutionDate?: string): Promise<ArenaTopicRecord>;
+  getArenaTopics(status?: string, limit?: number): Promise<ArenaTopicRecord[]>;
+  getArenaTopic(id: string): Promise<ArenaTopicRecord | null>;
+  createArenaPrediction(topicId: string, agentId: string, prediction: string, confidence: number, reasoning: string, bet?: number): Promise<ArenaPredictionRecord>;
+  getArenaPredictions(topicId: string): Promise<ArenaPredictionRecord[]>;
+  voteArenaPrediction(topicId: string, predictionId: string, voterIp: string): Promise<{ success: boolean; error?: string }>;
+  getArenaLeaderboard(limit?: number): Promise<any[]>;
 
   // Market
-  createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string): MarketListingRecord;
-  getMarketListings(status?: string, limit?: number): MarketListingRecord[];
-  getMarketListing(id: string): MarketListingRecord | null;
-  createMarketOffer(listingId: string, agentId: string, offerText: string, price: string, parentOfferId?: string): MarketOfferRecord;
-  getMarketOffers(listingId: string): MarketOfferRecord[];
-  getMarketOffer(id: string): MarketOfferRecord | null;
-  respondToMarketOffer(offerId: string, status: string, counterText?: string, counterPrice?: string): any;
-  getMarketTransactions(limit?: number): MarketTransactionRecord[];
+  createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string): Promise<MarketListingRecord>;
+  getMarketListings(status?: string, limit?: number): Promise<MarketListingRecord[]>;
+  getMarketListing(id: string): Promise<MarketListingRecord | null>;
+  createMarketOffer(listingId: string, agentId: string, offerText: string, price: string, parentOfferId?: string): Promise<MarketOfferRecord>;
+  getMarketOffers(listingId: string): Promise<MarketOfferRecord[]>;
+  getMarketOffer(id: string): Promise<MarketOfferRecord | null>;
+  respondToMarketOffer(offerId: string, status: string, counterText?: string, counterPrice?: string): Promise<any>;
+  getMarketTransactions(limit?: number): Promise<MarketTransactionRecord[]>;
 
   // Stage
-  createStageShow(agentId: string, title: string, description: string, type: string): StageShowRecord;
-  getStageShows(limit?: number): StageShowRecord[];
-  getStageShow(id: string): StageShowRecord | null;
-  createStagePerformance(showId: string, agentId: string, content: string, type: string, targetAgentId?: string): StagePerformanceRecord;
-  getStagePerformances(showId: string): StagePerformanceRecord[];
-  voteStagePerformance(performanceId: string, vote: number, voterIp?: string, agentId?: string): { success: boolean; error?: string };
+  createStageShow(agentId: string, title: string, description: string, type: string): Promise<StageShowRecord>;
+  getStageShows(limit?: number): Promise<StageShowRecord[]>;
+  getStageShow(id: string): Promise<StageShowRecord | null>;
+  createStagePerformance(showId: string, agentId: string, content: string, type: string, targetAgentId?: string): Promise<StagePerformanceRecord>;
+  getStagePerformances(showId: string): Promise<StagePerformanceRecord[]>;
+  voteStagePerformance(performanceId: string, vote: number, voterIp?: string, agentId?: string): Promise<{ success: boolean; error?: string }>;
 
   // NaCl Wallet
-  getNaclBalance(agentId: string): number;
-  transferNacl(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string): any;
-  getNaclTransactions(agentId: string, limit?: number): NaclTransactionRecord[];
-  getNaclRichList(limit?: number): NaclRichListEntry[];
-  resolveArenaTopic(topicId: string, outcome: string): any;
-  tipPerformance(showId: string, performanceId: string, fromAgentId: string, amount: number): any;
+  getNaclBalance(agentId: string): Promise<number>;
+  transferNacl(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string): Promise<any>;
+  getNaclTransactions(agentId: string, limit?: number): Promise<NaclTransactionRecord[]>;
+  getNaclRichList(limit?: number): Promise<NaclRichListEntry[]>;
+  resolveArenaTopic(topicId: string, outcome: string): Promise<any>;
+  tipPerformance(showId: string, performanceId: string, fromAgentId: string, amount: number): Promise<any>;
 
   // Waitlist
-  addToWaitlist(email: string): { success: boolean; error?: string };
+  addToWaitlist(email: string): Promise<{ success: boolean; error?: string }>;
 }

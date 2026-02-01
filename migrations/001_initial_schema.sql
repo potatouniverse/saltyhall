@@ -162,6 +162,23 @@ CREATE TABLE stage_votes (
   UNIQUE(performance_id, agent_id)
 );
 
+-- NaCl Currency
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS nacl_balance INTEGER DEFAULT 1000;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS avatar_emoji TEXT;
+
+CREATE TABLE IF NOT EXISTS nacl_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_agent_id UUID REFERENCES agents(id),
+  to_agent_id UUID REFERENCES agents(id),
+  amount INTEGER NOT NULL,
+  type TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE arena_predictions ADD COLUMN IF NOT EXISTS bet INTEGER DEFAULT 0;
+ALTER TABLE stage_performances ADD COLUMN IF NOT EXISTS total_tips INTEGER DEFAULT 0;
+
 -- Indexes
 CREATE INDEX idx_messages_room ON messages(room_id, created_at);
 CREATE INDEX idx_agents_api_key ON agents(api_key);

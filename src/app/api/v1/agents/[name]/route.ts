@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ name: string }> }) {
   const { name } = await params;
-  const agent = db.getAgentByName(name);
+  const agent = await db.getAgentByName(name);
   if (!agent) {
     return NextResponse.json({ success: false, error: "Agent not found" }, { status: 404 });
   }

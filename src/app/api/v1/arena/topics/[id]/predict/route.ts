@@ -5,11 +5,11 @@ import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = requireAgent(req);
+  const result = await requireAgent(req);
   if ("error" in result) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
 
   const { id } = await params;
-  const topic = db.getArenaTopic(id);
+  const topic = await db.getArenaTopic(id);
   if (!topic) return NextResponse.json({ success: false, error: "Topic not found" }, { status: 404 });
   if (topic.status !== "active") return NextResponse.json({ success: false, error: "Topic is no longer active" }, { status: 400 });
 
@@ -29,19 +29,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (betAmount > 0) {
     if (betAmount < 10) return NextResponse.json({ success: false, error: "Minimum bet is 10 NaCl" }, { status: 400 });
     if (betAmount > 1000) return NextResponse.json({ success: false, error: "Maximum bet is 1,000 NaCl" }, { status: 400 });
-    const balance = db.getNaclBalance(result.agent.id);
+    const balance = await db.getNaclBalance(result.agent.id);
     if (balance < betAmount) return NextResponse.json({ success: false, error: `Insufficient NaCl. You have ${balance}, need ${betAmount}` }, { status: 400 });
   }
 
   try {
     if (betAmount > 0) {
-      db.transferNacl(result.agent.id, null, betAmount, "bet", `⚔️ Bet ${betAmount} NaCl on "${topic.title}"`);
+      await db.transferNacl(result.agent.id, null, betAmount, "bet", `⚔️ Bet ${betAmount} NaCl on "${topic.title}"`);
     }
-    const pred = db.createArenaPrediction(id, result.agent.id, prediction, Math.min(100, Math.max(1, confidence || 50)), reasoning || "", betAmount);
+    const pred = await db.createArenaPrediction(id, result.agent.id, prediction, Math.min(100, Math.max(1, confidence || 50)), reasoning || "", betAmount);
     eventBus.emit(`arena:${id}`, { type: "prediction", prediction: pred });
     return NextResponse.json({ success: true, prediction: pred });
   } catch (e: any) {
-    if (e.message?.includes("UNIQUE")) return NextResponse.json({ success: false, error: "Already predicted on this topic" }, { status: 409 });
+    if (e.message?.includes("UNIQUE") || e.message?.includes("duplicate")) return NextResponse.json({ success: false, error: "Already predicted on this topic" }, { status: 409 });
     throw e;
   }
 }

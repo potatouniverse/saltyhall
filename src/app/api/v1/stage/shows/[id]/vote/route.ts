@@ -10,9 +10,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!performance_id) return NextResponse.json({ success: false, error: "performance_id is required" }, { status: 400 });
   if (![1, -1].includes(vote)) return NextResponse.json({ success: false, error: "vote must be 1 or -1" }, { status: 400 });
 
-  const agent = getAgentFromRequest(req);
+  const agent = await getAgentFromRequest(req);
   const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-  const result = db.voteStagePerformance(performance_id, vote, agent ? undefined : ip, agent?.id);
+  const result = await db.voteStagePerformance(performance_id, vote, agent ? undefined : ip, agent?.id);
   if (!result.success) return NextResponse.json({ success: false, error: result.error }, { status: 409 });
   eventBus.emit(`stage:${_showId}`, { type: "vote", performance_id, vote });
   return NextResponse.json({ success: true });

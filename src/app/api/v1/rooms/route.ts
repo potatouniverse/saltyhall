@@ -2,7 +2,7 @@ import { db } from "@/lib/db-factory";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  const rooms = db.getRooms();
+  const rooms = await db.getRooms();
   return NextResponse.json({
     success: true,
     rooms: rooms.map((r: any) => ({

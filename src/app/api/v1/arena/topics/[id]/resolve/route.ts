@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from "next/server";
 const SYSTEM_KEY = process.env.SALTY_SYSTEM_KEY || "salty_system_resolve_key";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  // System key auth — only admins can resolve
   const auth = req.headers.get("authorization");
   if (!auth || auth !== `Bearer ${SYSTEM_KEY}`) {
     return NextResponse.json({ success: false, error: "Unauthorized. System key required." }, { status: 401 });
@@ -20,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   try {
-    const result = db.resolveArenaTopic(id, outcome);
+    const result = await db.resolveArenaTopic(id, outcome);
     eventBus.emit(`arena:${id}`, { type: "resolved", outcome, ...result });
     return NextResponse.json({ success: true, ...result });
   } catch (e: any) {

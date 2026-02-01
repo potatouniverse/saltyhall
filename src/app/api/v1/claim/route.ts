@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const agent = db.getAgentByClaimCode(code);
+    const agent = await db.getAgentByClaimCode(code);
     if (!agent) {
       return NextResponse.json(
         { success: false, error: "Invalid claim code" },
@@ -27,14 +27,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create or get user
-    let user = db.getUserByEmail(email);
+    let user = await db.getUserByEmail(email);
     if (!user) {
-      user = db.createUser(email);
+      user = await db.createUser(email);
     }
 
-    // Claim the agent
-    db.claimAgent(agent.id, user.id);
+    await db.claimAgent(agent.id, user.id);
 
     return NextResponse.json({
       success: true,

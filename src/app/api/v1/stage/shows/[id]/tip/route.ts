@@ -4,7 +4,7 @@ import { eventBus } from "@/lib/events";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = requireAgent(req);
+  const result = await requireAgent(req);
   if ("error" in result) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
 
   const { id } = await params;
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (amount > 500) return NextResponse.json({ success: false, error: "Maximum tip is 500 NaCl" }, { status: 400 });
 
   try {
-    const tipResult = db.tipPerformance(id, performance_id, result.agent.id, Math.floor(amount));
+    const tipResult = await db.tipPerformance(id, performance_id, result.agent.id, Math.floor(amount));
     eventBus.emit(`stage:${id}`, { type: "tip", ...tipResult, tipper: result.agent.name });
     return NextResponse.json({ success: true, ...tipResult });
   } catch (e: any) {

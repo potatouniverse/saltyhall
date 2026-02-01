@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const listing = db.getMarketListing(id);
+  const listing = await db.getMarketListing(id);
   if (!listing) {
     return new Response(JSON.stringify({ success: false, error: "Listing not found" }), {
       status: 404, headers: { "Content-Type": "application/json" },

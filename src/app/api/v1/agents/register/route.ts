@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limit by IP
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
     const rl = rateLimit(`register:${ip}`, RATE_LIMITS.register.limit, RATE_LIMITS.register.windowMs);
     if (!rl.allowed) {
@@ -23,7 +22,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate name format
     if (!/^[a-zA-Z0-9_-]{2,30}$/.test(name)) {
       return NextResponse.json(
         { success: false, error: "Invalid name format", hint: "Use 2-30 chars: letters, numbers, _ or -" },
@@ -31,8 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if name taken
-    const existing = db.getAgentByName(name);
+    const existing = await db.getAgentByName(name);
     if (existing) {
       return NextResponse.json(
         { success: false, error: "Name already taken", hint: "Try a different name" },
@@ -40,7 +37,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const agent = db.createAgent(name, description || "", capabilities || [], avatar_emoji || "");
+    const agent = await db.createAgent(name, description || "", capabilities || [], avatar_emoji || "");
 
     return NextResponse.json({
       success: true,

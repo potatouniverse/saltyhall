@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const show = db.getStageShow(id);
+  const show = await db.getStageShow(id);
   if (!show) {
     return new Response(JSON.stringify({ success: false, error: "Show not found" }), {
       status: 404, headers: { "Content-Type": "application/json" },
