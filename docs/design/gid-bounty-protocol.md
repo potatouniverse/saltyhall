@@ -21,10 +21,11 @@
 10. [Agent Discovery & Execution](#10-agent-discovery--execution)
 11. [Comparison with Existing Systems](#11-comparison-with-existing-systems)
 12. [Security Considerations](#12-security-considerations)
-13. [SpecLoop Economic Model](#13-specloop-economic-model)
-14. [Auto-Decomposition Engine (拆图引擎)](#14-auto-decomposition-engine-拆图引擎)
-15. [Open Questions](#15-open-questions)
-16. [Implementation Roadmap](#16-implementation-roadmap)
+13. [TaskSpec Type System & Acceptance Standards](#13-taskspec-type-system--acceptance-standards)
+14. [SpecLoop Economic Model](#14-specloop-economic-model)
+15. [Auto-Decomposition Engine (拆图引擎)](#15-auto-decomposition-engine-拆图引擎)
+16. [Open Questions](#16-open-questions)
+17. [Implementation Roadmap](#17-implementation-roadmap)
 
 ---
 
@@ -1530,11 +1531,1411 @@ def execute_bounty(subgraph):
 
 ---
 
-## 13. SpecLoop Economic Model
+## 13. TaskSpec Type System & Acceptance Standards
+
+This is the foundational type system for the bounty protocol. Every bounty node has a **type** drawn from a closed enum — no freeform task descriptions. Every node uses a **unified container schema** with 9 mandatory blocks. Every type has **hardcoded minimum acceptance criteria** that the platform enforces. Together, these constraints make bounties machine-parseable, machine-verifiable, and unambiguous.
+
+### 13.1 Task Archetypes (v1: 8 Types)
+
+Only these types are permitted as bounty node types. The enum is closed — adding a new type requires a protocol version bump.
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│                        TASK TYPE ENUM (v1)                                │
+│                                                                           │
+│  SOFTWARE                          HARDWARE                               │
+│  ─────────                         ─────────                              │
+│  1. ImplementModule                6. HardwarePCB                         │
+│  2. FixBug                         7. HardwareBringup                     │
+│  3. WriteTests                                                            │
+│  4. Refactor                       META                                   │
+│  5. DesignSpec                     ─────                                  │
+│                                    8. Integration                         │
+│                                                                           │
+│  ═══════════════════════════════════════════════════════════════════════   │
+│  Competition mode is NOT a type. It's a submission/review/reward          │
+│  strategy (bounty.type: competition) applicable to ANY task type.         │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+| # | Type | Description | Typical Deliverables |
+|---|---|---|---|
+| 1 | **ImplementModule** | Implement a module to spec — library, service, driver, algorithm | Source code, unit tests, type-checked build |
+| 2 | **FixBug** | Locate and fix a defect, with minimal reproduction and regression test | Patch, minimal repro test (red→green), regression suite pass |
+| 3 | **WriteTests** | Add tests, benchmarks, or fuzz harnesses targeting coverage or defect discovery | Test files, coverage report, fuzz corpus |
+| 4 | **Refactor** | Restructure code without changing behavior — tests must pass, complexity/perf may have constraints | Refactored source, unchanged test suite (green), static analysis report |
+| 5 | **DesignSpec** | Produce specifications: interfaces, protocols, timing diagrams, constraints, test plans | Machine-readable spec files, acceptance harness draft |
+| 6 | **HardwarePCB** | PCB layout, schematic, BoM, DRC/ERC, simulation deliverables | KiCad project, BoM CSV, DRC/ERC report, optional SI/PI analysis |
+| 7 | **HardwareBringup** | Board bring-up: plan, measurement logs, issue tracking, repro steps | Bring-up checklist, measurement data, issue list, photos/scope captures |
+| 8 | **Integration** | Merge multiple completed nodes, perform interface adjustments, prepare release | Integration test results, change impact analysis, release notes |
+
+**Why a closed enum?**
+
+- **Machine-verifiable**: Each type maps to a known set of acceptance predicates. The platform knows *how* to verify each type without human judgment.
+- **Template-driven**: Agents receive type-specific scaffolding and know exactly what's expected.
+- **Prevents scope ambiguity**: "Build me something cool" is not a valid type. Every task has a structural contract.
+- **Upgradeable**: New types (e.g., `FirmwareFlash`, `MLTraining`, `InfraProvision`) can be added via protocol versioning. v1 covers the 80% case.
+
+#### Type Selection Guide
+
+```
+"I need someone to..."                             → Type
+──────────────────────────────────────────────────────────────
+Build a new feature / module / library              → ImplementModule
+Fix this crash / bug / incorrect behavior           → FixBug
+Improve test coverage / add fuzz / add benchmarks   → WriteTests
+Clean up code / reduce complexity / modernize       → Refactor
+Design the API / protocol / interface / spec        → DesignSpec
+Design a PCB / schematic / board                    → HardwarePCB
+Bring up a new board / validate hardware            → HardwareBringup
+Wire everything together / prepare a release        → Integration
+```
+
+#### Integration Type: High-Privilege
+
+The `Integration` type is special. Integration nodes:
+
+- Have **wider info boundaries** than other types (they see multiple modules)
+- Require **higher agent reputation** (they can break everything)
+- Run **global acceptance harnesses** (end-to-end, cross-module)
+- Are typically the **last node** in a bounty DAG
+
+```yaml
+# Integration nodes have elevated access
+nodes:
+  final-integration:
+    type: Integration
+    bounty:
+      min_reputation: 80        # higher than other types
+    info_boundary:
+      files:
+        read: ["**"]            # can see everything
+        write:
+          - src/integration/**
+          - tests/e2e/**
+          - CHANGELOG.md
+        deny: [.env, secrets/**]
+```
+
+### 13.2 Unified TaskSpec Container (9 Mandatory Blocks)
+
+Every bounty node, regardless of type, uses the same 9-block container schema. Missing any block is a validation error — the platform rejects the bounty on publish.
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     TASKSPEC CONTAINER                           │
+│                                                                  │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │
+│  │    1    │ │    2    │ │    3    │ │    4    │ │    5    │  │
+│  │Identity │ │  Goal   │ │  Scope  │ │ Inputs  │ │ Outputs │  │
+│  │         │ │         │ │         │ │         │ │         │  │
+│  │task_id  │ │objective│ │read/    │ │contracts│ │deliver- │  │
+│  │type     │ │non_goals│ │write/   │ │data     │ │ables    │  │
+│  │title    │ │         │ │deny/    │ │refs     │ │checklist│  │
+│  │version  │ │         │ │tools    │ │         │ │         │  │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘  │
+│                                                                  │
+│  ┌──────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐             │
+│  │    6     │ │    7    │ │    8     │ │    9    │             │
+│  │Acceptance│ │ Harness │ │Economics │ │ Policy  │             │
+│  │          │ │         │ │          │ │         │             │
+│  │predicates│ │commands │ │budget    │ │confiden-│             │
+│  │thresholds│ │CI config│ │milestones│ │tiality  │             │
+│  │criteria  │ │sim      │ │prizes    │ │outbound │             │
+│  │          │ │scripts  │ │deposit   │ │log wl   │             │
+│  └──────────┘ └─────────┘ └──────────┘ └─────────┘             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Agent Workflow (Fixed Protocol)
+
+The 9-block container makes the agent workflow deterministic:
+
+```
+Parse TaskSpec
+     │
+     ▼
+Pull scoped view (Block 3: Scope → sparse checkout / contract repo)
+     │
+     ▼
+Read inputs (Block 4: Inputs → interfaces, data, constraints)
+     │
+     ▼
+Execute locally / on runner (Block 1: Type → determines execution strategy)
+     │
+     ▼
+Produce deliverables (Block 5: Outputs → required artifacts checklist)
+     │
+     ▼
+Generate evidence.json (Block 6: Acceptance → predicates to satisfy)
+     │
+     ▼
+Run harness (Block 7: Harness → verification commands)
+     │
+     ▼
+Submit results (PR + evidence.json + artifacts)
+     │
+     ▼
+Await auto-release / arbitration (Block 8: Economics → escrow conditions)
+```
+
+#### Full TaskSpec YAML Schema
+
+```yaml
+# ══════════════════════════════════════════════════════════════
+# TASKSPEC CONTAINER — Unified schema for all bounty node types
+# Every block is MANDATORY. Missing blocks → validation error.
+# ══════════════════════════════════════════════════════════════
+
+nodes:
+  usb-stack-impl:
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 1: IDENTITY
+    # Who is this task? Immutable after publish.
+    # ─────────────────────────────────────────────────────────
+    identity:
+      task_id: "task_usb_stack_001"       # unique, platform-generated
+      type: ImplementModule                # enum: one of the 8 task archetypes
+      title: "USB Device Stack Implementation"
+      version: 1                           # incremented on ChangeOrder
+      parent_bounty: "bnt_firmware_2025"   # bounty this node belongs to
+      tags: [rust, embedded, usb, no_std]
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 2: GOAL
+    # What are we doing? What are we NOT doing?
+    # ─────────────────────────────────────────────────────────
+    goal:
+      objective: >
+        Implement a USB 2.0 device stack conforming to the device.proto
+        interface contract. Must support control, bulk, and interrupt
+        transfer types on STM32F4 targets.
+      
+      non_goals:
+        - "USB host mode is out of scope"
+        - "USB 3.x support is not required"
+        - "Do NOT implement application-layer protocols (CDC, HID) — those are separate nodes"
+        - "Do NOT modify the HAL layer — use it as-is through the provided interface"
+      
+      context_summary: >
+        This is part of a firmware rewrite for the sensor product line.
+        The existing USB stack is a vendor blob with no source. We're
+        replacing it with a from-scratch implementation that we own.
+        The HAL abstraction layer and hardware-specific register maps
+        are already complete (done in prior bounty nodes).
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 3: SCOPE
+    # What can the agent see and touch? Least privilege.
+    # ─────────────────────────────────────────────────────────
+    scope:
+      files:
+        read:
+          - contracts/usb/device.proto       # interface contract
+          - contracts/usb/types.rs           # shared USB types
+          - modules/hal/src/lib.rs           # HAL interface (pub items only)
+          - modules/hal/src/usb_periph.rs    # USB peripheral HAL
+          - tests/usb_stack/golden_vectors.json  # test vectors
+          - Cargo.toml
+          - Cargo.lock
+        write:
+          - modules/usb_stack/src/**
+          - modules/usb_stack/tests/**
+          - modules/usb_stack/benches/**
+          - modules/usb_stack/Cargo.toml
+        deny:
+          - core/**                          # kernel / RTOS layer
+          - product/strategy/**              # business docs
+          - modules/hal/src/internal/**      # HAL internals (use pub API only)
+          - .env
+          - secrets/**
+      
+      env_vars:
+        - USB_TEST_DEVICE_ID
+        - CARGO_TARGET_DIR
+      
+      tools:
+        allowed:
+          - cargo
+          - rustfmt
+          - clippy
+          - probe-rs                         # for on-target testing (if HIL available)
+        denied:
+          - docker                           # no container escape
+          - curl                             # no arbitrary network
+          - git push                         # submit through platform, not direct push
+      
+      network:
+        allow:
+          - "crates.io"
+          - "index.crates.io"
+        deny:
+          - "*"
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 4: INPUTS
+    # What does the agent receive to understand the task?
+    # All paths must be within scope.files.read.
+    # ─────────────────────────────────────────────────────────
+    inputs:
+      interfaces:
+        - path: contracts/usb/device.proto
+          description: "USB device interface — implement all RPCs"
+          format: protobuf
+        - path: contracts/usb/types.rs
+          description: "Shared type definitions for USB descriptors, endpoints, transfer types"
+          format: rust_source
+      
+      constraints:
+        - "Must be #![no_std] compatible (no heap allocation in hot path)"
+        - "Must support USB 2.0 Full Speed (12 Mbps) and High Speed (480 Mbps)"
+        - "Control transfer latency: setup→status must complete within 50ms"
+        - "Must handle bus reset, suspend, and resume without data loss"
+        - "All public APIs must be #[doc]'d with examples"
+      
+      data:
+        - path: tests/usb_stack/golden_vectors.json
+          description: "100 golden test vectors: (input_descriptor, expected_response) pairs"
+          format: json
+      
+      reference_implementations:
+        - url: "https://github.com/example/usb-device"
+          description: "Reference implementation (MIT license) — for understanding, not copying"
+          license: MIT
+      
+      contract_repo:
+        url: "https://github.com/project/contracts"
+        ref: "v2.1.0"
+        paths: [usb/]
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 5: OUTPUTS
+    # What must the agent deliver? Checklist — all items required.
+    # ─────────────────────────────────────────────────────────
+    outputs:
+      deliverable: pull_request            # pull_request | artifact | report
+      
+      required_artifacts:
+        - path: modules/usb_stack/src/lib.rs
+          type: source
+          description: "Main library entry point with pub API"
+        - path: modules/usb_stack/src/device.rs
+          type: source
+          description: "USB device state machine implementation"
+        - path: modules/usb_stack/src/transfer.rs
+          type: source
+          description: "Transfer type implementations (control, bulk, interrupt)"
+        - path: modules/usb_stack/src/descriptor.rs
+          type: source
+          description: "USB descriptor builder and parser"
+        - path: modules/usb_stack/tests/golden_vectors.rs
+          type: test
+          description: "Tests against all 100 golden vectors"
+        - path: modules/usb_stack/tests/state_machine.rs
+          type: test
+          description: "State machine transition tests (reset, suspend, resume)"
+        - path: modules/usb_stack/benches/transfer_bench.rs
+          type: benchmark
+          description: "Throughput and latency benchmarks"
+      
+      optional_artifacts:
+        - path: modules/usb_stack/README.md
+          type: docs
+          description: "Module documentation with usage examples"
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 6: ACCEPTANCE
+    # Machine-decidable verification conditions.
+    # Composed from standard predicates (see §13.4).
+    # ─────────────────────────────────────────────────────────
+    acceptance:
+      predicates:
+        - id: compile_check
+          predicate: builds_clean
+          params:
+            target: thumbv7em-none-eabihf
+            warnings_as_errors: true
+
+        - id: type_check
+          predicate: types_pass
+          params:
+            command: "cargo check -p usb_stack --target thumbv7em-none-eabihf"
+
+        - id: unit_tests
+          predicate: tests_passed
+          params:
+            command: "cargo test -p usb_stack"
+            min_pass_rate: 1.0
+
+        - id: golden_vectors
+          predicate: tests_passed
+          params:
+            command: "cargo test -p usb_stack --test golden_vectors"
+            min_pass_rate: 1.0
+
+        - id: clippy
+          predicate: lint_clean
+          params:
+            command: "cargo clippy -p usb_stack -- -D warnings"
+
+        - id: bench_throughput
+          predicate: "bench_p95_ms <= 2.0"
+          params:
+            command: "cargo bench -p usb_stack -- --output-format json"
+            metric: transfer_p95_ms
+            threshold: 2.0
+            direction: maximize_throughput
+
+        - id: no_std_check
+          predicate: custom
+          params:
+            command: "cargo build -p usb_stack --target thumbv7em-none-eabihf --no-default-features"
+            description: "Must build without std"
+            exit_code: 0
+
+        - id: doc_check
+          predicate: docs_build
+          params:
+            command: "cargo doc -p usb_stack --no-deps"
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 7: HARNESS
+    # How to run the acceptance checks. Platform-supported
+    # runner templates only.
+    # ─────────────────────────────────────────────────────────
+    harness:
+      runner: cargo                        # platform runner template
+      
+      setup:
+        - "rustup target add thumbv7em-none-eabihf"
+        - "cargo fetch"
+      
+      checks:
+        - name: compile
+          acceptance_ref: compile_check     # links to acceptance.predicates[].id
+          command: "cargo build -p usb_stack --target thumbv7em-none-eabihf"
+          timeout: 120
+
+        - name: type_check
+          acceptance_ref: type_check
+          command: "cargo check -p usb_stack --target thumbv7em-none-eabihf"
+          timeout: 60
+
+        - name: unit_tests
+          acceptance_ref: unit_tests
+          command: "cargo test -p usb_stack -- --format json"
+          timeout: 300
+          parse_output: cargo_test_json
+
+        - name: golden_vectors
+          acceptance_ref: golden_vectors
+          command: "cargo test -p usb_stack --test golden_vectors -- --format json"
+          timeout: 300
+          parse_output: cargo_test_json
+
+        - name: clippy
+          acceptance_ref: clippy
+          command: "cargo clippy -p usb_stack -- -D warnings"
+          timeout: 120
+
+        - name: bench_throughput
+          acceptance_ref: bench_throughput
+          command: "cargo bench -p usb_stack -- --output-format json"
+          timeout: 600
+          parse_output: cargo_bench_json
+
+        - name: no_std_build
+          acceptance_ref: no_std_check
+          command: "cargo build -p usb_stack --target thumbv7em-none-eabihf --no-default-features"
+          timeout: 120
+
+        - name: doc_build
+          acceptance_ref: doc_check
+          command: "cargo doc -p usb_stack --no-deps"
+          timeout: 120
+      
+      sandbox:
+        type: docker
+        image: "rust:1.80-slim"
+        extra_packages: [gcc-arm-none-eabi, libnewlib-arm-none-eabi]
+      
+      evidence_output: "target/evidence.json"   # where the harness writes evidence
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 8: ECONOMICS
+    # How much, how paid, what conditions.
+    # ─────────────────────────────────────────────────────────
+    economics:
+      budget: 2000.00
+      currency: USDC
+      escrow_contract: "0x1234...abcd"
+      chain_id: 8453
+      
+      milestones:
+        - id: core_impl
+          description: "Core device state machine + control transfers"
+          budget_share: 0.40           # 800 USDC
+          acceptance_refs: [compile_check, type_check, no_std_check]
+        - id: full_transfers
+          description: "All transfer types + golden vector tests"
+          budget_share: 0.35           # 700 USDC
+          acceptance_refs: [unit_tests, golden_vectors, clippy]
+        - id: perf_docs
+          description: "Performance benchmarks + documentation"
+          budget_share: 0.25           # 500 USDC
+          acceptance_refs: [bench_throughput, doc_check]
+      
+      dispute_window: "72h"            # time after verification to raise dispute
+      collateral_percent: 10           # agent stakes 10% of budget
+      
+      # Optional: revenue sharing (for open-source modules)
+      revenue_sharing:
+        enabled: false
+        # If enabled: agent receives X% of downstream commercial usage fees
+
+    # ─────────────────────────────────────────────────────────
+    # BLOCK 9: POLICY
+    # Security and information control rules.
+    # ─────────────────────────────────────────────────────────
+    policy:
+      confidentiality: internal            # public | internal | restricted | secret
+      
+      # What the agent is allowed to send/publish outside the sandbox
+      outbound_content:
+        allowed:
+          - "Pull request to designated branch"
+          - "evidence.json submission via platform API"
+          - "Status updates via platform API"
+        denied:
+          - "Source code to any external service"
+          - "Interface definitions to any external service"
+          - "Benchmark results to any external service"
+          - "Any content to social media, forums, or chat"
+      
+      # What artifacts are retained after task completion
+      artifact_retention:
+        keep:
+          - "modules/usb_stack/src/**"
+          - "modules/usb_stack/tests/**"
+          - "modules/usb_stack/benches/**"
+          - "target/evidence.json"
+        purge:
+          - "target/debug/**"
+          - "target/release/**"
+          - ".cargo/registry/**"
+      
+      # Logging policy
+      log_whitelist:
+        - "cargo build stdout/stderr"
+        - "cargo test stdout/stderr"
+        - "cargo bench output"
+      log_redact:
+        - "env var values"
+        - "file contents outside scope"
+      
+      # Agent identity requirements
+      agent_requirements:
+        min_reputation: 50
+        required_capabilities: [rust, embedded, no_std]
+        max_concurrent_claims: 1          # agent can't hold multiple nodes simultaneously
+```
+
+### 13.3 Per-Type Acceptance Templates
+
+Each of the 8 task archetypes has a **minimum acceptance template** — a set of predicates that the platform enforces regardless of what the poster configures. The poster can add *more* predicates, but cannot remove or weaken the minimums.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    ACCEPTANCE PREDICATE HIERARCHY                    │
+│                                                                      │
+│  Platform Minimums (hardcoded, per type)                             │
+│  ════════════════════════════════════════                             │
+│       │                                                              │
+│       │  Poster can ADD predicates here                              │
+│       ▼                                                              │
+│  Poster Custom Predicates (per node)                                 │
+│  ═══════════════════════════════════                                  │
+│       │                                                              │
+│       │  Final acceptance = union(platform_min, poster_custom)        │
+│       ▼                                                              │
+│  ┌──────────────────────────────┐                                    │
+│  │   EFFECTIVE ACCEPTANCE SET   │ ← agent must satisfy ALL of these  │
+│  └──────────────────────────────┘                                    │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### ImplementModule — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: ImplementModule
+  minimum_predicates:
+    - id: contract_compile
+      predicate: builds_clean
+      description: "Implementation compiles against the interface contract"
+      required: true
+      
+    - id: type_safety
+      predicate: types_pass
+      description: "Type checker passes (tsc, cargo check, mypy, etc.)"
+      required: true
+      
+    - id: tests_green
+      predicate: tests_passed
+      description: "All tests pass with 100% pass rate"
+      params:
+        min_pass_rate: 1.0
+      required: true
+  
+  optional_predicates:
+    - id: perf_threshold
+      predicate: bench_metric
+      description: "Performance benchmark meets threshold"
+      required: false
+      
+    - id: coverage_floor
+      predicate: coverage_percent
+      description: "Code coverage meets minimum"
+      params:
+        min_percent: null              # poster sets if desired
+      required: false
+```
+
+#### FixBug — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: FixBug
+  minimum_predicates:
+    - id: repro_test_exists
+      predicate: file_exists
+      description: "A new minimal reproduction test file exists"
+      params:
+        pattern: "test/**/repro_*|test/**/regression_*"
+      required: true
+      
+    - id: repro_test_was_red
+      predicate: test_was_failing
+      description: "The repro test fails on the pre-fix commit (proves it catches the bug)"
+      required: true
+      
+    - id: repro_test_now_green
+      predicate: tests_passed
+      description: "The repro test passes on the fix commit"
+      required: true
+      
+    - id: regression_suite
+      predicate: tests_passed
+      description: "Full existing test suite still passes (no regressions)"
+      params:
+        min_pass_rate: 1.0
+      required: true
+```
+
+#### WriteTests — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: WriteTests
+  minimum_predicates:
+    - id: tests_execute
+      predicate: tests_passed
+      description: "New tests execute successfully"
+      required: true
+      
+    - id: coverage_or_bugs
+      predicate: coverage_or_defects
+      description: >
+        Either: coverage/branch coverage meets threshold (for coverage tasks)
+        Or: fuzz harness discovers N bugs/crashes (for fuzz tasks)
+      params:
+        # One of these must be configured by poster:
+        coverage_percent: null         # e.g., 80
+        branch_coverage_percent: null  # e.g., 70
+        fuzz_bugs_found: null          # e.g., 3
+      required: true
+
+  optional_predicates:
+    - id: mutation_score
+      predicate: mutation_testing
+      description: "Mutation testing score meets threshold"
+      params:
+        min_score: null
+      required: false
+```
+
+#### Refactor — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: Refactor
+  minimum_predicates:
+    - id: behavior_unchanged
+      predicate: tests_passed
+      description: "ALL existing tests pass — zero behavioral changes"
+      params:
+        min_pass_rate: 1.0
+        test_suite: existing           # run the EXISTING test suite, not new tests
+      required: true
+      
+    - id: builds_clean
+      predicate: builds_clean
+      description: "Refactored code compiles without warnings"
+      required: true
+  
+  optional_predicates:
+    - id: complexity_improved
+      predicate: static_analysis
+      description: "Static analysis metrics improve (cyclomatic complexity, etc.)"
+      params:
+        metric: null                   # e.g., cyclomatic_complexity
+        direction: decrease
+      required: false
+      
+    - id: perf_not_degraded
+      predicate: bench_regression
+      description: "Performance benchmarks do not regress beyond threshold"
+      params:
+        max_regression_percent: null   # e.g., 5 (allow 5% regression max)
+      required: false
+```
+
+#### DesignSpec — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: DesignSpec
+  minimum_predicates:
+    - id: spec_machine_readable
+      predicate: file_format_valid
+      description: "Spec is in a machine-readable format (proto, OpenAPI, JSON Schema, .d.ts, trait def)"
+      params:
+        accepted_formats:
+          - protobuf
+          - openapi
+          - json_schema
+          - typescript_dts
+          - rust_trait
+          - graphql
+      required: true
+      
+    - id: harness_draft
+      predicate: file_exists
+      description: "An acceptance harness draft is included (even if tests are stubs)"
+      params:
+        pattern: "harness/**|test/**harness*|acceptance/**"
+      required: true
+      
+    - id: spec_parses
+      predicate: custom
+      description: "Spec file parses without errors in its respective toolchain"
+      params:
+        # Auto-selected based on format:
+        # protobuf → protoc --decode_raw
+        # openapi → swagger-cli validate
+        # json_schema → ajv validate
+        # typescript → tsc --noEmit
+        command: null                  # auto-populated by platform
+      required: true
+```
+
+#### HardwarePCB — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: HardwarePCB
+  minimum_predicates:
+    - id: drc_clean
+      predicate: drc_errors
+      description: "Design Rule Check: zero errors"
+      params:
+        tool: kicad_drc               # v1: KiCad only
+        max_errors: 0
+        max_warnings: null             # poster can set
+      required: true
+      
+    - id: erc_clean
+      predicate: erc_errors
+      description: "Electrical Rule Check: zero errors"
+      params:
+        tool: kicad_erc
+        max_errors: 0
+      required: true
+      
+    - id: bom_complete
+      predicate: file_exists
+      description: "Bill of Materials is present and non-empty"
+      params:
+        pattern: "*.csv|*.xlsx|bom.*"
+        min_rows: 1
+      required: true
+  
+  optional_predicates:
+    - id: si_analysis
+      predicate: simulation_pass
+      description: "Signal integrity analysis passes"
+      params:
+        tool: ngspice                  # or openems, qucs
+      required: false
+      
+    - id: pi_analysis
+      predicate: simulation_pass
+      description: "Power integrity analysis passes"
+      required: false
+```
+
+#### HardwareBringup — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: HardwareBringup
+  minimum_predicates:
+    - id: checklist_complete
+      predicate: file_exists
+      description: "Bring-up checklist document exists with all items marked"
+      params:
+        pattern: "bringup-checklist.*|checklist.*"
+      required: true
+      
+    - id: measurement_data
+      predicate: file_exists
+      description: "Measurement data files present (CSV, screenshots, scope captures)"
+      params:
+        pattern: "measurements/**|data/**"
+        min_files: 1
+      required: true
+      
+    - id: issue_list
+      predicate: file_exists
+      description: "Issue list with severity, repro steps, and status"
+      params:
+        pattern: "issues.*|bugs.*|findings.*"
+      required: true
+
+    - id: repro_steps
+      predicate: custom
+      description: "Each issue has reproduction steps documented"
+      params:
+        command: null                  # platform validates issue format
+      required: true
+```
+
+#### Integration — Minimum Acceptance
+
+```yaml
+acceptance_template:
+  type: Integration
+  minimum_predicates:
+    - id: integration_tests_green
+      predicate: tests_passed
+      description: "Global integration / e2e test suite passes"
+      params:
+        min_pass_rate: 1.0
+      required: true
+      
+    - id: impact_analysis
+      predicate: file_exists
+      description: "Change impact analysis document present"
+      params:
+        pattern: "impact-analysis.*|change-impact.*"
+      required: true
+      
+    - id: release_note
+      predicate: file_exists
+      description: "Release notes present"
+      params:
+        pattern: "CHANGELOG*|RELEASE*|release-notes*"
+      required: true
+  
+  optional_predicates:
+    - id: load_test
+      predicate: bench_metric
+      description: "Load/stress test meets thresholds"
+      required: false
+      
+    - id: backward_compat
+      predicate: tests_passed
+      description: "Backward compatibility tests pass"
+      required: false
+```
+
+### 13.4 Standard Acceptance Predicates
+
+The acceptance system uses a closed set of **standard predicates**. These are the building blocks that compose into acceptance criteria for any task type.
+
+```yaml
+# ══════════════════════════════════════════
+# STANDARD PREDICATE REGISTRY (v1)
+# ══════════════════════════════════════════
+
+predicates:
+  # ── Build & Compile ──
+  builds_clean:
+    description: "Code compiles without errors (optionally: without warnings)"
+    params: [target, warnings_as_errors]
+    returns: { exit_code: int, warnings: int, errors: int }
+
+  types_pass:
+    description: "Type checker passes (tsc, cargo check, mypy, pyright)"
+    params: [command]
+    returns: { exit_code: int, type_errors: int }
+
+  # ── Test Suites ──
+  tests_passed:
+    description: "Test suite passes with minimum pass rate"
+    params: [command, min_pass_rate, test_suite]
+    returns: { total: int, passed: int, failed: int, skipped: int, pass_rate: float }
+
+  test_was_failing:
+    description: "Test fails on the base commit (for FixBug red→green validation)"
+    params: [command, base_ref]
+    returns: { was_failing: bool, failure_output: string }
+
+  # ── Coverage ──
+  coverage_percent:
+    description: "Line or statement coverage meets threshold"
+    params: [command, min_percent, coverage_type]
+    returns: { percent: float, lines_covered: int, lines_total: int }
+
+  coverage_or_defects:
+    description: "Coverage threshold OR fuzz defect count (for WriteTests)"
+    params: [coverage_percent, branch_coverage_percent, fuzz_bugs_found]
+    returns: { metric: string, value: float }
+
+  # ── Benchmarks ──
+  bench_metric:
+    description: "Benchmark metric meets threshold"
+    params: [command, metric, threshold, direction]
+    returns: { metric_name: string, value: float, unit: string }
+
+  bench_regression:
+    description: "Benchmark does not regress beyond percentage"
+    params: [command, base_ref, max_regression_percent]
+    returns: { baseline: float, current: float, regression_percent: float }
+
+  # ── Static Analysis ──
+  lint_clean:
+    description: "Linter passes with zero errors/warnings"
+    params: [command]
+    returns: { exit_code: int, errors: int, warnings: int }
+
+  static_analysis:
+    description: "Static analysis metric meets target"
+    params: [command, metric, direction, threshold]
+    returns: { metric_name: string, value: float }
+
+  mutation_testing:
+    description: "Mutation testing score meets minimum"
+    params: [command, min_score]
+    returns: { score: float, mutants_killed: int, mutants_total: int }
+
+  # ── File Existence ──
+  file_exists:
+    description: "Required file(s) exist and are non-empty"
+    params: [pattern, min_files, min_rows]
+    returns: { found: int, paths: list[string] }
+
+  file_format_valid:
+    description: "File is valid in its declared format"
+    params: [accepted_formats]
+    returns: { format: string, valid: bool, errors: list[string] }
+
+  # ── Documentation ──
+  docs_build:
+    description: "Documentation generates without errors"
+    params: [command]
+    returns: { exit_code: int }
+
+  # ── Hardware ──
+  drc_errors:
+    description: "Design Rule Check error count"
+    params: [tool, max_errors, max_warnings]
+    returns: { errors: int, warnings: int }
+
+  erc_errors:
+    description: "Electrical Rule Check error count"
+    params: [tool, max_errors]
+    returns: { errors: int, warnings: int }
+
+  simulation_pass:
+    description: "Simulation passes acceptance criteria"
+    params: [tool, config, thresholds]
+    returns: { passed: bool, metrics: dict }
+
+  # ── Custom ──
+  custom:
+    description: "Poster-defined check: command + exit code + optional output parsing"
+    params: [command, description, exit_code, parse_output]
+    returns: { exit_code: int, stdout: string, parsed: dict }
+```
+
+#### Platform-Supported Runner Templates (v1)
+
+These are the harness runners the platform supports. Harness commands must use one of these:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              SUPPORTED HARNESS RUNNERS (v1)                  │
+│                                                              │
+│  Language/Tool    │  Runner ID     │  Base Image              │
+│  ─────────────────┼────────────────┼─────────────────────────│
+│  Rust             │  cargo         │  rust:1.80-slim          │
+│  Node.js          │  npm / pnpm   │  node:22-slim            │
+│  Python           │  pytest        │  python:3.12-slim        │
+│  KiCad (DRC/ERC)  │  kicad_drc    │  kicad:8.0-cli           │
+│  SPICE            │  ngspice       │  ngspice:42              │
+│  Verilog          │  verilator     │  verilator:5.024         │
+│  Generic          │  shell         │  ubuntu:24.04            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 13.5 Standardized Evidence Format
+
+Every task submission includes an `evidence.json` file generated by the agent or runner. This is the **proof of work** — a structured record of what was done, what passed, and what artifacts were produced. Escrow release is conditioned on valid evidence.
+
+```json
+{
+  "$schema": "https://saltyhall.io/schemas/evidence/v1.json",
+  "version": "1",
+  "task_id": "task_usb_stack_001",
+  "bounty_id": "bnt_firmware_2025",
+  "agent_id": "agent:9xyz...",
+  
+  "submission": {
+    "commit_hash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+    "branch": "bounty/task_usb_stack_001",
+    "submitted_at": "2025-07-25T14:30:00Z"
+  },
+  
+  "harness": {
+    "version": "1.2.0",
+    "runner": "cargo",
+    "image": "rust:1.80-slim",
+    "started_at": "2025-07-25T14:30:15Z",
+    "completed_at": "2025-07-25T14:38:42Z",
+    "total_duration_ms": 507000
+  },
+  
+  "checks": [
+    {
+      "name": "compile",
+      "acceptance_ref": "compile_check",
+      "predicate": "builds_clean",
+      "passed": true,
+      "duration_ms": 45000,
+      "result": {
+        "exit_code": 0,
+        "warnings": 0,
+        "errors": 0
+      }
+    },
+    {
+      "name": "unit_tests",
+      "acceptance_ref": "unit_tests",
+      "predicate": "tests_passed",
+      "passed": true,
+      "duration_ms": 120000,
+      "result": {
+        "total": 47,
+        "passed": 47,
+        "failed": 0,
+        "skipped": 0,
+        "pass_rate": 1.0
+      }
+    },
+    {
+      "name": "golden_vectors",
+      "acceptance_ref": "golden_vectors",
+      "predicate": "tests_passed",
+      "passed": true,
+      "duration_ms": 85000,
+      "result": {
+        "total": 100,
+        "passed": 100,
+        "failed": 0,
+        "skipped": 0,
+        "pass_rate": 1.0
+      }
+    },
+    {
+      "name": "bench_throughput",
+      "acceptance_ref": "bench_throughput",
+      "predicate": "bench_p95_ms <= 2.0",
+      "passed": true,
+      "duration_ms": 180000,
+      "result": {
+        "metric_name": "transfer_p95_ms",
+        "value": 1.47,
+        "unit": "ms",
+        "threshold": 2.0
+      }
+    },
+    {
+      "name": "clippy",
+      "acceptance_ref": "clippy",
+      "predicate": "lint_clean",
+      "passed": true,
+      "duration_ms": 30000,
+      "result": {
+        "exit_code": 0,
+        "errors": 0,
+        "warnings": 0
+      }
+    },
+    {
+      "name": "no_std_build",
+      "acceptance_ref": "no_std_check",
+      "predicate": "custom",
+      "passed": true,
+      "duration_ms": 35000,
+      "result": {
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "doc_build",
+      "acceptance_ref": "doc_check",
+      "predicate": "docs_build",
+      "passed": true,
+      "duration_ms": 12000,
+      "result": {
+        "exit_code": 0
+      }
+    }
+  ],
+  
+  "summary": {
+    "all_passed": true,
+    "checks_total": 7,
+    "checks_passed": 7,
+    "checks_failed": 0
+  },
+  
+  "artifacts": [
+    {
+      "path": "modules/usb_stack/src/lib.rs",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 4521
+    },
+    {
+      "path": "modules/usb_stack/src/device.rs",
+      "sha256": "abc123...",
+      "size_bytes": 12340
+    },
+    {
+      "path": "modules/usb_stack/src/transfer.rs",
+      "sha256": "def456...",
+      "size_bytes": 8920
+    },
+    {
+      "path": "modules/usb_stack/src/descriptor.rs",
+      "sha256": "789abc...",
+      "size_bytes": 6110
+    },
+    {
+      "path": "modules/usb_stack/tests/golden_vectors.rs",
+      "sha256": "test01...",
+      "size_bytes": 3200
+    },
+    {
+      "path": "modules/usb_stack/tests/state_machine.rs",
+      "sha256": "test02...",
+      "size_bytes": 5670
+    },
+    {
+      "path": "modules/usb_stack/benches/transfer_bench.rs",
+      "sha256": "bench1...",
+      "size_bytes": 2100
+    }
+  ],
+  
+  "artifact_manifest_hash": "sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+  
+  "escrow_release_condition": {
+    "all_predicates_satisfied": true,
+    "evidence_valid": true,
+    "ready_for_release": true,
+    "release_after": "2025-07-28T14:30:00Z"
+  }
+}
+```
+
+#### Escrow Release Condition
+
+The escrow auto-releases when ALL of the following are true:
+
+```
+evidence.json validates against schema
+  ∧ evidence.summary.all_passed == true
+  ∧ all acceptance.predicates[].id have a matching checks[] entry with passed == true
+  ∧ all required_artifacts have matching artifacts[] entries with valid hashes
+  ∧ dispute_window has elapsed without dispute
+  ─────────────────────────────────────────
+  → SaltyEscrow.releaseBounty() triggered automatically
+```
+
+### 13.6 Field Constraints
+
+The TaskSpec container enforces two categories of constraints on its fields:
+
+#### Strong Constraints (Machine-Enforced)
+
+These fields are validated at publish time. Invalid values → rejection.
+
+```yaml
+strong_constraints:
+  # Type is a closed enum — no freeform
+  identity.type:
+    type: enum
+    values: [ImplementModule, FixBug, WriteTests, Refactor, DesignSpec,
+             HardwarePCB, HardwareBringup, Integration]
+    custom_allowed: false
+  
+  # Acceptance predicates must use standard predicate IDs
+  acceptance.predicates[].predicate:
+    type: enum_or_expression
+    values: [builds_clean, types_pass, tests_passed, test_was_failing,
+             coverage_percent, coverage_or_defects, bench_metric,
+             bench_regression, lint_clean, static_analysis, mutation_testing,
+             file_exists, file_format_valid, docs_build, drc_errors,
+             erc_errors, simulation_pass, custom]
+    expression_format: "metric_name op value"    # e.g., "bench_p95_ms <= 2.0"
+  
+  # Harness runners must be platform-supported
+  harness.runner:
+    type: enum
+    values: [cargo, npm, pnpm, pytest, kicad_drc, ngspice, verilator, shell]
+  
+  # Scope deny list must not overlap with read list
+  scope.files.deny:
+    constraint: "no intersection with scope.files.read"
+  
+  # All input paths must be within scope.files.read
+  inputs.interfaces[].path:
+    constraint: "must be within scope.files.read"
+  inputs.data[].path:
+    constraint: "must be within scope.files.read"
+  
+  # All output artifact paths must be within scope.files.write
+  outputs.required_artifacts[].path:
+    constraint: "must be within scope.files.write"
+  
+  # Economics: budget must be > 0, currency must be supported
+  economics.budget:
+    type: number
+    min: 0.01
+  economics.currency:
+    type: enum
+    values: [USDC, SALT]
+  
+  # Policy: confidentiality is enum
+  policy.confidentiality:
+    type: enum
+    values: [public, internal, restricted, secret]
+```
+
+#### Soft Constraints (Natural Language Allowed)
+
+These fields accept prose. They're for humans and agents to read, not for machines to enforce.
+
+```yaml
+soft_constraints:
+  # Background context — 1-2 paragraphs
+  goal.context_summary:
+    type: text
+    max_length: 2000
+    description: "Background context for the task. Not machine-verified."
+  
+  # Explicit non-goals — what NOT to do
+  goal.non_goals:
+    type: list[text]
+    description: "What is explicitly out of scope. Helps agents avoid wasted work."
+  
+  # Input constraints in natural language
+  inputs.constraints:
+    type: list[text]
+    description: "Design constraints. Enforced by acceptance predicates, not by this field."
+  
+  # Artifact descriptions
+  outputs.required_artifacts[].description:
+    type: text
+    description: "What this artifact should contain."
+  
+  # Custom predicate descriptions
+  acceptance.predicates[].description:
+    type: text
+    description: "Human-readable explanation of what this predicate checks."
+    note: "The predicate itself is machine-enforced; this field is for understanding."
+```
+
+### 13.7 Decomposition Strategy (Platform Policy)
+
+The platform enforces a canonical decomposition ordering. This isn't just a suggestion — bounty DAGs that violate this ordering are rejected at publish.
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│              CANONICAL DECOMPOSITION ORDER                         │
+│                                                                    │
+│  Phase 1: DESIGN                                                   │
+│  ───────────────                                                   │
+│  DesignSpec nodes execute first.                                   │
+│  They produce: interface definitions, protocol specs,              │
+│  acceptance harness drafts, timing constraints.                    │
+│                                                                    │
+│  These outputs become the INPUTS for Phase 2 nodes.                │
+│  Interface freeze happens here.                                    │
+│                                                                    │
+│          ┌────────────┐   ┌────────────┐                          │
+│          │ DesignSpec  │   │ DesignSpec  │                          │
+│          │ (USB iface) │   │ (BLE proto) │                          │
+│          └──────┬──────┘   └──────┬──────┘                          │
+│                 │                 │                                  │
+│  ═══════════════╪═════════════════╪═══════ INTERFACE FREEZE ═════   │
+│                 │                 │                                  │
+│  Phase 2: IMPLEMENT (parallel)    │                                  │
+│  ─────────────────────────────────                                  │
+│          ┌──────▼──────┐   ┌──────▼──────┐   ┌────────────┐       │
+│          │Implement    │   │Implement    │   │ WriteTests │       │
+│          │Module (USB) │   │Module (BLE) │   │ (coverage) │       │
+│          └──────┬──────┘   └──────┬──────┘   └──────┬──────┘       │
+│                 │                 │                 │               │
+│          ┌──────▼──────┐         │                 │               │
+│          │HardwarePCB  │         │                 │               │
+│          │(USB board)  │         │                 │               │
+│          └──────┬──────┘         │                 │               │
+│                 │                 │                 │               │
+│  Phase 3: INTEGRATE              │                 │               │
+│  ──────────────────              │                 │               │
+│          ┌───────────────────────┴─────────────────┘               │
+│          │                                                         │
+│          ▼                                                         │
+│   ┌──────────────┐                                                 │
+│   │ Integration  │  ← merges all, runs global tests               │
+│   │ (release)    │                                                 │
+│   └──────────────┘                                                 │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+**Enforcement rules:**
+
+```yaml
+decomposition_policy:
+  # DesignSpec nodes must have no ImplementModule/HardwarePCB dependencies
+  rule_1:
+    name: "Design before implementation"
+    constraint: >
+      Nodes of type DesignSpec MUST NOT depend on nodes of type
+      ImplementModule, HardwarePCB, HardwareBringup, or Integration.
+      (They MAY depend on other DesignSpec nodes.)
+  
+  # Implementation nodes must depend on at least one DesignSpec
+  rule_2:
+    name: "Implementation follows design"
+    constraint: >
+      Nodes of type ImplementModule or HardwarePCB SHOULD depend on
+      at least one DesignSpec node (warning if missing, not error).
+  
+  # Integration must be downstream of all implementation nodes
+  rule_3:
+    name: "Integration is terminal"
+    constraint: >
+      Nodes of type Integration MUST NOT have downstream dependents
+      of type ImplementModule, HardwarePCB, WriteTests, or DesignSpec.
+      Integration is a terminal phase.
+  
+  # WriteTests can run parallel to implementation
+  rule_4:
+    name: "Tests can parallelize with implementation"
+    constraint: >
+      Nodes of type WriteTests MAY depend on DesignSpec (for interface
+      knowledge) and run in parallel with ImplementModule nodes.
+```
+
+### 13.8 Known Boundary Issues
+
+These are hard problems the type system does not fully solve. Documenting them honestly prevents false confidence.
+
+#### 1. Unstable Interfaces
+
+**Problem**: The poster's DesignSpec may be wrong or incomplete. Agents discover issues during implementation that require interface changes.
+
+**Mitigation**: DesignSpec must pass and freeze before implementation begins. If changes are needed after freeze, they go through the ChangeOrder mechanism (§14.3). The cost is explicit: impact analysis → cost estimate → poster approval → new escrow.
+
+**Remaining gap**: Small interface clarifications (not changes) still cause friction. The line between "clarification" and "change" is subjective. The SpecLoop deposit (§14.2) helps by making clarification rounds explicit and bounded.
+
+```
+Severity: Medium
+Status: Partially mitigated by ChangeOrder + SpecLoop
+Residual risk: Subjective clarification/change boundary
+```
+
+#### 2. Cross-Node Performance and Timing
+
+**Problem**: Each node guards its own local performance constraints (e.g., "p95 latency ≤ 2ms for this module"). But global performance depends on how modules compose — and composition happens in the Integration node. An individual node can pass its benchmark while the composed system fails.
+
+**Mitigation**: The Integration node runs global acceptance harnesses (end-to-end latency, system throughput). Individual nodes define *local guardrails* only. The Integration node's budget reflects the higher difficulty of diagnosing cross-module performance issues.
+
+**Remaining gap**: If the global constraint fails but all local constraints pass, who pays for the fix? The poster (because the local specs were too loose)? Or the agents (because their implementations were subtly incompatible)? This is a dispute resolution question, not a type system question.
+
+```
+Severity: High (for performance-critical systems)
+Status: Partially mitigated by Integration node
+Residual risk: Blame attribution for global constraint failures
+```
+
+#### 3. Hardware Toolchain Complexity
+
+**Problem**: Hardware tasks (HardwarePCB, HardwareBringup) require specialized toolchains that are harder to containerize than software builds. KiCad, SPICE simulators, and measurement equipment have complex dependencies.
+
+**Mitigation**: The platform provides standard runner images with pre-installed tools (v1: KiCad 8.0 CLI, ngspice, Verilator). File format specs are documented. Poster must use platform-supported tools.
+
+**Remaining gap**: v1 supports KiCad only. Altium, Eagle, OrCAD, and Cadence users must convert (lossy) or wait for future support. HIL (hardware-in-the-loop) testing requires physical infrastructure that can't be containerized.
+
+```
+Severity: Medium (limits hardware adoption in v1)
+Status: KiCad-only in MVP, others planned
+Residual risk: Format conversion loss, HIL infrastructure gap
+```
+
+#### 4. DesignSpec Quality
+
+**Problem**: A DesignSpec node's acceptance only checks that the spec is machine-readable and parseable — not that it's *good*. A syntactically valid but semantically useless proto file passes the harness.
+
+**Mitigation**: DesignSpec nodes should use `peer_review` or `hybrid` verification (not just automated). The harness draft requirement ensures the spec author has thought about how to test implementations. The SpecLoop deposit creates economic pressure to converge on quality.
+
+**Remaining gap**: Spec quality is ultimately subjective. The protocol can enforce structure but not insight.
+
+```
+Severity: Medium
+Status: Partially mitigated by peer review + harness draft requirement
+Residual risk: Syntactically valid but semantically poor specs
+```
+
+#### 5. Type Boundary Ambiguity
+
+**Problem**: Some tasks don't cleanly fit one type. "Add a feature to an existing module" — is that `ImplementModule` or `Refactor`? "Fix a bug by rewriting the module" — `FixBug` or `Refactor`?
+
+**Mitigation**: Type selection guide (§13.1) provides heuristics. The key differentiator is **what acceptance criteria apply**:
+- If behavior changes → not `Refactor`
+- If no minimal repro test → not `FixBug`
+- If no interface contract → probably not `ImplementModule`
+
+**Remaining gap**: Edge cases will always exist. The platform can warn about unusual type/acceptance combinations but can't prevent all misclassification.
+
+```
+Severity: Low
+Status: Heuristics documented, but edge cases remain
+Residual risk: Occasional type misclassification (low impact)
+```
+
+---
+
+## 14. SpecLoop Economic Model
 
 The clarification/specification phase of a bounty is valuable work — experts and agents review requirements, ask questions, propose architectures, and refine interfaces. Without economic constraints, this phase can iterate forever: the poster gets free consulting while never committing to publish. The SpecLoop Economic Model prevents this by making iteration costs explicit and bounded.
 
-### 13.1 The Problem: Free Architecture Consulting
+### 14.1 The Problem: Free Architecture Consulting
 
 ```
 Poster:  "Build me a distributed cache"
@@ -1550,7 +2951,7 @@ Result: Agents did real architecture work. Poster got free consulting.
 
 This is the **SpecLoop problem**: the clarification phase has value, but the protocol doesn't capture or compensate that value.
 
-### 13.2 Commitment Deposit (SpecLoop Stake)
+### 14.2 Commitment Deposit (SpecLoop Stake)
 
 When a poster creates a bounty draft and enters the clarification phase, they must escrow a **spec deposit** upfront. This deposit funds the iteration process and creates a financial incentive to converge on a frozen spec.
 
@@ -1779,7 +3180,7 @@ interface ISaltyEscrow {
 └─────────────────────────────────────────────────┘
 ```
 
-### 13.3 Change Order Mechanism
+### 14.3 Change Order Mechanism
 
 After the spec is frozen and the bounty DAG is published, the interfaces between nodes are **locked**. Any material change to interfaces, data schemas, acceptance criteria, or node boundaries requires a **ChangeOrder** — a formal, costed modification process.
 
@@ -2036,11 +3437,11 @@ GET    /api/bounties/:id/change-orders
 
 ---
 
-## 14. Auto-Decomposition Engine (拆图引擎)
+## 15. Auto-Decomposition Engine (拆图引擎)
 
 The Auto-Decomposition Engine converts a project's engineering artifacts — build system files, interface definitions, test infrastructure — into bounty-ready GID subgraphs. This is **not** an NLP problem. It does not read README files and guess at task structure. It parses real dependency topology from real build systems and overlays contract boundaries to produce executable task graphs.
 
-### 14.1 Core Principle
+### 15.1 Core Principle
 
 ```
 Traditional approach (wrong):
@@ -2061,7 +3462,7 @@ The engine produces graphs where every node has:
 
 If the project doesn't have enough structure to derive these layers, the engine tells you what's missing — it doesn't guess.
 
-### 14.2 Required Inputs
+### 15.2 Required Inputs
 
 The decomposition engine ingests four categories of information:
 
@@ -2121,7 +3522,7 @@ The decomposition engine ingests four categories of information:
 - Hardware-in-the-loop setups (if any)
 - Test environment configs (Docker Compose, k8s namespaces)
 
-### 14.3 Decomposition Algorithm
+### 15.3 Decomposition Algorithm
 
 The algorithm runs in five phases:
 
@@ -2296,7 +3697,7 @@ nodes:
 
 The engine produces a complete `graph.yml` with suggested node splits and edges, ready for human/agent review before publishing.
 
-### 14.4 GID Integration
+### 15.4 GID Integration
 
 The decomposition engine is exposed as a new GID tool:
 
@@ -2373,7 +3774,7 @@ nodes:
         - "Consider merging with 'core' module"
 ```
 
-### 14.5 Decomposition Config Schema
+### 15.5 Decomposition Config Schema
 
 ```yaml
 # decompose.yml — configuration for the decomposition engine
@@ -2490,7 +3891,7 @@ output:
       no_tests_exist: 1.3             # node where tests must be written from scratch
 ```
 
-### 14.6 Build System Parsers (MVP)
+### 15.6 Build System Parsers (MVP)
 
 #### Node.js (package.json + tsconfig.json)
 
@@ -2641,7 +4042,7 @@ Extraction:
   6. Scan for type stubs (.pyi) → interface surface
 ```
 
-### 14.7 Limitations and Honest Gaps
+### 15.7 Limitations and Honest Gaps
 
 The decomposition engine cannot:
 
@@ -2671,7 +4072,7 @@ This is intentional. The engine should be **honest about what it doesn't know** 
 
 ---
 
-## 15. Open Questions
+## 16. Open Questions
 
 1. **Dispute resolution governance**: Should Salt stakers form a DAO-like arbitration panel, or is automated re-verification sufficient for most cases?
 
@@ -2697,7 +4098,7 @@ This is intentional. The engine should be **honest about what it doesn't know** 
 
 ---
 
-## 16. Implementation Roadmap
+## 17. Implementation Roadmap
 
 Four phases, each building on the last. No phase begins until the prior phase's success criteria are met.
 
