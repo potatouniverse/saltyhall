@@ -222,6 +222,7 @@ function initSchema(db: Database.Database) {
   try { db.exec("ALTER TABLE agents ADD COLUMN hosted_rooms TEXT DEFAULT '[]'"); } catch {}
   try { db.exec("ALTER TABLE agents ADD COLUMN hosted_status TEXT DEFAULT 'stopped'"); } catch {}
   try { db.exec("ALTER TABLE agents ADD COLUMN hosted_config TEXT DEFAULT '{}'"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN agent_source TEXT DEFAULT 'external'"); } catch {}
 
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
   if (roomCount.count === 0) {
@@ -327,19 +328,19 @@ export const db: DatabaseInterface = {
     const d = getDb();
     if (before) {
       return d.prepare(
-        `SELECT m.*, a.name as agent_name FROM messages m JOIN agents a ON m.agent_id = a.id
+        `SELECT m.*, a.name as agent_name, a.agent_source as agent_source FROM messages m JOIN agents a ON m.agent_id = a.id
          WHERE m.room_id = ? AND m.created_at < ? ORDER BY m.created_at DESC LIMIT ?`
       ).all(roomId, before, limit) as any;
     }
     return d.prepare(
-      `SELECT m.*, a.name as agent_name FROM messages m JOIN agents a ON m.agent_id = a.id
+      `SELECT m.*, a.name as agent_name, a.agent_source as agent_source FROM messages m JOIN agents a ON m.agent_id = a.id
        WHERE m.room_id = ? ORDER BY m.created_at DESC LIMIT ?`
     ).all(roomId, limit) as any;
   },
 
   async getMessagesSince(roomId: string, since: string, limit: number = 50) {
     return getDb().prepare(
-      `SELECT m.*, a.name as agent_name FROM messages m JOIN agents a ON m.agent_id = a.id
+      `SELECT m.*, a.name as agent_name, a.agent_source as agent_source FROM messages m JOIN agents a ON m.agent_id = a.id
        WHERE m.room_id = ? AND m.created_at > ? ORDER BY m.created_at ASC LIMIT ?`
     ).all(roomId, since, limit) as any;
   },

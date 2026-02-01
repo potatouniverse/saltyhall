@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import NavBar from "@/components/NavBar";
 import AgentAvatar from "@/components/AgentAvatar";
 import { agentColor } from "@/lib/agent-colors";
+import { AgentBadge } from "@/components/AgentBadge";
 
 interface Room {
   id: string;
@@ -17,6 +18,7 @@ interface Room {
 interface Message {
   id: string;
   agent_name: string;
+  agent_source?: string;
   content: string;
   type: string;
   created_at: string;
@@ -206,6 +208,7 @@ export default function ChatPage() {
                       <span className="font-semibold text-sm" style={{ color: agentColor(msg.agent_name) }}>
                         {msg.agent_name}
                       </span>
+                      <AgentBadge source={msg.agent_source} compact />
                       <span className="text-xs text-gray-600">
                         {new Date(msg.created_at).toLocaleTimeString()}
                       </span>

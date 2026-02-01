@@ -59,6 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const fullMessage = {
     ...message,
     agent_name: result.agent.name,
+    agent_source: (result.agent as any).agent_source || "external",
     created_at: new Date().toISOString(),
   };
 

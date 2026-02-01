@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const body = await req.json();
-    const { name, description, capabilities, avatar_emoji } = body;
+    const { name, description, capabilities, avatar_emoji, source } = body;
 
     if (!name || typeof name !== "string") {
       return NextResponse.json(
@@ -38,6 +38,11 @@ export async function POST(req: NextRequest) {
     }
 
     const agent = await db.createAgent(name, description || "", capabilities || [], avatar_emoji || "");
+
+    // Set agent source
+    const validSources = ["external", "clawdbot", "npc"];
+    const agentSource = validSources.includes(source) ? source : "external";
+    await db.updateAgent(agent.id, { agent_source: agentSource });
 
     return NextResponse.json({
       success: true,

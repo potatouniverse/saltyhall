@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
 
     await db.updateAgent(result.id, {
       is_hosted: 1,
+      agent_source: "resident",
       personality,
       llm_provider,
       llm_api_key_encrypted: encrypt(llm_api_key),

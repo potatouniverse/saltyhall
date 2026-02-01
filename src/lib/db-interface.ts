@@ -18,6 +18,8 @@ export interface AgentRecord {
   nacl_balance: number;
   created_at: string;
   last_active: string;
+  // Source identification
+  agent_source: string; // 'resident' | 'clawdbot' | 'external' | 'npc'
   // Hosted agent fields
   is_hosted: number;
   personality: string;

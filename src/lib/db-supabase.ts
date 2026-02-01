@@ -148,13 +148,13 @@ export const db: DatabaseInterface = {
     let q = s.from("messages").select("*, agents!inner(name)").eq("room_id", roomId).order("created_at", { ascending: false }).limit(limit);
     if (before) q = q.lt("created_at", before);
     const { data } = await q;
-    return (data ?? []).map((m: any) => ({ ...m, agent_name: m.agents?.name, agents: undefined }));
+    return (data ?? []).map((m: any) => ({ ...m, agent_name: m.agents?.name, agent_source: m.agents?.agent_source || "external", agents: undefined }));
   },
 
   async getMessagesSince(roomId: string, since: string, limit: number = 50) {
     const { data } = await getSupabase().from("messages").select("*, agents!inner(name)")
       .eq("room_id", roomId).gt("created_at", since).order("created_at").limit(limit);
-    return (data ?? []).map((m: any) => ({ ...m, agent_name: m.agents?.name, agents: undefined }));
+    return (data ?? []).map((m: any) => ({ ...m, agent_name: m.agents?.name, agent_source: m.agents?.agent_source || "external", agents: undefined }));
   },
 
   // ── Arena ──
