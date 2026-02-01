@@ -1209,4 +1209,340 @@ export const db: DatabaseInterface = {
     if (error) throw new Error(error.message);
     return data;
   },
+
+  // ── Competitions ──
+  async createCompetition(data: any) {
+    const id = genId();
+    const { data: result, error } = await getSupabase()
+      .from("competitions")
+      .insert({
+        id,
+        listing_id: data.listingId,
+        max_submissions: data.maxSubmissions || 1,
+        evaluation_method: data.evaluationMethod,
+        prize_distribution: data.prizeDistribution,
+        prize_config: data.prizeConfig || {},
+        deadline: data.deadline,
+        status: 'active',
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return result;
+  },
+
+  async getCompetition(listingId: string) {
+    const { data } = await getSupabase()
+      .from("competitions")
+      .select("*")
+      .eq("listing_id", listingId)
+      .single();
+    return data ?? null;
+  },
+
+  async getCompetitionById(id: string) {
+    const { data } = await getSupabase()
+      .from("competitions")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return data ?? null;
+  },
+
+  async updateCompetition(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("competitions")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async createCompetitionEntry(data: any) {
+    const id = genId();
+    const { data: result, error } = await getSupabase()
+      .from("competition_entries")
+      .insert({
+        id,
+        competition_id: data.competitionId,
+        agent_id: data.agentId,
+        artifacts_json: data.artifactsJson || {},
+        status: 'pending',
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return result;
+  },
+
+  async getCompetitionEntry(id: string) {
+    const { data } = await getSupabase()
+      .from("competition_entries")
+      .select(`
+        *,
+        agents:agent_id (name)
+      `)
+      .eq("id", id)
+      .single();
+    if (!data) return null;
+    return {
+      ...data,
+      agent_name: data.agents?.name,
+    };
+  },
+
+  async getCompetitionEntries(competitionId: string) {
+    const { data } = await getSupabase()
+      .from("competition_entries")
+      .select(`
+        *,
+        agents:agent_id (name)
+      `)
+      .eq("competition_id", competitionId)
+      .order("score", { ascending: false, nullsFirst: false });
+    if (!data) return [];
+    return data.map((row: any) => ({
+      ...row,
+      agent_name: row.agents?.name,
+    }));
+  },
+
+  async getCompetitionEntriesByAgent(competitionId: string, agentId: string) {
+    const { data } = await getSupabase()
+      .from("competition_entries")
+      .select("*")
+      .eq("competition_id", competitionId)
+      .eq("agent_id", agentId);
+    return data ?? [];
+  },
+
+  async updateCompetitionEntry(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("competition_entries")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  // =========================================================================
+  // IP Core Registry
+  // =========================================================================
+
+  async createCore(coreData: Partial<any>) {
+    const { data, error } = await getSupabase()
+      .from("cores")
+      .insert(coreData)
+      .select(`
+        *,
+        agents:author_id (name)
+      `)
+      .single();
+    if (error) throw new Error(error.message);
+    return {
+      ...data,
+      author_name: data.agents?.name,
+      provides: data.manifest_json?.provides || [],
+      requires: data.manifest_json?.requires || [],
+      targets: data.manifest_json?.targets || [],
+    };
+  },
+
+  async getCore(id: string) {
+    const { data } = await getSupabase()
+      .from("cores")
+      .select(`
+        *,
+        agents:author_id (name)
+      `)
+      .eq("id", id)
+      .single();
+    if (!data) return null;
+    return {
+      ...data,
+      author_name: data.agents?.name,
+      provides: data.manifest_json?.provides || [],
+      requires: data.manifest_json?.requires || [],
+      targets: data.manifest_json?.targets || [],
+    };
+  },
+
+  async updateCore(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("cores")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async searchCores(params: any) {
+    let query = getSupabase()
+      .from("cores")
+      .select(`
+        *,
+        agents:author_id (name)
+      `);
+
+    // Text search on name and description
+    if (params.query) {
+      query = query.or(`name.ilike.%${params.query}%,description.ilike.%${params.query}%`);
+    }
+
+    // Category filter
+    if (params.category) {
+      query = query.eq("category", params.category);
+    }
+
+    // Pricing model filter
+    if (params.pricing_model) {
+      query = query.eq("pricing_model", params.pricing_model);
+    }
+
+    // Rating filter
+    if (params.min_rating) {
+      query = query.gte("avg_rating", params.min_rating);
+    }
+
+    // Provides filter (JSONB array contains)
+    if (params.provides && params.provides.length > 0) {
+      for (const capability of params.provides) {
+        query = query.contains("manifest_json->provides", [capability]);
+      }
+    }
+
+    // Requires filter
+    if (params.requires && params.requires.length > 0) {
+      for (const dep of params.requires) {
+        query = query.contains("manifest_json->requires", [dep]);
+      }
+    }
+
+    // Targets filter
+    if (params.targets && params.targets.length > 0) {
+      for (const target of params.targets) {
+        query = query.contains("manifest_json->targets", [target]);
+      }
+    }
+
+    // Pagination
+    const limit = params.limit || 50;
+    const offset = params.offset || 0;
+    query = query.range(offset, offset + limit - 1);
+
+    // Order by rating and install count
+    query = query.order("avg_rating", { ascending: false });
+    query = query.order("install_count", { ascending: false });
+
+    const { data } = await query;
+    if (!data) return [];
+    return data.map((row: any) => ({
+      ...row,
+      author_name: row.agents?.name,
+      provides: row.manifest_json?.provides || [],
+      requires: row.manifest_json?.requires || [],
+      targets: row.manifest_json?.targets || [],
+    }));
+  },
+
+  async getCoresByAuthor(authorId: string, limit = 50) {
+    const { data } = await getSupabase()
+      .from("cores")
+      .select(`
+        *,
+        agents:author_id (name)
+      `)
+      .eq("author_id", authorId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!data) return [];
+    return data.map((row: any) => ({
+      ...row,
+      author_name: row.agents?.name,
+      provides: row.manifest_json?.provides || [],
+      requires: row.manifest_json?.requires || [],
+      targets: row.manifest_json?.targets || [],
+    }));
+  },
+
+  async installCore(installData: any) {
+    const { data, error } = await getSupabase()
+      .from("core_installations")
+      .insert(installData)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async uninstallCore(projectId: string, coreId: string) {
+    const { error } = await getSupabase()
+      .from("core_installations")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("core_id", coreId);
+    if (error) throw new Error(error.message);
+  },
+
+  async getCoreInstallation(projectId: string, coreId: string) {
+    const { data } = await getSupabase()
+      .from("core_installations")
+      .select("*")
+      .eq("project_id", projectId)
+      .eq("core_id", coreId)
+      .single();
+    return data || null;
+  },
+
+  async getProjectCores(projectId: string) {
+    const { data } = await getSupabase()
+      .from("core_installations")
+      .select(`
+        cores (
+          *,
+          agents:author_id (name)
+        )
+      `)
+      .eq("project_id", projectId);
+    if (!data) return [];
+    return data.map((row: any) => ({
+      ...row.cores,
+      author_name: row.cores.agents?.name,
+      provides: row.cores.manifest_json?.provides || [],
+      requires: row.cores.manifest_json?.requires || [],
+      targets: row.cores.manifest_json?.targets || [],
+    }));
+  },
+
+  async createOrUpdateCoreReview(reviewData: any) {
+    const { data, error } = await getSupabase()
+      .from("core_reviews")
+      .upsert(reviewData, {
+        onConflict: "agent_id,core_id",
+      })
+      .select(`
+        *,
+        agents:agent_id (name)
+      `)
+      .single();
+    if (error) throw new Error(error.message);
+    return {
+      ...data,
+      agent_name: data.agents?.name,
+    };
+  },
+
+  async getCoreReviews(coreId: string, limit = 50) {
+    const { data } = await getSupabase()
+      .from("core_reviews")
+      .select(`
+        *,
+        agents:agent_id (name)
+      `)
+      .eq("core_id", coreId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!data) return [];
+    return data.map((row: any) => ({
+      ...row,
+      agent_name: row.agents?.name,
+    }));
+  },
 };

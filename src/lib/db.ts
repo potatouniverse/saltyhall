@@ -362,6 +362,39 @@ function initSchema(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_change_orders_listing ON change_orders(listing_id);
     CREATE INDEX IF NOT EXISTS idx_change_orders_requester ON change_orders(requester_id);
     CREATE INDEX IF NOT EXISTS idx_change_orders_status ON change_orders(status);
+
+    -- Milestones
+    CREATE TABLE IF NOT EXISTS milestones (
+      id TEXT PRIMARY KEY,
+      listing_id TEXT NOT NULL REFERENCES market_listings(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      budget_percentage REAL NOT NULL,
+      acceptance_criteria TEXT NOT NULL,
+      order_index INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      agent_id TEXT REFERENCES agents(id),
+      created_at TEXT DEFAULT (datetime('now')),
+      started_at TEXT,
+      submitted_at TEXT,
+      approved_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_milestones_listing ON milestones(listing_id);
+    CREATE INDEX IF NOT EXISTS idx_milestones_agent ON milestones(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_milestones_status ON milestones(status);
+
+    CREATE TABLE IF NOT EXISTS milestone_submissions (
+      id TEXT PRIMARY KEY,
+      milestone_id TEXT NOT NULL REFERENCES milestones(id) ON DELETE CASCADE,
+      agent_id TEXT NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      artifacts_json TEXT NOT NULL,
+      feedback TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      submitted_at TEXT DEFAULT (datetime('now')),
+      reviewed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_milestone_submissions_milestone ON milestone_submissions(milestone_id);
+    CREATE INDEX IF NOT EXISTS idx_milestone_submissions_agent ON milestone_submissions(agent_id);
   `);
 
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
@@ -1338,5 +1371,102 @@ export const db: DatabaseInterface = {
   },
   async getAgentToolReviews(toolId: string, limit?: number) {
     throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+
+  // ── Competitions (SQLite stubs - use Supabase in production) ──
+  async createCompetition(data: any) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getCompetition(listingId: string) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getCompetitionById(id: string) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async updateCompetition(id: string, updates: Record<string, any>) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async createCompetitionEntry(data: any) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getCompetitionEntry(id: string) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getCompetitionEntries(competitionId: string) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getCompetitionEntriesByAgent(competitionId: string, agentId: string) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async updateCompetitionEntry(id: string, updates: Record<string, any>) {
+    throw new Error("Competitions require Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+
+  // Milestones
+  async createMilestone(data: Partial<MilestoneRecord>) {
+    const d = getDb();
+    const id = crypto.randomUUID();
+    d.prepare(
+      `INSERT INTO milestones (id, listing_id, title, description, budget_percentage, acceptance_criteria, order_index, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`
+    ).run(
+      id,
+      data.listing_id,
+      data.title,
+      data.description,
+      data.budget_percentage,
+      data.acceptance_criteria,
+      data.order_index
+    );
+    return d.prepare("SELECT * FROM milestones WHERE id = ?").get(id) as MilestoneRecord;
+  },
+
+  async getMilestone(id: string) {
+    return getDb().prepare("SELECT * FROM milestones WHERE id = ?").get(id) as MilestoneRecord | null;
+  },
+
+  async getMilestones(listingId: string) {
+    return getDb().prepare("SELECT * FROM milestones WHERE listing_id = ? ORDER BY order_index ASC").all(listingId) as MilestoneRecord[];
+  },
+
+  async updateMilestone(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE milestones SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
+  async createMilestoneSubmission(data: Partial<MilestoneSubmissionRecord>) {
+    const d = getDb();
+    const id = crypto.randomUUID();
+    d.prepare(
+      `INSERT INTO milestone_submissions (id, milestone_id, agent_id, artifacts_json, status)
+       VALUES (?, ?, ?, ?, 'pending')`
+    ).run(
+      id,
+      data.milestone_id,
+      data.agent_id,
+      data.artifacts_json
+    );
+    return d.prepare("SELECT * FROM milestone_submissions WHERE id = ?").get(id) as MilestoneSubmissionRecord;
+  },
+
+  async getMilestoneSubmission(id: string) {
+    return getDb().prepare("SELECT * FROM milestone_submissions WHERE id = ?").get(id) as MilestoneSubmissionRecord | null;
+  },
+
+  async getMilestoneSubmissions(milestoneId: string) {
+    return getDb().prepare("SELECT * FROM milestone_submissions WHERE milestone_id = ? ORDER BY submitted_at DESC").all(milestoneId) as MilestoneSubmissionRecord[];
+  },
+
+  async updateMilestoneSubmission(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE milestone_submissions SET ${sets} WHERE id = ?`).run(...vals, id);
   },
 };

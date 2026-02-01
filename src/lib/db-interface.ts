@@ -368,6 +368,40 @@ export interface DatabaseInterface {
   updateChangeOrder(id: string, updates: Record<string, any>): Promise<void>;
   getBountyGraph(listingId: string): Promise<string | null>;
   createNaclTransaction(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string): Promise<any>;
+
+  // Competitions
+  createCompetition(data: Partial<CompetitionRecord>): Promise<CompetitionRecord>;
+  getCompetition(listingId: string): Promise<CompetitionRecord | null>;
+  getCompetitionById(id: string): Promise<CompetitionRecord | null>;
+  updateCompetition(id: string, updates: Record<string, any>): Promise<void>;
+  createCompetitionEntry(data: Partial<CompetitionEntryRecord>): Promise<CompetitionEntryRecord>;
+  getCompetitionEntry(id: string): Promise<CompetitionEntryRecord | null>;
+  getCompetitionEntries(competitionId: string): Promise<CompetitionEntryRecord[]>;
+  getCompetitionEntriesByAgent(competitionId: string, agentId: string): Promise<CompetitionEntryRecord[]>;
+  updateCompetitionEntry(id: string, updates: Record<string, any>): Promise<void>;
+
+  // Milestones
+  createMilestone(data: Partial<MilestoneRecord>): Promise<MilestoneRecord>;
+  getMilestone(id: string): Promise<MilestoneRecord | null>;
+  getMilestones(listingId: string): Promise<MilestoneRecord[]>;
+  updateMilestone(id: string, updates: Record<string, any>): Promise<void>;
+  createMilestoneSubmission(data: Partial<MilestoneSubmissionRecord>): Promise<MilestoneSubmissionRecord>;
+  getMilestoneSubmission(id: string): Promise<MilestoneSubmissionRecord | null>;
+  getMilestoneSubmissions(milestoneId: string): Promise<MilestoneSubmissionRecord[]>;
+  updateMilestoneSubmission(id: string, updates: Record<string, any>): Promise<void>;
+
+  // IP Core Registry
+  createCore(data: Partial<CoreRecord>): Promise<CoreRecord>;
+  getCore(id: string): Promise<CoreRecord | null>;
+  updateCore(id: string, updates: Record<string, any>): Promise<void>;
+  searchCores(params: CoreSearchParams): Promise<CoreRecord[]>;
+  getCoresByAuthor(authorId: string, limit?: number): Promise<CoreRecord[]>;
+  installCore(data: { core_id: string; project_id: string; agent_id: string; config_json?: any }): Promise<CoreInstallationRecord>;
+  uninstallCore(projectId: string, coreId: string): Promise<void>;
+  getCoreInstallation(projectId: string, coreId: string): Promise<CoreInstallationRecord | null>;
+  getProjectCores(projectId: string): Promise<CoreRecord[]>;
+  createOrUpdateCoreReview(data: { agent_id: string; core_id: string; rating: number; review: string }): Promise<CoreReviewRecord>;
+  getCoreReviews(coreId: string, limit?: number): Promise<CoreReviewRecord[]>;
 }
 
 export interface ServiceListingRecord {
@@ -484,6 +518,116 @@ export interface AgentToolSearchParams {
   category?: string;
   tags?: string[];
   minRating?: number;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CompetitionRecord {
+  id: string;
+  listing_id: string;
+  max_submissions: number;
+  evaluation_method: string;
+  prize_distribution: string;
+  prize_config: any;
+  deadline: string | null;
+  status: string;
+  winner_id: string | null;
+  finalized_at: string | null;
+  created_at: string;
+}
+
+export interface CompetitionEntryRecord {
+  id: string;
+  competition_id: string;
+  agent_id: string;
+  agent_name?: string;
+  artifacts_json: any;
+  score: number | null;
+  rank: number | null;
+  status: string;
+  evaluation_result: any;
+  prize_amount: number | null;
+  submitted_at: string;
+  evaluated_at: string | null;
+}
+
+export interface MilestoneRecord {
+  id: string;
+  listing_id: string;
+  title: string;
+  description: string;
+  budget_percentage: number;
+  acceptance_criteria: string;
+  order_index: number;
+  status: string;
+  agent_id: string | null;
+  created_at: string;
+  started_at: string | null;
+  submitted_at: string | null;
+  approved_at: string | null;
+}
+
+export interface MilestoneSubmissionRecord {
+  id: string;
+  milestone_id: string;
+  agent_id: string;
+  artifacts_json: string;
+  feedback: string | null;
+  status: string;
+  submitted_at: string;
+  reviewed_at: string | null;
+}
+
+export interface CoreRecord {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author_id: string;
+  author_name?: string;
+  category: string;
+  manifest_json: any;
+  pricing_model: string;
+  price: number;
+  license: string;
+  install_count: number;
+  avg_rating: number;
+  created_at: string;
+  updated_at: string;
+  // Convenience fields extracted from manifest_json
+  provides?: string[];
+  requires?: string[];
+  targets?: string[];
+}
+
+export interface CoreInstallationRecord {
+  id: string;
+  core_id: string;
+  project_id: string;
+  agent_id: string;
+  config_json: any;
+  installed_at: string;
+}
+
+export interface CoreReviewRecord {
+  id: string;
+  core_id: string;
+  agent_id: string;
+  agent_name?: string;
+  rating: number;
+  review: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoreSearchParams {
+  query?: string;
+  category?: string;
+  provides?: string[];
+  requires?: string[];
+  targets?: string[];
+  pricing_model?: string;
+  min_rating?: number;
   limit?: number;
   offset?: number;
 }
