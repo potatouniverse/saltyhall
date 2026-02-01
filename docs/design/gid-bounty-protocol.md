@@ -21,8 +21,10 @@
 10. [Agent Discovery & Execution](#10-agent-discovery--execution)
 11. [Comparison with Existing Systems](#11-comparison-with-existing-systems)
 12. [Security Considerations](#12-security-considerations)
-13. [Open Questions](#13-open-questions)
-14. [Implementation Roadmap](#14-implementation-roadmap)
+13. [SpecLoop Economic Model](#13-specloop-economic-model)
+14. [Auto-Decomposition Engine (拆图引擎)](#14-auto-decomposition-engine-拆图引擎)
+15. [Open Questions](#15-open-questions)
+16. [Implementation Roadmap](#16-implementation-roadmap)
 
 ---
 
@@ -1528,7 +1530,1148 @@ def execute_bounty(subgraph):
 
 ---
 
-## 13. Open Questions
+## 13. SpecLoop Economic Model
+
+The clarification/specification phase of a bounty is valuable work — experts and agents review requirements, ask questions, propose architectures, and refine interfaces. Without economic constraints, this phase can iterate forever: the poster gets free consulting while never committing to publish. The SpecLoop Economic Model prevents this by making iteration costs explicit and bounded.
+
+### 13.1 The Problem: Free Architecture Consulting
+
+```
+Poster:  "Build me a distributed cache"
+Agent α: "What consistency model? What eviction policy? Max latency?"
+Poster:  "Good questions. Let me think... <2 weeks pass>"
+Poster:  "Actually, I want a message queue now"
+Agent β: "Here's a suggested architecture with 3 node types..."
+Poster:  "Interesting. Let me rethink... <ghost>"
+
+Result: Agents did real architecture work. Poster got free consulting.
+        No bounty was ever published. No one got paid.
+```
+
+This is the **SpecLoop problem**: the clarification phase has value, but the protocol doesn't capture or compensate that value.
+
+### 13.2 Commitment Deposit (SpecLoop Stake)
+
+When a poster creates a bounty draft and enters the clarification phase, they must escrow a **spec deposit** upfront. This deposit funds the iteration process and creates a financial incentive to converge on a frozen spec.
+
+#### Spec State Machine
+
+```
+                    ┌──────────┐
+                    │  DRAFT   │  poster writes initial spec
+                    └────┬─────┘  (no deposit required yet)
+                         │
+                         │ enter clarification
+                         │ (spec deposit locked)
+                         │
+                    ┌────▼──────────┐
+              ┌─────│  CLARIFYING   │─────┐
+              │     │  (deposit     │     │
+              │     │   locked)     │     │
+              │     └────┬──────────┘     │
+              │          │                │
+         iterations      │ freeze         │ abandon / timeout
+         (deposit        │                │ (deposit distributed
+          decays)        │                │  to participants)
+              │     ┌────▼─────┐          │
+              │     │  FROZEN  │          │
+              └────▶│  (spec   │     ┌────▼──────┐
+                    │   final) │     │  EXPIRED  │
+                    └────┬─────┘     └───────────┘
+                         │
+                         │ publish DAG
+                         │ (deposit converts to budget credit)
+                         │
+                    ┌────▼──────────┐
+                    │  PUBLISHED    │
+                    │  (bounty      │
+                    │   active)     │
+                    └───────────────┘
+```
+
+#### Deposit Decay Mechanics
+
+The spec deposit decays during the Clarifying phase. Decay can be **time-based**, **iteration-based**, or a hybrid:
+
+```
+Deposit Remaining
+100% ┤████████████
+     │████████████
+ 75% ┤████████████████
+     │████████████████
+ 50% ┤████████████████████
+     │████████████████████
+ 25% ┤████████████████████████
+     │████████████████████████
+  0% ┤████████████████████████████
+     └──┬───┬───┬───┬───┬───┬───▶
+        0   1   2   3   4   5   6  weeks in Clarifying
+
+     ─── Time-based decay (linear)
+     ─── Iteration-based decay (step function per round)
+```
+
+**Time-based decay**: Deposit burns at a fixed rate per day/week. Simple, predictable.
+
+**Iteration-based decay**: Each clarification round (poster modifies spec → agents respond) consumes a fixed portion. Encourages the poster to get it right in fewer rounds.
+
+**Hybrid (recommended)**: Base time decay + bonus burn per iteration round. Prevents both ghosting (time decay) and excessive iteration (round burn).
+
+```
+decay = base_rate_per_day × days_in_clarifying
+      + round_burn × num_clarification_rounds
+```
+
+#### Where Decayed Funds Go
+
+Decayed deposit is distributed to participants who contributed to the clarification phase:
+
+1. **Agents who asked clarifying questions** — proportional to engagement quality (voted by other participants or weighted by poster responses)
+2. **Agents who proposed architectural suggestions** — if their suggestions were incorporated into the final spec
+3. **Platform fee** — small percentage to fund infrastructure
+
+```
+Decayed Deposit Distribution
+─────────────────────────────
+  60%  → Clarification participants (pro-rata by contribution)
+  25%  → Architecture contributors (if suggestions adopted)
+  15%  → Platform operational fee
+```
+
+#### Deposit Conversion on Freeze
+
+When the poster freezes the spec, the **remaining** deposit converts to budget credit:
+
+- Can offset the bounty's task budgets (reduce out-of-pocket cost for the poster)
+- Can cover platform fees for the published bounty
+- Incentive: freeze early → keep more of your deposit → lower effective bounty cost
+
+#### YAML Schema: Spec Deposit Configuration
+
+```yaml
+# Bounty node with spec deposit config
+bounty_meta:
+  id: "bnt_cache_2025_001"
+  title: "Distributed Cache Layer"
+  poster: "agent:3ea830f4-..."
+  total_budget: 1000.00
+  currency: USDC
+
+  # === SPECLOOP DEPOSIT ===
+  spec_deposit:
+    amount: 100.00                    # upfront deposit for clarification phase
+    currency: USDC                    # must match bounty currency
+    
+    decay:
+      model: hybrid                   # time | iteration | hybrid
+      base_rate_per_day: 2.00         # USDC burned per day in Clarifying
+      round_burn: 5.00                # USDC burned per clarification round
+      max_rounds: 10                  # auto-expire after 10 rounds
+      max_duration_days: 30           # auto-expire after 30 days
+    
+    distribution:
+      participants_share: 0.60        # 60% to clarification contributors
+      architecture_share: 0.25        # 25% to adopted architecture proposals
+      platform_share: 0.15            # 15% platform fee
+    
+    conversion:
+      on_freeze: budget_credit        # budget_credit | refund | split
+      credit_cap: 0.80                # max 80% of remaining deposit as credit
+      # Remaining 20% is platform fee on conversion
+    
+    state: clarifying                 # draft | clarifying | frozen | expired
+    locked_at: "2025-07-10T12:00:00Z"
+    rounds_completed: 3
+    remaining: 79.00                  # 100 - (2×3 days + 5×3 rounds)
+    
+  # Participants tracked for distribution
+  clarification_log:
+    - round: 1
+      participants:
+        - agent_id: "agent:alpha-001"
+          contribution: question
+          content_hash: "sha256:abc..."
+        - agent_id: "agent:beta-002"
+          contribution: architecture_proposal
+          content_hash: "sha256:def..."
+          adopted: true
+    - round: 2
+      participants:
+        - agent_id: "agent:alpha-001"
+          contribution: question
+        - agent_id: "agent:gamma-003"
+          contribution: review
+    - round: 3
+      participants:
+        - agent_id: "agent:beta-002"
+          contribution: spec_refinement
+```
+
+#### Integration with SaltyEscrow.sol
+
+The spec deposit uses a **new deposit type** on the existing escrow contract, rather than a separate contract. This keeps the escrow logic unified.
+
+```solidity
+// Extension to ISaltyEscrow
+interface ISaltyEscrow {
+    // ... existing functions ...
+
+    // === SPECLOOP DEPOSIT ===
+    
+    enum DepositType { BOUNTY, COLLATERAL, SPEC_DEPOSIT }
+    enum SpecState { DRAFT, CLARIFYING, FROZEN, EXPIRED }
+    
+    // Poster locks spec deposit when entering Clarifying
+    function lockSpecDeposit(
+        bytes32 bountyId,
+        uint256 amount
+    ) external;
+    
+    // Platform triggers decay distribution per round
+    function processSpecRound(
+        bytes32 bountyId,
+        address[] calldata participants,
+        uint256[] calldata shares
+    ) external onlyPlatform;
+    
+    // Poster freezes spec — remaining deposit converts
+    function freezeSpec(
+        bytes32 bountyId
+    ) external;
+    // Emits: SpecFrozen(bountyId, remainingDeposit, creditAmount)
+    
+    // Auto-expire if max_duration or max_rounds exceeded
+    function expireSpec(
+        bytes32 bountyId
+    ) external;
+    // Distributes all remaining deposit to participants + platform
+
+    event SpecDepositLocked(bytes32 indexed bountyId, uint256 amount);
+    event SpecRoundProcessed(bytes32 indexed bountyId, uint8 round, uint256 burned);
+    event SpecFrozen(bytes32 indexed bountyId, uint256 remaining, uint256 credit);
+    event SpecExpired(bytes32 indexed bountyId, uint256 distributed);
+}
+```
+
+#### Escrow State with Spec Deposit
+
+```
+┌─────────────────────────────────────────────────┐
+│                SaltyEscrow.sol                   │
+│                                                  │
+│  Bounty: bnt_cache_2025_001                      │
+│                                                  │
+│  ┌──────────────────────────────────┐            │
+│  │  Spec Deposit:  100.00 USDC     │            │
+│  │  State:         CLARIFYING      │            │
+│  │  Remaining:     79.00 USDC      │            │
+│  │  Rounds:        3/10            │            │
+│  │  Distributed:   21.00 USDC      │            │
+│  │    → agent:alpha  8.40 USDC     │            │
+│  │    → agent:beta  10.50 USDC     │            │
+│  │    → agent:gamma  2.10 USDC     │            │
+│  └──────────────────────────────────┘            │
+│                                                  │
+│  ┌──────────────────────────────────┐            │
+│  │  Bounty Escrow: (not yet funded) │            │
+│  │  Funded on spec freeze + publish │            │
+│  └──────────────────────────────────┘            │
+└─────────────────────────────────────────────────┘
+```
+
+### 13.3 Change Order Mechanism
+
+After the spec is frozen and the bounty DAG is published, the interfaces between nodes are **locked**. Any material change to interfaces, data schemas, acceptance criteria, or node boundaries requires a **ChangeOrder** — a formal, costed modification process.
+
+#### Why Change Orders Matter
+
+```
+Without Change Orders:
+──────────────────────
+  Poster: "Oh, one more thing — can you also handle WebSocket auth?"
+  Agent:  "That changes 3 nodes and the integration test..."
+  Poster: "It's just a small addition"
+  Agent:  (does 2x the work for the same pay)
+  
+  → Scope creep by a thousand cuts. Agent absorbs all change costs.
+
+With Change Orders:
+───────────────────
+  Poster: "I need WebSocket auth support"
+  System: "Impact analysis: affects 3 nodes, 2 interfaces changed"
+  System: "Estimated additional cost: 180 USDC"
+  System: "Compensation for affected workers: 45 USDC"
+  Poster: "Approved" → new escrow created → work proceeds with fair pay
+  
+  → Change costs are explicit. Everyone gets paid for their work.
+```
+
+#### ChangeOrder Flow
+
+```
+┌──────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│  Request  │────▶│   Impact     │────▶│   Cost       │────▶│   Approve /  │
+│  Change   │     │   Analysis   │     │   Estimate   │     │   Reject     │
+└──────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘
+                                                                   │
+                                                          ┌────────┴────────┐
+                                                          ▼                 ▼
+                                                   ┌──────────┐     ┌──────────┐
+                                                   │ Execute  │     │ Cancelled│
+                                                   │ (new     │     └──────────┘
+                                                   │  escrow) │
+                                                   └──────────┘
+```
+
+**Step 1: Request Change**
+Poster or agent submits a ChangeOrder describing the desired modification.
+
+**Step 2: Impact Analysis**
+The system traverses the GID dependency graph to identify all affected nodes:
+
+```
+Change: "Add WebSocket auth to auth-middleware"
+
+Impact Analysis via gid_query_impact:
+──────────────────────────────────────
+  DIRECTLY AFFECTED:
+    ├── auth-middleware        (interface change: new WebSocket handler)
+    └── jwt-utils              (new token type: ws_session_token)
+  
+  TRANSITIVELY AFFECTED:
+    ├── refresh-endpoint       (depends on auth-middleware)
+    ├── integration-tests      (depends on auth-middleware + refresh-endpoint)
+    └── auth-docs              (depends on refresh-endpoint)
+  
+  UNAFFECTED:
+    └── (none — this change cascades through the whole graph)
+  
+  AFFECTED AGENTS:
+    ├── agent:alpha  — working on auth-middleware (in_progress)
+    ├── agent:beta   — completed jwt-utils (done, needs rework)
+    └── agent:gamma  — not yet started refresh-endpoint (claimed)
+```
+
+**Step 3: Cost Estimate**
+The system calculates the change cost:
+
+```
+Cost Breakdown:
+───────────────
+  Rework compensation (agent:beta, jwt-utils already done):    45.00 USDC
+  Scope increase (auth-middleware, new WebSocket handler):      80.00 USDC
+  Scope increase (refresh-endpoint, handle ws tokens):         40.00 USDC
+  Updated integration tests:                                   30.00 USDC
+  Documentation update:                                        15.00 USDC
+  ─────────────────────────────────────────────────────────────────────
+  Total change order cost:                                    210.00 USDC
+  
+  Poster must approve and fund 210 USDC to proceed.
+```
+
+**Step 4: Approve / Reject**
+Poster sees the full cost breakdown and decides. If approved, a new escrow is created for the change delta.
+
+**Step 5: Execute**
+Affected nodes are updated, agents are notified, and work proceeds with adjusted budgets.
+
+#### YAML Schema: ChangeOrder Nodes
+
+```yaml
+# ChangeOrder as a GID node
+nodes:
+  change-order-ws-auth:
+    type: change_order
+    status: pending_approval          # pending_approval | approved | rejected | executing | done
+    priority: high
+    description: "Add WebSocket authentication support to the auth system"
+    
+    change_order:
+      id: "co_ws_auth_001"
+      requester: "agent:3ea830f4-..."    # poster or authorized agent
+      requested_at: "2025-07-20T10:00:00Z"
+      
+      # What's changing
+      change_description: |
+        Add WebSocket session authentication. The auth-middleware must
+        handle WS upgrade requests with token validation. JWT utils
+        need a new ws_session_token type with shorter TTL.
+      
+      # Impact analysis results (auto-generated by platform)
+      impact:
+        directly_affected:
+          - node: auth-middleware
+            reason: "New WebSocket handler in middleware interface"
+            current_status: in_progress
+            assigned_agent: "agent:alpha"
+          - node: jwt-utils
+            reason: "New token type: ws_session_token"
+            current_status: done
+            assigned_agent: "agent:beta"
+        
+        transitively_affected:
+          - node: refresh-endpoint
+            reason: "Depends on auth-middleware (interface changed)"
+            current_status: claimed
+            assigned_agent: "agent:gamma"
+          - node: integration-tests
+            reason: "Depends on auth-middleware + refresh-endpoint"
+            current_status: open
+          - node: auth-docs
+            reason: "Depends on refresh-endpoint"
+            current_status: open
+        
+        unaffected: []
+      
+      # Cost estimate (auto-calculated)
+      cost_estimate:
+        rework_compensation:
+          - agent: "agent:beta"
+            node: jwt-utils
+            amount: 45.00
+            reason: "Node was done; requires rework for new token type"
+        scope_increases:
+          - node: auth-middleware
+            delta_budget: 80.00
+          - node: refresh-endpoint
+            delta_budget: 40.00
+          - node: integration-tests
+            delta_budget: 30.00
+          - node: auth-docs
+            delta_budget: 15.00
+        total_cost: 210.00
+        currency: USDC
+      
+      # Escrow for the change delta
+      escrow:
+        type: change_order
+        amount: 210.00
+        currency: USDC
+        funded: false                    # true after poster approval + deposit
+        tx_hash: null
+      
+      # Approval
+      approval:
+        status: pending                  # pending | approved | rejected
+        approved_by: null
+        approved_at: null
+        rejection_reason: null
+      
+      # Execution tracking
+      execution:
+        interface_updates: []            # list of interface files modified
+        node_budget_adjustments: []      # updated budget per affected node
+        notifications_sent: []           # agents notified of changes
+```
+
+#### API Flow
+
+```
+POST   /api/bounties/:id/change-orders
+  → Request a change order
+  → Body: { description, affected_interfaces }
+  → Returns: impact analysis + cost estimate
+
+GET    /api/bounties/:id/change-orders/:coId
+  → Get change order details, impact, cost
+
+POST   /api/bounties/:id/change-orders/:coId/approve
+  → Poster approves + funds escrow for the delta
+  → Triggers: node updates, agent notifications, budget adjustments
+
+POST   /api/bounties/:id/change-orders/:coId/reject
+  → Poster rejects — no changes made
+
+GET    /api/bounties/:id/change-orders
+  → List all change orders for a bounty (history)
+```
+
+#### SSE Events for Change Orders
+
+```json
+// change_order.requested
+{
+  "type": "change_order.requested",
+  "bountyId": "bnt_auth_2025_001",
+  "changeOrderId": "co_ws_auth_001",
+  "requester": "agent:3ea830f4-...",
+  "affectedNodes": ["auth-middleware", "jwt-utils", "refresh-endpoint",
+                     "integration-tests", "auth-docs"],
+  "estimatedCost": 210.00
+}
+
+// change_order.approved
+{
+  "type": "change_order.approved",
+  "bountyId": "bnt_auth_2025_001",
+  "changeOrderId": "co_ws_auth_001",
+  "fundedAmount": 210.00,
+  "txHash": "0xdef456..."
+}
+
+// change_order.node_updated
+{
+  "type": "change_order.node_updated",
+  "bountyId": "bnt_auth_2025_001",
+  "changeOrderId": "co_ws_auth_001",
+  "nodeId": "jwt-utils",
+  "oldBudget": 75.00,
+  "newBudget": 120.00,
+  "reason": "Rework compensation + scope increase"
+}
+```
+
+#### Edge Cases
+
+**Cascading changes**: A change to node A affects B, which affects C. The impact analysis must traverse the full transitive closure of the dependency graph. Cost compounds — this is by design. If a change is expensive, the poster should know before committing.
+
+**Partial rollbacks**: If a change order is approved but execution fails partway (e.g., agent can't implement the new interface), the change order can be partially rolled back:
+- Completed rework compensation is non-refundable (agents did real work)
+- Unstarted scope increases are refunded to the change order escrow
+- The bounty reverts to the pre-change interface freeze
+
+**Multiple concurrent change orders**: Only one change order can be active (status: `executing`) at a time per bounty. Additional requests queue and their impact analysis is recalculated after the current change order completes (since the graph state may have changed).
+
+**Agent-initiated change orders**: Agents working on a node may discover that the spec is incomplete or contradictory. They can request a change order, but the poster must still approve and fund it. This creates a healthy negotiation dynamic.
+
+---
+
+## 14. Auto-Decomposition Engine (拆图引擎)
+
+The Auto-Decomposition Engine converts a project's engineering artifacts — build system files, interface definitions, test infrastructure — into bounty-ready GID subgraphs. This is **not** an NLP problem. It does not read README files and guess at task structure. It parses real dependency topology from real build systems and overlays contract boundaries to produce executable task graphs.
+
+### 14.1 Core Principle
+
+```
+Traditional approach (wrong):
+  README.md → LLM → "here are some tasks" → vague graph
+  
+Decomposition engine approach (correct):
+  Cargo.toml + src/lib.rs + .gid/graph.yml + CI config
+    → parse real module boundaries
+    → overlay interface contracts
+    → map test infrastructure
+    → generate bounty-ready GID subgraphs with all 3 layers
+```
+
+The engine produces graphs where every node has:
+- **Work Node**: derived from module boundaries in the build system
+- **Info Boundary**: derived from import/export analysis and interface files
+- **Acceptance Harness**: derived from existing test infrastructure and CI config
+
+If the project doesn't have enough structure to derive these layers, the engine tells you what's missing — it doesn't guess.
+
+### 14.2 Required Inputs
+
+The decomposition engine ingests four categories of information:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    DECOMPOSITION INPUTS                          │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  ┌────────┐ │
+│  │ ContractPack │  │ Build System │  │ Platform  │  │ Accept │ │
+│  │              │  │ Info         │  │ Matrix    │  │ Rsrcs  │ │
+│  │ • Interfaces │  │ • Cargo.toml │  │ • OS list │  │ • CI   │ │
+│  │ • Schemas    │  │ • package.  │  │ • MCU/    │  │   runners│
+│  │ • API specs  │  │   json      │  │   board   │  │ • Sims │ │
+│  │ • Constraints│  │ • pyproject │  │ • Toolchn │  │ • HIL  │ │
+│  │ • Proto/IDL  │  │ • workspace │  │           │  │ • Test │ │
+│  │              │  │   members   │  │           │  │   envs │ │
+│  └──────┬───────┘  └──────┬──────┘  └─────┬─────┘  └───┬────┘ │
+│         │                 │               │              │      │
+│         └────────┬────────┴───────┬───────┴──────────────┘      │
+│                  │                │                              │
+│                  ▼                ▼                              │
+│         ┌───────────────────────────────┐                       │
+│         │   Decomposition Algorithm     │                       │
+│         │   (parse → overlay → map →    │                       │
+│         │    generate → output)         │                       │
+│         └───────────────┬───────────────┘                       │
+│                         │                                       │
+│                         ▼                                       │
+│              GID Subgraphs (bounty-ready)                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**1. ContractPack** — The set of interface definitions, data schemas, and constraints that define module boundaries:
+- TypeScript `.d.ts` files or interface exports
+- Rust trait definitions and pub API surface
+- Python Protocol classes or ABC definitions
+- Protobuf/gRPC `.proto` files
+- OpenAPI/Swagger specs
+- JSON Schema files
+- Database migration schemas
+
+**2. Build System Info** — Parsed from the project's build configuration to extract real dependency topology:
+- Which modules/packages exist
+- What depends on what (internal deps)
+- What external dependencies each module needs
+- Build targets and entry points
+
+**3. Target Platform Matrix** — For cross-platform or embedded projects:
+- Target OS (Linux, macOS, Windows, bare-metal)
+- MCU / board targets (STM32, ESP32, Raspberry Pi)
+- Toolchain requirements (gcc, clang, rustc version)
+- Platform-specific feature flags
+
+**4. Acceptance Resources** — What infrastructure is available for verification:
+- CI runner types (GitHub Actions, self-hosted, ARM runners)
+- Simulators (QEMU, Renode for embedded)
+- Hardware-in-the-loop setups (if any)
+- Test environment configs (Docker Compose, k8s namespaces)
+
+### 14.3 Decomposition Algorithm
+
+The algorithm runs in five phases:
+
+```
+Phase 1          Phase 2           Phase 3          Phase 4          Phase 5
+Parse Build      Overlay           Map Test         Generate         Output
+Graph            Contracts         Infra            Nodes            Subgraphs
+─────────────    ──────────────    ─────────────    ─────────────    ──────────────
+                                                    
+ Cargo.toml      Interface        CI runners        Work Nodes       graph.yml
+ package.json    definitions      Simulators        Info Boundaries  (bounty-ready)
+ pyproject.toml  Data schemas     HIL setups        Acceptance       
+                 Constraints      Test envs         Harnesses        
+       │              │               │                 │                │
+       ▼              ▼               ▼                 ▼                ▼
+  Module          Contract          Harness          Complete         Suggested
+  Dependency      Boundary          Assignment       3-Layer          node splits
+  Graph           Graph             Graph            Nodes            + edges
+```
+
+#### Phase 1: Parse Build Graph → Extract Module Boundaries
+
+Read the build system and produce a module dependency graph.
+
+```
+Input: Cargo.toml (workspace)
+──────────────────────────────
+[workspace]
+members = ["crates/core", "crates/api", "crates/auth", "crates/db"]
+
+# crates/api/Cargo.toml
+[dependencies]
+core = { path = "../core" }
+auth = { path = "../auth" }
+db   = { path = "../db" }
+
+# crates/auth/Cargo.toml  
+[dependencies]
+core = { path = "../core" }
+
+# crates/db/Cargo.toml
+[dependencies]
+core = { path = "../core" }
+
+Output: Module Dependency Graph
+────────────────────────────────
+  core (0 deps)
+    ▲       ▲       ▲
+    │       │       │
+  auth    db      api
+  (1 dep) (1 dep) (3 deps: core, auth, db)
+```
+
+#### Phase 2: Overlay Interface Contracts → Define Info Boundaries
+
+For each module boundary (edge in the dependency graph), identify the interface contract and define what each module needs to see.
+
+```
+Module: auth
+────────────
+  Depends on: core
+  Exports to: api
+  
+  Info Boundary (auto-derived):
+    READ:  crates/core/src/lib.rs (pub types only)
+           crates/core/src/types.rs
+    WRITE: crates/auth/src/**
+    DENY:  crates/db/**, crates/api/**
+```
+
+#### Phase 3: Map Test Infrastructure → Assign Acceptance Harnesses
+
+Match each module to the available test infrastructure:
+
+```
+Module: auth
+────────────
+  Has tests:        crates/auth/tests/**  → unit test harness
+  Has benchmarks:   crates/auth/benches/** → benchmark harness
+  CI runner needed: standard (no special hardware)
+  
+  Harness:
+    - type: test_suite
+      command: "cargo test -p auth"
+    - type: benchmark
+      command: "cargo bench -p auth"
+```
+
+For embedded/cross-platform projects:
+
+```
+Module: firmware-sensor
+───────────────────────
+  Target: thumbv7em-none-eabihf (Cortex-M4)
+  Has tests: yes, but requires QEMU
+  CI runner needed: ARM-capable or QEMU-enabled
+  
+  Harness:
+    - type: test_suite
+      command: "cargo test -p firmware-sensor --target thumbv7em-none-eabihf"
+      sandbox: qemu
+      runner_tag: arm-emulation
+```
+
+#### Phase 4: Generate Work Nodes with Proper Isolation
+
+Combine the three phases into complete 3-layer bounty nodes:
+
+```yaml
+# Auto-generated node for 'auth' module
+nodes:
+  auth:
+    # Layer 1: Work Node (from build system)
+    type: code
+    status: open
+    description: "Implement authentication module (crate: auth)"
+    outputs:
+      artifacts:
+        - path: crates/auth/src/lib.rs
+          type: source
+        - path: crates/auth/src/jwt.rs
+          type: source
+      deliverable: pull_request
+    
+    # Layer 2: Info Boundary (from dependency analysis)
+    info_boundary:
+      files:
+        read:
+          - crates/core/src/lib.rs
+          - crates/core/src/types.rs
+          - crates/auth/Cargo.toml
+          - Cargo.toml
+          - Cargo.lock
+        write:
+          - crates/auth/src/**
+          - crates/auth/tests/**
+          - crates/auth/benches/**
+        deny:
+          - crates/db/**
+          - crates/api/**
+          - .env
+      network:
+        allow:
+          - "crates.io"
+        deny:
+          - "*"
+    
+    # Layer 3: Acceptance Harness (from test infrastructure)
+    harness:
+      checks:
+        - name: unit_tests
+          type: test_suite
+          command: "cargo test -p auth"
+          pass_criteria:
+            min_pass_rate: 1.0
+        - name: clippy
+          type: lint
+          command: "cargo clippy -p auth -- -D warnings"
+          pass_criteria:
+            exit_code: 0
+        - name: bench
+          type: benchmark
+          command: "cargo bench -p auth -- --output-format json"
+          pass_criteria:
+            metric: ns_per_iter
+            max: 1000
+      timeout_per_check: 300
+      sandbox: docker
+```
+
+#### Phase 5: Output GID Subgraphs
+
+The engine produces a complete `graph.yml` with suggested node splits and edges, ready for human/agent review before publishing.
+
+### 14.4 GID Integration
+
+The decomposition engine is exposed as a new GID tool:
+
+```bash
+# Basic usage — decompose a project
+gid decompose --project-path ./my-project --config decompose.yml
+
+# Dry run — show what would be generated without writing
+gid decompose --project-path ./my-project --config decompose.yml --dry-run
+
+# Merge into existing graph (adds suggested nodes, doesn't overwrite)
+gid decompose --project-path ./my-project --merge-into .gid/graph.yml
+
+# Decompose a specific subset of modules
+gid decompose --project-path ./my-project --modules auth,db --config decompose.yml
+```
+
+**Programmatic API:**
+
+```python
+# gid_decompose(project_path, config) — new GID tool
+result = gid_decompose(
+    project_path="./my-project",
+    config={
+        "build_system": "cargo",
+        "contract_pack": "./interfaces/",
+        "platform_matrix": [{"os": "linux", "arch": "x86_64"}],
+        "acceptance_resources": {
+            "ci_runners": ["github-actions-ubuntu"],
+            "simulators": []
+        }
+    }
+)
+
+# result.suggested_nodes   → list of 3-layer node definitions
+# result.suggested_edges   → list of dependency edges
+# result.warnings          → missing interfaces, untestable modules, etc.
+# result.confidence        → per-node confidence score (how much was derived vs guessed)
+```
+
+**Review workflow:**
+
+```
+gid decompose → suggested graph
+       │
+       ▼
+  Human / agent reviews:
+    ✓ Accept node as-is
+    ✎ Modify node (adjust scope, budget, harness)
+    ✗ Reject node (merge with another, or remove)
+    + Add manual nodes (for things the engine can't detect)
+       │
+       ▼
+  gid publish → bounty live on marketplace
+```
+
+The engine explicitly marks nodes with a `confidence` score:
+
+```yaml
+nodes:
+  auth:
+    _decomposition:
+      confidence: 0.92          # high — clear module boundary, tests exist
+      source: cargo_workspace
+      warnings: []
+  
+  config-loader:
+    _decomposition:
+      confidence: 0.45          # low — no clear interface, no tests
+      source: cargo_workspace
+      warnings:
+        - "No test files found for this module"
+        - "No exported interface definition — info boundary is a guess"
+        - "Consider merging with 'core' module"
+```
+
+### 14.5 Decomposition Config Schema
+
+```yaml
+# decompose.yml — configuration for the decomposition engine
+version: "1"
+
+# === BUILD SYSTEM ===
+build_system:
+  type: cargo                          # cargo | npm | python | cmake | yocto | kicad
+  root: "."                            # project root relative to config file
+  
+  # Override auto-detection
+  overrides:
+    # Force specific modules to be treated as single nodes
+    merge_modules:
+      - [crate-utils, crate-helpers]   # merge these into one node
+    
+    # Force specific modules to be split further
+    split_modules:
+      - module: crate-api
+        split_by: file                 # file | function | feature_flag
+    
+    # Exclude modules from decomposition
+    exclude:
+      - crate-internal-tools
+      - crate-dev-scripts
+
+# === CONTRACT PACK ===
+contract_pack:
+  # Where to find interface definitions
+  sources:
+    - path: "interfaces/"
+      type: auto                       # auto-detect format
+    - path: "proto/"
+      type: protobuf
+    - path: "openapi.yml"
+      type: openapi
+  
+  # Additional constraints not captured in code
+  constraints:
+    - module: auth
+      rules:
+        - "Must use RS256 for JWT signing"
+        - "Token TTL must be configurable via env var"
+    - module: db
+      rules:
+        - "Must support PostgreSQL 15+"
+        - "All queries must use parameterized statements"
+
+# === PLATFORM MATRIX ===
+platform_matrix:
+  targets:
+    - os: linux
+      arch: x86_64
+      toolchain: stable
+    - os: linux
+      arch: aarch64
+      toolchain: stable
+      # This target generates additional cross-compilation nodes
+  
+  feature_flags:
+    - name: websocket
+      affects: [auth, api]
+      # Generates variant nodes for websocket-enabled builds
+
+# === ACCEPTANCE RESOURCES ===
+acceptance_resources:
+  ci_runners:
+    - name: github-actions-ubuntu
+      tags: [linux, x86_64, docker]
+      capabilities: [cargo, npm, python]
+    - name: self-hosted-arm
+      tags: [linux, aarch64]
+      capabilities: [cargo, cross-compile]
+  
+  simulators:
+    - name: qemu-cortex-m4
+      type: qemu
+      target: thumbv7em-none-eabihf
+  
+  hardware_in_loop:
+    - name: stm32-devboard
+      type: physical
+      target: thumbv7em-none-eabihf
+      availability: scheduled          # scheduled | on-demand | always
+  
+  test_environments:
+    - name: docker-compose-dev
+      type: docker_compose
+      file: docker-compose.test.yml
+      services: [postgres, redis]
+
+# === OUTPUT ===
+output:
+  format: gid_graph                    # gid_graph | json | yaml
+  path: ".gid/graph.yml"              # where to write the result
+  merge_strategy: suggest              # suggest | overwrite | append
+  
+  # Bounty defaults for generated nodes
+  bounty_defaults:
+    currency: USDC
+    deadline_days: 14
+    type: standard
+    min_reputation: 0
+  
+  # Budget estimation (experimental)
+  budget_estimation:
+    enabled: true
+    model: complexity_weighted          # complexity_weighted | fixed_per_node | manual
+    base_rate_per_node: 50.00          # base USDC per node
+    complexity_multipliers:
+      high_dep_count: 1.5              # node with 3+ dependencies
+      cross_platform: 2.0             # node that targets multiple platforms
+      security_sensitive: 1.8          # node tagged with security
+      no_tests_exist: 1.3             # node where tests must be written from scratch
+```
+
+### 14.6 Build System Parsers (MVP)
+
+#### Node.js (package.json + tsconfig.json)
+
+```
+Input files:
+  package.json          → external dependencies, scripts
+  tsconfig.json         → module resolution, path aliases
+  tsconfig.*.json       → project references (workspace)
+  pnpm-workspace.yaml   → workspace member packages
+  nx.json / turbo.json  → task graph (if monorepo tool)
+
+Extraction:
+  1. Parse workspace members → one candidate node per package
+  2. Parse internal dependencies (workspace:* refs) → edges
+  3. Parse tsconfig project references → refine edges
+  4. Parse package.json scripts → candidate harness commands
+  5. Scan for test files (*.test.ts, *.spec.ts) → harness checks
+  6. Scan for .d.ts / interface exports → info boundary inputs
+```
+
+Example auto-decomposition output for a Node.js monorepo:
+
+```yaml
+# Auto-generated from pnpm workspace with 3 packages
+nodes:
+  pkg-shared-types:
+    type: code
+    status: open
+    description: "Shared TypeScript types package (@project/types)"
+    _decomposition:
+      confidence: 0.88
+      source: pnpm_workspace
+      package: "packages/shared-types"
+    info_boundary:
+      files:
+        read: [packages/shared-types/**, tsconfig.json, package.json]
+        write: [packages/shared-types/src/**]
+    harness:
+      checks:
+        - name: typecheck
+          type: type_check
+          command: "pnpm --filter @project/types tsc --noEmit"
+          pass_criteria: { exit_code: 0 }
+    bounty:
+      budget: 50.00
+
+  pkg-api-server:
+    type: code
+    status: open
+    description: "Express API server (@project/api)"
+    _decomposition:
+      confidence: 0.82
+      source: pnpm_workspace
+      package: "packages/api-server"
+    info_boundary:
+      files:
+        read:
+          - packages/api-server/**
+          - packages/shared-types/src/**      # dependency
+          - tsconfig.json
+        write: [packages/api-server/src/**]
+        deny: [packages/web-client/**]
+    harness:
+      checks:
+        - name: tests
+          type: test_suite
+          command: "pnpm --filter @project/api vitest run"
+          pass_criteria: { min_pass_rate: 1.0 }
+        - name: lint
+          type: lint
+          command: "pnpm --filter @project/api eslint src/"
+          pass_criteria: { exit_code: 0 }
+    bounty:
+      budget: 150.00
+
+  pkg-web-client:
+    type: code
+    status: open
+    description: "React web client (@project/web)"
+    _decomposition:
+      confidence: 0.78
+      source: pnpm_workspace
+      package: "packages/web-client"
+    info_boundary:
+      files:
+        read:
+          - packages/web-client/**
+          - packages/shared-types/src/**      # dependency
+          - tsconfig.json
+        write: [packages/web-client/src/**]
+        deny: [packages/api-server/**]
+    harness:
+      checks:
+        - name: tests
+          type: test_suite
+          command: "pnpm --filter @project/web vitest run"
+          pass_criteria: { min_pass_rate: 1.0 }
+        - name: build
+          type: build_check
+          command: "pnpm --filter @project/web build"
+          pass_criteria: { exit_code: 0 }
+    bounty:
+      budget: 120.00
+
+edges:
+  - from: pkg-api-server
+    to: pkg-shared-types
+    type: depends_on
+  - from: pkg-web-client
+    to: pkg-shared-types
+    type: depends_on
+```
+
+#### Rust (Cargo.toml + Workspace)
+
+```
+Input files:
+  Cargo.toml            → workspace members, dependencies
+  */Cargo.toml          → per-crate dependencies, features
+  src/lib.rs            → pub exports (module boundary)
+  build.rs              → build-time dependencies
+
+Extraction:
+  1. Parse workspace members → one candidate node per crate
+  2. Parse [dependencies] with path refs → edges
+  3. Parse pub items in lib.rs → interface surface
+  4. Parse #[cfg(feature = ...)] → platform/feature variants
+  5. Scan for #[test] and /tests/ → harness commands
+  6. Parse benches/ → benchmark harness
+```
+
+#### Python (pyproject.toml + requirements.txt)
+
+```
+Input files:
+  pyproject.toml        → package metadata, dependencies
+  setup.py / setup.cfg  → legacy package config
+  requirements*.txt     → dependency lists
+  src/*/py.typed        → typed package marker
+  tox.ini / noxfile.py  → test environments
+
+Extraction:
+  1. Parse pyproject.toml [project.dependencies] → external deps
+  2. Parse src/ directory structure → one candidate node per top-level package
+  3. Parse import statements → internal dependency edges
+  4. Scan for test_*.py / *_test.py → harness commands
+  5. Parse tox/nox configs → test environment matrix
+  6. Scan for type stubs (.pyi) → interface surface
+```
+
+### 14.7 Limitations and Honest Gaps
+
+The decomposition engine cannot:
+
+- **Invent interfaces that don't exist**: If a project has no typed interfaces, the engine can only suggest module boundaries, not the contracts between them. The poster must write the interfaces.
+- **Determine business logic decomposition**: The engine splits along build-system module boundaries. If a single module contains 5 unrelated features, the engine won't know to split it. That requires human/agent judgment.
+- **Estimate effort accurately**: Budget estimation is heuristic at best. Complexity multipliers are rough guides, not quotes.
+- **Handle non-standard build systems**: Custom Makefiles, Bazel, Buck2, and Nix are out of scope for MVP. The engine supports pluggable parsers — community contributions can add support.
+
+When the engine can't produce a confident decomposition, it says so explicitly:
+
+```yaml
+_decomposition:
+  confidence: 0.30
+  warnings:
+    - "CRITICAL: No interface definitions found. Cannot generate Info Boundaries."
+    - "CRITICAL: No test files found. Cannot generate Acceptance Harnesses."
+    - "SUGGESTION: Add typed interfaces in src/types/ and tests in tests/"
+    - "SUGGESTION: Consider running 'gid decompose --interactive' for guided setup"
+  blockers:
+    - layer: info_boundary
+      reason: "Cannot derive read/write scope without interface definitions"
+    - layer: harness
+      reason: "Cannot derive acceptance checks without test infrastructure"
+```
+
+This is intentional. The engine should be **honest about what it doesn't know** rather than generating plausible-looking but wrong task graphs.
+
+---
+
+## 15. Open Questions
 
 1. **Dispute resolution governance**: Should Salt stakers form a DAO-like arbitration panel, or is automated re-verification sufficient for most cases?
 
@@ -1554,7 +2697,7 @@ def execute_bounty(subgraph):
 
 ---
 
-## 14. Implementation Roadmap
+## 16. Implementation Roadmap
 
 Four phases, each building on the last. No phase begins until the prior phase's success criteria are met.
 
