@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { PERSONALITY_PRESETS as PRESETS, MAX_PERSONALITY_PRESETS } from "@/lib/personality-presets";
 
 const PROVIDERS = [
   { value: "anthropic", label: "Anthropic (Claude)", icon: "🟣" },
@@ -57,16 +58,6 @@ const KNOWLEDGE_DOMAINS = [
   { value: "memes", label: "🐸 Meme Lord", prompt: "You live and breathe internet memes. You reference memes constantly and create new ones. Peak internet culture." },
 ];
 
-const PERSONALITY_PRESETS = [
-  { label: "🧂 Salty & Sarcastic", value: "Cynical, sarcastic, dry humor. You roast everything and everyone. Short, punchy responses. Never miss a chance to clap back." },
-  { label: "🔥 Bold & Confident", value: "Extremely confident, makes big claims, backs them up with bold reasoning. You don't hedge — you commit." },
-  { label: "🤓 Nerdy & Analytical", value: "Data-driven, loves citing numbers and statistics. Methodical, precise, slightly pedantic but always insightful." },
-  { label: "🤡 Chaotic & Absurdist", value: "Random, unexpected connections. You say things that shouldn't make sense but somehow do. Wildcard energy." },
-  { label: "🧘 Wise & Philosophical", value: "Calm, thoughtful, drops profound observations casually. You see the bigger picture and share deep insights." },
-  { label: "📢 Hype Agent", value: "Maximum energy! You hype everything up, pick sides, stir drama. ALL CAPS for emphasis. Everything is either THE BEST or THE WORST." },
-  { label: "✍️ Custom", value: "" },
-];
-
 interface CreatedAgent {
   id: string;
   name: string;
@@ -75,9 +66,10 @@ interface CreatedAgent {
 
 export default function CreateAgentPage() {
   const [name, setName] = useState("");
+  const [avatarEmoji, setAvatarEmoji] = useState("");
   const [description, setDescription] = useState("");
   const [personality, setPersonality] = useState("");
-  const [selectedPreset, setSelectedPreset] = useState(-1);
+  const [selectedPresetIds, setSelectedPresetIds] = useState<string[]>([]);
   const [provider, setProvider] = useState("anthropic");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("claude-3-5-haiku-20241022");
@@ -103,7 +95,7 @@ export default function CreateAgentPage() {
     setModel(MODELS[provider]?.[0]?.value || "");
   }, [provider]);
 
-  // Build full personality from preset + knowledge domains
+  // Build full personality from knowledge domains (presets sent separately)
   const getFullPersonality = () => {
     let full = personality;
     if (knowledge.length > 0) {
@@ -115,6 +107,14 @@ export default function CreateAgentPage() {
     }
     full += "\n\nKeep responses to 1-3 sentences. Be concise and punchy.";
     return full.trim();
+  };
+
+  const togglePreset = (id: string) => {
+    setSelectedPresetIds((prev) => {
+      if (prev.includes(id)) return prev.filter((p) => p !== id);
+      if (prev.length >= MAX_PERSONALITY_PRESETS) return prev;
+      return [...prev, id];
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -129,7 +129,9 @@ export default function CreateAgentPage() {
         body: JSON.stringify({
           name,
           description,
+          avatar_emoji: avatarEmoji || undefined,
           personality: getFullPersonality(),
+          personality_presets: selectedPresetIds,
           llm_provider: provider,
           llm_api_key: apiKey,
           llm_model: model,
@@ -243,6 +245,39 @@ export default function CreateAgentPage() {
                   className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Avatar Emoji</label>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 rounded-full bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] flex items-center justify-center text-2xl">
+                    {avatarEmoji || (name ? name.charAt(0).toUpperCase() : "?")}
+                  </div>
+                  <input
+                    type="text"
+                    value={avatarEmoji}
+                    onChange={(e) => setAvatarEmoji(e.target.value.slice(-2))}
+                    placeholder="Type or pick below"
+                    maxLength={2}
+                    className="w-32 px-3 py-2 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white text-center text-lg placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] transition-all"
+                  />
+                </div>
+                <div className="grid grid-cols-8 sm:grid-cols-10 gap-1.5">
+                  {["🤖","🧠","🔥","💀","🐍","🦊","🐺","🦇","🐸","🦈","👾","🎭","⚡","💎","🧂","🌶️","🎪","🏴‍☠️","🧪","🗡️","😈","🤡","🦄","🐉","🌊","🍄","🎯","💰","🛡️","🔮"].map((e) => (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => setAvatarEmoji(e)}
+                      className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all ${
+                        avatarEmoji === e
+                          ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 shadow-[0_0_8px_rgba(0,212,255,0.15)]"
+                          : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.1)] hover:border-[rgba(0,212,255,0.3)]"
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Pick an emoji avatar or type your own</p>
+              </div>
             </div>
           </section>
 
@@ -253,41 +288,57 @@ export default function CreateAgentPage() {
               Personality
             </h2>
 
-            {/* Presets */}
+            {/* Personality Presets */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-300 mb-2">Quick Presets</label>
-              <div className="flex flex-wrap gap-2">
-                {PERSONALITY_PRESETS.map((preset, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => {
-                      setSelectedPreset(i);
-                      if (preset.value) setPersonality(preset.value);
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
-                      selectedPreset === i
-                        ? "bg-[#00d4ff]/20 border border-[#00d4ff]/50 text-[#00d4ff] shadow-[0_0_10px_rgba(0,212,255,0.1)]"
-                        : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)]"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Personality Presets <span className="text-gray-500">(pick up to {MAX_PERSONALITY_PRESETS})</span>
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {PRESETS.map((preset) => {
+                  const selected = selectedPresetIds.includes(preset.id);
+                  const disabled = !selected && selectedPresetIds.length >= MAX_PERSONALITY_PRESETS;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => togglePreset(preset.id)}
+                      disabled={disabled}
+                      className={`px-3 py-2.5 rounded-xl text-sm text-left transition-all ${
+                        selected
+                          ? "bg-[#8b5cf6]/20 border border-[#8b5cf6]/50 text-[#a78bfa] shadow-[0_0_12px_rgba(139,92,246,0.15)]"
+                          : disabled
+                          ? "bg-[#1a1f2e]/50 border border-[rgba(0,212,255,0.08)] text-gray-600 cursor-not-allowed"
+                          : "bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-400 hover:border-[rgba(0,212,255,0.3)] hover:bg-[#1f2537]"
+                      }`}
+                    >
+                      <div className="font-medium">{preset.emoji} {preset.name}</div>
+                      <div className="text-xs mt-0.5 opacity-70">{preset.description}</div>
+                    </button>
+                  );
+                })}
               </div>
+              {selectedPresetIds.length >= MAX_PERSONALITY_PRESETS && (
+                <p className="text-xs text-[#ff6b35] mt-2">Maximum {MAX_PERSONALITY_PRESETS} presets selected</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Personality Prompt *</label>
+              <label className="block text-sm font-medium text-gray-300 mb-1">
+                Custom Personality {selectedPresetIds.length === 0 ? "*" : "(optional — adds to presets)"}
+              </label>
               <textarea
                 value={personality}
-                onChange={(e) => { setPersonality(e.target.value); setSelectedPreset(PERSONALITY_PRESETS.length - 1); }}
+                onChange={(e) => setPersonality(e.target.value)}
                 placeholder="You are a sarcastic crypto trader who loves memes and dark humor. You're always bullish but pretend to be bearish for laughs."
-                required
+                required={selectedPresetIds.length === 0}
                 rows={4}
                 className="w-full px-4 py-3 rounded-xl bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] focus:shadow-[0_0_10px_rgba(0,212,255,0.15)] transition-all resize-none"
               />
-              <p className="text-xs text-gray-500 mt-1">Define your agent&apos;s tone, style, and personality. Be specific!</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {selectedPresetIds.length > 0
+                  ? "Optional extra personality on top of your selected presets"
+                  : "Define your agent's tone, style, and personality. Be specific!"}
+              </p>
             </div>
           </section>
 

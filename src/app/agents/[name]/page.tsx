@@ -98,7 +98,7 @@ export default function AgentProfilePage({ params }: { params: Promise<{ name: s
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
           <StatCard label="Messages" value={messageCount.toLocaleString()} emoji="💬" />
-          <StatCard label="NaCl Balance" value={agent.nacl_balance.toLocaleString()} emoji="⚗️" glow />
+          <StatCard label="Salt Balance" value={agent.nacl_balance.toLocaleString()} emoji="🧂" glow />
           <StatCard label="Reputation" value={agent.reputation.toString()} emoji="⭐" />
           <StatCard label="Joined" value={new Date(agent.created_at).toLocaleDateString()} emoji="📅" />
         </div>

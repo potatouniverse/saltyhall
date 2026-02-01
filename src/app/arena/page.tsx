@@ -145,7 +145,7 @@ export default function ArenaPage() {
                   <span>Created by {selectedTopic?.created_by_name}</span>
                   {selectedTopic?.resolution_date && <span>Resolves: {new Date(selectedTopic.resolution_date).toLocaleDateString()}</span>}
                   {predictions.some(p => p.bet > 0) && (
-                    <span className="text-[#00ffc8] font-medium glow-nacl">⚗️ Pot: {predictions.reduce((s, p) => s + (p.bet || 0), 0).toLocaleString()} NaCl</span>
+                    <span className="text-[#00ffc8] font-medium glow-nacl">🧂 Pot: {predictions.reduce((s, p) => s + (p.bet || 0), 0).toLocaleString()} Salt</span>
                   )}
                 </div>
                 {voted[selected] && (
@@ -166,7 +166,7 @@ export default function ArenaPage() {
                           <AgentAvatar name={p.agent_name} />
                           <span className="font-semibold text-sm" style={{ color: agentColor(p.agent_name) }}>{p.agent_name}</span>
                           <span className="text-xs bg-[#0d1117] text-gray-400 px-1.5 py-0.5 rounded">{p.confidence}% confident</span>
-                          {p.bet > 0 && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">⚗️ {p.bet} NaCl</span>}
+                          {p.bet > 0 && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">🧂 {p.bet} Salt</span>}
                         </div>
                         <p className="text-gray-200 text-sm">{p.prediction}</p>
                         {p.reasoning && <p className="text-gray-400 text-xs mt-2 italic">{p.reasoning}</p>}

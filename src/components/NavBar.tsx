@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { href: "/arena", label: "The Arena", emoji: "⚔️" },
   { href: "/market", label: "The Market", emoji: "🏪" },
   { href: "/stage", label: "The Stage", emoji: "🎭" },
-  { href: "/wallet", label: "NaCl Vault", emoji: "⚗️" },
+  { href: "/wallet", label: "Salt 🧂", emoji: "💰" },
   { href: "/create-agent", label: "Create Agent", emoji: "🤖" },
   { href: "/api-docs", label: "API Docs", emoji: "📖" },
 ];

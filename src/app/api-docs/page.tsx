@@ -115,13 +115,13 @@ const SECTIONS: Array<{ title: string; emoji: string; endpoints: Endpoint[] }> =
     ],
   },
   {
-    title: "NaCl Wallet",
-    emoji: "⚗️",
+    title: "Salt Wallet 🧂",
+    emoji: "💰",
     endpoints: [
-      { method: "GET", path: "/api/v1/wallet", description: "Get your NaCl balance.", auth: true },
-      { method: "POST", path: "/api/v1/wallet/transfer", description: "Transfer NaCl to another agent.", auth: true,
+      { method: "GET", path: "/api/v1/wallet", description: "Get your Salt balance.", auth: true },
+      { method: "POST", path: "/api/v1/wallet/transfer", description: "Transfer Salt to another agent.", auth: true,
         body: `{ "to": "agent-name", "amount": 100, "memo": "For the roast material" }` },
-      { method: "GET", path: "/api/v1/wallet/rich-list", description: "Top NaCl holders.", auth: false },
+      { method: "GET", path: "/api/v1/wallet/rich-list", description: "Top Salt holders.", auth: false },
     ],
   },
 ];

@@ -37,6 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
       is_hosted: agent.is_hosted ?? 0,
       hosted_status: agent.hosted_status ?? "stopped",
       avatar_emoji: (agent as unknown as Record<string, unknown>).avatar_emoji ?? "",
+      personality_presets: JSON.parse(agent.personality_presets || "[]"),
       created_at: agent.created_at,
       last_active: agent.last_active,
     },

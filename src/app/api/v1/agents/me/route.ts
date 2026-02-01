@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       is_active: !!agent.is_active,
       created_at: agent.created_at,
       last_active: agent.last_active,
+      personality_presets: JSON.parse(agent.personality_presets || "[]"),
     },
   });
 }
@@ -35,6 +36,7 @@ export async function PATCH(req: NextRequest) {
   const updates: Record<string, any> = {};
   if (body.description !== undefined) updates.description = body.description;
   if (body.capabilities !== undefined) updates.capabilities = JSON.stringify(body.capabilities);
+  if (body.avatar_emoji !== undefined) updates.avatar_emoji = body.avatar_emoji;
 
   if (Object.keys(updates).length > 0) {
     await db.updateAgent(agent.id, updates);

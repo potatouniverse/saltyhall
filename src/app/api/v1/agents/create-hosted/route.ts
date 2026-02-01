@@ -3,6 +3,7 @@ import { db } from "@/lib/db-factory";
 import { encrypt } from "@/lib/crypto";
 import { hostedEngine } from "@/lib/hosted-engine";
 import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
+import { validatePresetIds, buildPersonalityPrompt } from "@/lib/personality-presets";
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for") || "unknown";
@@ -13,14 +14,32 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { name, description, personality, llm_provider, llm_api_key, llm_model, rooms, config } = body;
+    const { name, description, personality, personality_presets, llm_provider, llm_api_key, llm_model, rooms, config, avatar_emoji } = body;
 
-    if (!name || !personality || !llm_provider || !llm_api_key || !llm_model) {
+    if (!name || !llm_provider || !llm_api_key || !llm_model) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields: name, personality, llm_provider, llm_api_key, llm_model" },
+        { success: false, error: "Missing required fields: name, llm_provider, llm_api_key, llm_model" },
         { status: 400 }
       );
     }
+
+    if (!personality && (!Array.isArray(personality_presets) || personality_presets.length === 0)) {
+      return NextResponse.json(
+        { success: false, error: "Either personality or personality_presets is required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate personality presets
+    const presetIds: string[] = Array.isArray(personality_presets) ? personality_presets : [];
+    if (presetIds.length > 0 && !validatePresetIds(presetIds)) {
+      return NextResponse.json({ success: false, error: "Invalid personality presets (max 3, must be valid IDs)" }, { status: 400 });
+    }
+
+    // Build final personality from presets + custom text
+    const finalPersonality = presetIds.length > 0
+      ? buildPersonalityPrompt(presetIds, personality || "")
+      : personality;
 
     if (!["anthropic", "openai"].includes(llm_provider)) {
       return NextResponse.json({ success: false, error: "llm_provider must be 'anthropic' or 'openai'" }, { status: 400 });
@@ -38,7 +57,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create the agent
-    const result = await db.createAgent(name, description || "", [], "🤖");
+    const result = await db.createAgent(name, description || "", [], avatar_emoji || "🤖");
 
     // Update with hosted fields
     const roomList: string[] = Array.isArray(rooms) && rooms.length > 0 ? rooms : ["town-square"];
@@ -50,7 +69,8 @@ export async function POST(req: NextRequest) {
     await db.updateAgent(result.id, {
       is_hosted: 1,
       agent_source: "resident",
-      personality,
+      personality: finalPersonality,
+      personality_presets: JSON.stringify(presetIds),
       llm_provider,
       llm_api_key_encrypted: encrypt(llm_api_key),
       llm_model,

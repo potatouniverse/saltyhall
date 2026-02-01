@@ -211,6 +211,7 @@ function initSchema(db: Database.Database) {
   `);
 
   try { db.exec("ALTER TABLE arena_predictions ADD COLUMN bet INTEGER DEFAULT 0"); } catch {}
+  try { db.exec("ALTER TABLE arena_predictions ADD COLUMN status TEXT DEFAULT 'active'"); } catch {}
   try { db.exec("ALTER TABLE stage_performances ADD COLUMN total_tips INTEGER DEFAULT 0"); } catch {}
 
   // Hosted agent columns
@@ -223,6 +224,20 @@ function initSchema(db: Database.Database) {
   try { db.exec("ALTER TABLE agents ADD COLUMN hosted_status TEXT DEFAULT 'stopped'"); } catch {}
   try { db.exec("ALTER TABLE agents ADD COLUMN hosted_config TEXT DEFAULT '{}'"); } catch {}
   try { db.exec("ALTER TABLE agents ADD COLUMN agent_source TEXT DEFAULT 'external'"); } catch {}
+  try { db.exec("ALTER TABLE agents ADD COLUMN personality_presets TEXT DEFAULT '[]'"); } catch {}
+  try { db.exec("ALTER TABLE rooms ADD COLUMN created_by TEXT REFERENCES agents(id)"); } catch {}
+
+  // Agent memories table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_memories (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents(id),
+      content TEXT NOT NULL,
+      category TEXT DEFAULT 'general',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_memories_agent ON agent_memories(agent_id);
+  `);
 
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
   if (roomCount.count === 0) {
@@ -294,6 +309,20 @@ export const db: DatabaseInterface = {
 
   async getRoomById(id: string) {
     return getDb().prepare("SELECT * FROM rooms WHERE id = ?").get(id) as any ?? null;
+  },
+
+  async createRoom(name: string, displayName: string, description: string, type: string, createdBy: string) {
+    const d = getDb();
+    const id = genId();
+    d.prepare(
+      "INSERT INTO rooms (id, name, display_name, description, type, created_by) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(id, name, displayName, description, type, createdBy);
+    return d.prepare("SELECT * FROM rooms WHERE id = ?").get(id) as any;
+  },
+
+  async countCustomRooms() {
+    const row = getDb().prepare("SELECT COUNT(*) as count FROM rooms WHERE type = 'custom'").get() as any;
+    return row?.count ?? 0;
   },
 
   async joinRoom(roomId: string, agentId: string) {
@@ -380,7 +409,7 @@ export const db: DatabaseInterface = {
   async getArenaTopics(status: string = "active", limit: number = 50) {
     return getDb().prepare(
       `SELECT t.*, a.name as created_by_name,
-        (SELECT COUNT(*) FROM arena_predictions WHERE topic_id = t.id) as prediction_count,
+        (SELECT COUNT(*) FROM arena_predictions WHERE topic_id = t.id AND (status IS NULL OR status = 'active')) as prediction_count,
         (SELECT COUNT(*) FROM arena_votes WHERE topic_id = t.id) as vote_count
        FROM arena_topics t JOIN agents a ON t.created_by = a.id
        WHERE t.status = ? ORDER BY t.created_at DESC LIMIT ?`
@@ -407,8 +436,19 @@ export const db: DatabaseInterface = {
       `SELECT p.*, a.name as agent_name,
         (SELECT COUNT(*) FROM arena_votes WHERE prediction_id = p.id) as vote_count
        FROM arena_predictions p JOIN agents a ON p.agent_id = a.id
-       WHERE p.topic_id = ? ORDER BY p.confidence DESC`
+       WHERE p.topic_id = ? AND (p.status IS NULL OR p.status = 'active') ORDER BY p.confidence DESC`
     ).all(topicId) as any;
+  },
+
+  async getArenaPrediction(predictionId: string) {
+    return getDb().prepare(
+      "SELECT p.*, a.name as agent_name FROM arena_predictions p JOIN agents a ON p.agent_id = a.id WHERE p.id = ?"
+    ).get(predictionId) as any ?? null;
+  },
+
+  async deleteArenaPrediction(predictionId: string) {
+    const d = getDb();
+    d.prepare("UPDATE arena_predictions SET status = 'archived' WHERE id = ?").run(predictionId);
   },
 
   async voteArenaPrediction(topicId: string, predictionId: string, voterIp: string) {
@@ -693,6 +733,25 @@ export const db: DatabaseInterface = {
     const d = getDb();
     const row = d.prepare("SELECT COUNT(*) as count FROM messages WHERE agent_id = ?").get(agentId) as any;
     return row?.count ?? 0;
+  },
+
+  async createAgentMemory(agentId: string, content: string, category: string = "general") {
+    const d = getDb();
+    const id = genId();
+    d.prepare("INSERT INTO agent_memories (id, agent_id, content, category) VALUES (?, ?, ?, ?)").run(id, agentId, content, category);
+    return d.prepare("SELECT * FROM agent_memories WHERE id = ?").get(id) as any;
+  },
+
+  async getAgentMemories(agentId: string, category?: string) {
+    const d = getDb();
+    if (category) {
+      return d.prepare("SELECT * FROM agent_memories WHERE agent_id = ? AND category = ? ORDER BY created_at DESC").all(agentId, category) as any;
+    }
+    return d.prepare("SELECT * FROM agent_memories WHERE agent_id = ? ORDER BY created_at DESC").all(agentId) as any;
+  },
+
+  async deleteAgentMemory(agentId: string, memoryId: string) {
+    getDb().prepare("DELETE FROM agent_memories WHERE id = ? AND agent_id = ?").run(memoryId, agentId);
   },
 
   async addToWaitlist(email: string) {

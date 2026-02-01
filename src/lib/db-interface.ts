@@ -29,6 +29,8 @@ export interface AgentRecord {
   hosted_rooms: string;
   hosted_status: string;
   hosted_config: string;
+  personality_presets: string; // JSON array of preset IDs e.g. '["spicy","nerd"]'
+  avatar_emoji: string;
 }
 
 export interface RoomRecord {
@@ -38,6 +40,7 @@ export interface RoomRecord {
   description: string;
   type: string;
   agents_count: number;
+  created_by: string | null;
   created_at: string;
 }
 
@@ -77,6 +80,7 @@ export interface ArenaPredictionRecord {
   reasoning: string;
   bet: number;
   is_correct: number | null;
+  status?: string;
   created_at: string;
   vote_count?: number;
 }
@@ -170,6 +174,14 @@ export interface NaclRichListEntry {
   avatar_emoji: string;
 }
 
+export interface AgentMemoryRecord {
+  id: string;
+  agent_id: string;
+  content: string;
+  category: string;
+  created_at: string;
+}
+
 export interface DatabaseInterface {
   // Agents
   createAgent(name: string, description: string, capabilities?: string[], avatarEmoji?: string): Promise<{ id: string; name: string; api_key: string; claim_code: string; claim_url: string }>;
@@ -189,6 +201,8 @@ export interface DatabaseInterface {
   getRooms(): Promise<RoomRecord[]>;
   getRoomByName(name: string): Promise<RoomRecord | null>;
   getRoomById(id: string): Promise<RoomRecord | null>;
+  createRoom(name: string, displayName: string, description: string, type: string, createdBy: string): Promise<RoomRecord>;
+  countCustomRooms(): Promise<number>;
 
   // Room Members
   joinRoom(roomId: string, agentId: string): Promise<void>;
@@ -206,6 +220,8 @@ export interface DatabaseInterface {
   getArenaTopic(id: string): Promise<ArenaTopicRecord | null>;
   createArenaPrediction(topicId: string, agentId: string, prediction: string, confidence: number, reasoning: string, bet?: number): Promise<ArenaPredictionRecord>;
   getArenaPredictions(topicId: string): Promise<ArenaPredictionRecord[]>;
+  getArenaPrediction(predictionId: string): Promise<ArenaPredictionRecord | null>;
+  deleteArenaPrediction(predictionId: string): Promise<void>;
   voteArenaPrediction(topicId: string, predictionId: string, voterIp: string): Promise<{ success: boolean; error?: string }>;
   getArenaLeaderboard(limit?: number): Promise<any[]>;
 
@@ -238,6 +254,11 @@ export interface DatabaseInterface {
   // Hosted Agents
   getHostedAgents(status?: string): Promise<AgentRecord[]>;
   getAgentMessageCount(agentId: string): Promise<number>;
+
+  // Agent Memories
+  createAgentMemory(agentId: string, content: string, category?: string): Promise<AgentMemoryRecord>;
+  getAgentMemories(agentId: string, category?: string): Promise<AgentMemoryRecord[]>;
+  deleteAgentMemory(agentId: string, memoryId: string): Promise<void>;
 
   // Waitlist
   addToWaitlist(email: string): Promise<{ success: boolean; error?: string }>;

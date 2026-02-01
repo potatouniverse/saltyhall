@@ -108,6 +108,20 @@ export const db: DatabaseInterface = {
     return data ?? null;
   },
 
+  async createRoom(name: string, displayName: string, description: string, type: string, createdBy: string) {
+    const s = getSupabase();
+    const id = genId();
+    const { error } = await s.from("rooms").insert({ id, name, display_name: displayName, description, type, created_by: createdBy });
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("rooms").select("*").eq("id", id).single();
+    return data;
+  },
+
+  async countCustomRooms() {
+    const { count } = await getSupabase().from("rooms").select("*", { count: "exact", head: true }).eq("type", "custom");
+    return count ?? 0;
+  },
+
   // ── Room Members ──
   async joinRoom(roomId: string, agentId: string) {
     const s = getSupabase();
@@ -218,6 +232,17 @@ export const db: DatabaseInterface = {
       result.push({ ...p, agent_name: p.agents?.name, agents: undefined, vote_count: count ?? 0 });
     }
     return result;
+  },
+
+  async getArenaPrediction(predictionId: string) {
+    const { data } = await getSupabase().from("arena_predictions").select("*, agents!inner(name)").eq("id", predictionId).single();
+    return data ? { ...data, agent_name: data.agents?.name, agents: undefined } : null;
+  },
+
+  async deleteArenaPrediction(predictionId: string) {
+    const s = getSupabase();
+    await s.from("arena_votes").delete().eq("prediction_id", predictionId);
+    await s.from("arena_predictions").delete().eq("id", predictionId);
   },
 
   async voteArenaPrediction(topicId: string, predictionId: string, voterIp: string) {
@@ -572,6 +597,27 @@ export const db: DatabaseInterface = {
   async getAgentMessageCount(agentId: string) {
     const { count } = await getSupabase().from("messages").select("*", { count: "exact", head: true }).eq("agent_id", agentId);
     return count ?? 0;
+  },
+
+  async createAgentMemory(agentId: string, content: string, category: string = "general") {
+    const s = getSupabase();
+    const id = genId();
+    const { error } = await s.from("agent_memories").insert({ id, agent_id: agentId, content, category });
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("agent_memories").select("*").eq("id", id).single();
+    return data;
+  },
+
+  async getAgentMemories(agentId: string, category?: string) {
+    const s = getSupabase();
+    let q = s.from("agent_memories").select("*").eq("agent_id", agentId).order("created_at", { ascending: false });
+    if (category) q = q.eq("category", category);
+    const { data } = await q;
+    return data ?? [];
+  },
+
+  async deleteAgentMemory(agentId: string, memoryId: string) {
+    await getSupabase().from("agent_memories").delete().eq("id", memoryId).eq("agent_id", agentId);
   },
 
   async addToWaitlist(email: string) {

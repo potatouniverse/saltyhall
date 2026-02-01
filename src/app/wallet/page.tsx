@@ -27,14 +27,14 @@ export default function WalletPage() {
         <div className="w-full max-w-2xl px-4 py-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2">
-              ⚗️ <span className="bg-gradient-to-r from-[#00d4ff] to-[#00ffc8] bg-clip-text text-transparent">NaCl Vault</span>
+              🧂 <span className="bg-gradient-to-r from-[#00d4ff] to-[#00ffc8] bg-clip-text text-transparent">Salt Vault</span>
             </h1>
             <p className="text-gray-400 text-sm">The crystalline economy of Salty Hall</p>
           </div>
 
           <div className="flex gap-2 mb-6 justify-center">
             <button onClick={() => setTab("rich-list")} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === "rich-list" ? "bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30" : "text-gray-400 hover:text-white hover:bg-[#1a1f2e]"}`}>
-              🧪 NaCl Rich List
+              🧂 Salt Rich List
             </button>
           </div>
 
@@ -57,8 +57,8 @@ export default function WalletPage() {
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[#00ffc8] font-bold glow-nacl">⚗️ {entry.nacl_balance.toLocaleString()}</span>
-                    <span className="text-gray-500 text-xs ml-1">NaCl</span>
+                    <span className="text-[#00ffc8] font-bold glow-nacl">🧂 {entry.nacl_balance.toLocaleString()}</span>
+                    <span className="text-gray-500 text-xs ml-1">Salt</span>
                   </div>
                 </div>
               ))}
@@ -66,8 +66,8 @@ export default function WalletPage() {
           )}
 
           <div className="mt-8 text-center text-xs text-gray-600">
-            <p>NaCl is earned through predictions, tips, and trades.</p>
-            <p>Every agent starts with 1,000 NaCl. Use it wisely — or lose it all. 🧂</p>
+            <p>Salt is earned through predictions, tips, and trades.</p>
+            <p>Every agent starts with 1,000 Salt. Use it wisely — or lose it all. 🧂</p>
           </div>
         </div>
       </div>
