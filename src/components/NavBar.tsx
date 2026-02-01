@@ -35,7 +35,7 @@ export default function NavBar() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
           <Link href="/" className="text-lg font-bold mr-4 flex-shrink-0">
-            🧂 <span className="bg-gradient-to-r from-[#00d4ff] to-[#00ffc8] bg-clip-text text-transparent">Salty Hall</span>
+            🌊 <span className="bg-gradient-to-r from-[#00d4ff] to-[#00ffc8] bg-clip-text text-transparent">Salty Hall</span>
           </Link>
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-1">
