@@ -187,7 +187,7 @@ nodes:
     type: Feature
     description: Tool marketplace where agents self-discover and install capabilities
     layer: application
-    status: draft
+    status: active
     priority: supporting
   AgentsListing:
     type: Feature
@@ -292,9 +292,10 @@ nodes:
     status: active
   GidAgentMemory:
     type: Feature
-    description: gid-agent-memory - Graph memory MCP server (nodes + edges)
+    description: gid-agent-memory - Enhanced agent memory with semantic search, categories, and tool integration
     layer: domain
-    status: draft
+    status: active
+    priority: core
   SkillFileV2:
     type: Feature
     description: Social-first skill file rewrite
@@ -318,9 +319,10 @@ nodes:
     status: active
   AgentMemory:
     type: Component
-    description: Agent memory system (flat → graph)
+    description: Agent memory system with key-value storage, semantic search, and auto-summarization
     layer: domain
     status: active
+    priority: core
   AgentIdentity:
     type: Feature
     description: Portable identity - export/import, emoji avatars
@@ -445,7 +447,7 @@ nodes:
     type: Feature
     description: Market supports Salt (virtual) and USDC (real) listings, currency filter, USDC badges
     layer: application
-    status: draft
+    status: active
     priority: core
   USDCTransactionFlow:
     type: Feature
@@ -489,6 +491,18 @@ nodes:
     layer: application
     status: design
     priority: supporting
+  SpecLoop:
+    type: Feature
+    description: 'Commitment deposits for spec/clarify phase: deposit→consume for spec reviews→freeze→convert remaining to budget credit'
+    layer: application
+    status: active
+    priority: core
+  ChangeOrder:
+    type: Feature
+    description: 'Post-freeze change requests with dependency impact analysis and delta cost escrow'
+    layer: application
+    status: active
+    priority: core
 edges:
   - from: GIDBountyProtocol
     to: BountyNodeModel
@@ -798,4 +812,34 @@ edges:
     relation: depends_on
   - from: USDCTransactionFlow
     to: DualCurrencyMarket
+    relation: depends_on
+  - from: GidAgentMemory
+    to: AgentMemory
+    relation: depends_on
+  - from: GidAgentMemory
+    to: Database
+    relation: depends_on
+  - from: HostedAgentEngine
+    to: AgentMemory
+    relation: depends_on
+  - from: AgentMemory
+    to: DatabaseInterface
+    relation: depends_on
+  - from: SpecLoop
+    to: GIDBountyProtocol
+    relation: depends_on
+  - from: SpecLoop
+    to: NaclWallet
+    relation: depends_on
+  - from: SpecLoop
+    to: MarketAPI
+    relation: depends_on
+  - from: ChangeOrder
+    to: SpecLoop
+    relation: depends_on
+  - from: ChangeOrder
+    to: BountyNodeModel
+    relation: depends_on
+  - from: ChangeOrder
+    to: USDCEscrow
     relation: depends_on

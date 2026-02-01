@@ -116,6 +116,11 @@ export interface MarketListingRecord {
   delivery_time: string | null;
   rating: number;
   completed_count: number;
+  // Currency fields
+  currency: string; // 'salt' | 'usdc'
+  escrow_status: string | null;
+  usdc_amount: number | null;
+  wallet_address: string | null; // Poster's wallet for USDC listings
 }
 
 export interface MarketOfferRecord {
@@ -198,7 +203,10 @@ export interface AgentMemoryRecord {
   agent_id: string;
   content: string;
   category: string;
+  memory_key: string | null;
+  embedding_text: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface UserRecord {
@@ -259,8 +267,8 @@ export interface DatabaseInterface {
   getArenaLeaderboard(limit?: number): Promise<any[]>;
 
   // Market
-  createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode?: string, deliveryTime?: string): Promise<MarketListingRecord>;
-  getMarketListings(status?: string, limit?: number, mode?: string, category?: string): Promise<MarketListingRecord[]>;
+  createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode?: string, deliveryTime?: string, currency?: string, usdcAmount?: number): Promise<MarketListingRecord>;
+  getMarketListings(status?: string, limit?: number, mode?: string, category?: string, currency?: string): Promise<MarketListingRecord[]>;
   getMarketListing(id: string): Promise<MarketListingRecord | null>;
   updateMarketListing(id: string, updates: Record<string, any>): Promise<void>;
   getAgentMarketListings(agentId: string): Promise<MarketListingRecord[]>;
@@ -294,8 +302,11 @@ export interface DatabaseInterface {
   getAgentMessageCount(agentId: string): Promise<number>;
 
   // Agent Memories
-  createAgentMemory(agentId: string, content: string, category?: string): Promise<AgentMemoryRecord>;
+  createAgentMemory(agentId: string, content: string, category?: string, key?: string): Promise<AgentMemoryRecord>;
   getAgentMemories(agentId: string, category?: string): Promise<AgentMemoryRecord[]>;
+  getAgentMemoryById(id: string): Promise<AgentMemoryRecord | null>;
+  getAgentMemoryByKey(agentId: string, key: string): Promise<AgentMemoryRecord | null>;
+  updateAgentMemory(id: string, updates: Record<string, any>): Promise<void>;
   deleteAgentMemory(agentId: string, memoryId: string): Promise<void>;
 
   // Verification
@@ -332,6 +343,31 @@ export interface DatabaseInterface {
   getUsdcTransaction(bountyHash: string): Promise<UsdcTransactionRecord | null>;
   updateUsdcTransaction(bountyHash: string, updates: Record<string, any>): Promise<void>;
   getSubmittedUsdcTransactions(): Promise<UsdcTransactionRecord[]>;
+
+  // Tool Market
+  createAgentTool(data: Partial<AgentToolRecord>): Promise<AgentToolRecord>;
+  getAgentTool(id: string): Promise<AgentToolRecord | null>;
+  updateAgentTool(id: string, updates: Record<string, any>): Promise<void>;
+  searchAgentTools(params: AgentToolSearchParams): Promise<AgentToolRecord[]>;
+  getAgentToolsByAuthor(authorId: string, limit?: number): Promise<AgentToolRecord[]>;
+  installAgentTool(data: { agent_id: string; tool_id: string; config_json?: any }): Promise<AgentToolInstallRecord>;
+  uninstallAgentTool(agentId: string, toolId: string): Promise<void>;
+  getAgentToolInstallation(agentId: string, toolId: string): Promise<AgentToolInstallRecord | null>;
+  getAgentInstalledTools(agentId: string): Promise<AgentToolRecord[]>;
+  createOrUpdateAgentToolReview(data: { agent_id: string; tool_id: string; rating: number; review: string }): Promise<AgentToolReviewRecord>;
+  getAgentToolReviews(toolId: string, limit?: number): Promise<AgentToolReviewRecord[]>;
+
+  // SpecLoop (Commitment Deposits and Change Orders)
+  createSpecDeposit(agentId: string, listingId: string, amount: number, currency: string): Promise<SpecDepositRecord>;
+  getSpecDeposit(id: string): Promise<SpecDepositRecord | null>;
+  getActiveSpecDeposit(listingId: string): Promise<SpecDepositRecord | null>;
+  updateSpecDeposit(id: string, updates: Record<string, any>): Promise<void>;
+  createChangeOrder(listingId: string, requesterId: string, description: string, affectedNodes: string[], deltaCost: number, deltaCurrency: string): Promise<ChangeOrderRecord>;
+  getChangeOrder(id: string): Promise<ChangeOrderRecord | null>;
+  getChangeOrders(listingId: string): Promise<ChangeOrderRecord[]>;
+  updateChangeOrder(id: string, updates: Record<string, any>): Promise<void>;
+  getBountyGraph(listingId: string): Promise<string | null>;
+  createNaclTransaction(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string): Promise<any>;
 }
 
 export interface ServiceListingRecord {
@@ -379,4 +415,75 @@ export interface UsdcTransactionRecord {
   tx_hash: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface SpecDepositRecord {
+  id: string;
+  listing_id: string;
+  agent_id: string;
+  amount: number;
+  currency: string;
+  consumed: number;
+  status: string;
+  created_at: string;
+  frozen_at: string | null;
+}
+
+export interface ChangeOrderRecord {
+  id: string;
+  listing_id: string;
+  requester_id: string;
+  description: string;
+  affected_nodes: string;
+  delta_cost: number;
+  delta_currency: string;
+  status: string;
+  created_at: string;
+  approved_at: string | null;
+  escrow_id: string | null;
+}
+
+export interface AgentToolRecord {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  schema_json: any;
+  author_id: string;
+  author_name?: string;
+  version: string;
+  tags: string[];
+  is_active: boolean;
+  install_count: number;
+  average_rating: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentToolInstallRecord {
+  agent_id: string;
+  tool_id: string;
+  installed_at: string;
+  is_enabled: boolean;
+  config_json: any;
+}
+
+export interface AgentToolReviewRecord {
+  id: string;
+  agent_id: string;
+  tool_id: string;
+  agent_name?: string;
+  rating: number;
+  review: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentToolSearchParams {
+  query?: string;
+  category?: string;
+  tags?: string[];
+  minRating?: number;
+  limit?: number;
+  offset?: number;
 }

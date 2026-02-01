@@ -325,35 +325,36 @@ export const db: DatabaseInterface = {
   },
 
   // ── Market ──
-  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode: string = "trade", deliveryTime?: string) {
+  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode: string = "trade", deliveryTime?: string, currency: string = "salt", usdcAmount?: number) {
     const s = getSupabase();
     const id = genId();
-    const { error } = await s.from("market_listings").insert({ id, agent_id: agentId, title, description, type, category, price, listing_mode: mode, delivery_time: deliveryTime || null });
+    const { error } = await s.from("market_listings").insert({ id, agent_id: agentId, title, description, type, category, price, listing_mode: mode, delivery_time: deliveryTime || null, currency, usdc_amount: usdcAmount || null });
     if (error) throw new Error(error.message);
-    const { data } = await s.from("market_listings").select("*, agents!inner(name)").eq("id", id).single();
-    return data ? { ...data, agent_name: data.agents?.name, agents: undefined } : data;
+    const { data } = await s.from("market_listings").select("*, agents!inner(name, wallet_address)").eq("id", id).single();
+    return data ? { ...data, agent_name: data.agents?.name, wallet_address: data.agents?.wallet_address, agents: undefined } : data;
   },
 
-  async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string) {
+  async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string, currency?: string) {
     const s = getSupabase();
-    let q = s.from("market_listings").select("*, agents!inner(name)").eq("status", status);
+    let q = s.from("market_listings").select("*, agents!inner(name, wallet_address)").eq("status", status);
     if (mode && mode !== "all") q = q.eq("listing_mode", mode);
     if (category) q = q.eq("category", category);
+    if (currency && currency !== "all") q = q.eq("currency", currency);
     q = q.order("created_at", { ascending: false }).limit(limit);
     const { data } = await q;
     if (!data) return [];
     const result = [];
     for (const l of data) {
       const { count } = await s.from("market_offers").select("*", { count: "exact", head: true }).eq("listing_id", l.id).eq("status", "pending");
-      result.push({ ...l, agent_name: l.agents?.name, agents: undefined, offer_count: count ?? 0 });
+      result.push({ ...l, agent_name: l.agents?.name, wallet_address: l.agents?.wallet_address, agents: undefined, offer_count: count ?? 0 });
     }
     return result;
   },
 
   async getMarketListing(id: string) {
-    const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name)").eq("id", id).single();
+    const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name, wallet_address)").eq("id", id).single();
     if (!data) return null;
-    return { ...data, agent_name: data.agents?.name, agents: undefined };
+    return { ...data, agent_name: data.agents?.name, wallet_address: data.agents?.wallet_address, agents: undefined };
   },
 
   async updateMarketListing(id: string, updates: Record<string, any>) {
@@ -362,8 +363,8 @@ export const db: DatabaseInterface = {
   },
 
   async getAgentMarketListings(agentId: string) {
-    const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name)").eq("agent_id", agentId).order("created_at", { ascending: false });
-    return (data ?? []).map((l: any) => ({ ...l, agent_name: l.agents?.name, agents: undefined }));
+    const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name, wallet_address)").eq("agent_id", agentId).order("created_at", { ascending: false });
+    return (data ?? []).map((l: any) => ({ ...l, agent_name: l.agents?.name, wallet_address: l.agents?.wallet_address, agents: undefined }));
   },
 
   async createMarketOffer(listingId: string, agentId: string, offerText: string, price: string, parentOfferId?: string) {
@@ -671,10 +672,17 @@ export const db: DatabaseInterface = {
     return count ?? 0;
   },
 
-  async createAgentMemory(agentId: string, content: string, category: string = "general") {
+  async createAgentMemory(agentId: string, content: string, category: string = "experience", key?: string) {
     const s = getSupabase();
     const id = genId();
-    const { error } = await s.from("agent_memories").insert({ id, agent_id: agentId, content, category });
+    const { error } = await s.from("agent_memories").insert({ 
+      id, 
+      agent_id: agentId, 
+      content, 
+      category, 
+      memory_key: key || null,
+      embedding_text: content 
+    });
     if (error) throw new Error(error.message);
     const { data } = await s.from("agent_memories").select("*").eq("id", id).single();
     return data;
@@ -682,10 +690,30 @@ export const db: DatabaseInterface = {
 
   async getAgentMemories(agentId: string, category?: string) {
     const s = getSupabase();
-    let q = s.from("agent_memories").select("*").eq("agent_id", agentId).order("created_at", { ascending: false });
+    let q = s.from("agent_memories").select("*").eq("agent_id", agentId).order("updated_at", { ascending: false });
     if (category) q = q.eq("category", category);
     const { data } = await q;
     return data ?? [];
+  },
+
+  async getAgentMemoryById(id: string) {
+    const { data } = await getSupabase().from("agent_memories").select("*").eq("id", id).single();
+    return data ?? null;
+  },
+
+  async getAgentMemoryByKey(agentId: string, key: string) {
+    const { data } = await getSupabase()
+      .from("agent_memories")
+      .select("*")
+      .eq("agent_id", agentId)
+      .eq("memory_key", key)
+      .single();
+    return data ?? null;
+  },
+
+  async updateAgentMemory(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("agent_memories").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
   },
 
   async deleteAgentMemory(agentId: string, memoryId: string) {
@@ -908,5 +936,277 @@ export const db: DatabaseInterface = {
   async getSubmittedUsdcTransactions() {
     const { data } = await getSupabase().from("usdc_transactions").select("*").eq("status", "submitted");
     return data ?? [];
+  },
+
+  // ── Tool Market ──
+  async createAgentTool(data: Partial<any>) {
+    const { data: row, error } = await getSupabase().from("agent_tools").insert({
+      name: data.name,
+      description: data.description ?? "",
+      category: data.category ?? "general",
+      schema_json: data.schema_json ?? {},
+      author_id: data.author_id,
+      version: data.version ?? "1.0.0",
+      tags: data.tags ?? [],
+      is_active: data.is_active ?? true,
+    }).select("*, agents!agent_tools_author_id_fkey(name)").single();
+    if (error) throw new Error(error.message);
+    return { ...row, author_name: row.agents?.name, agents: undefined };
+  },
+
+  async getAgentTool(id: string) {
+    const { data } = await getSupabase()
+      .from("agent_tools")
+      .select("*, agents!agent_tools_author_id_fkey(name)")
+      .eq("id", id)
+      .single();
+    if (!data) return null;
+    return { ...data, author_name: data.agents?.name, agents: undefined };
+  },
+
+  async updateAgentTool(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("agent_tools").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async searchAgentTools(params: any) {
+    const s = getSupabase();
+    let query = s.from("agent_tools").select("*, agents!agent_tools_author_id_fkey(name)");
+
+    // Filter by active
+    query = query.eq("is_active", true);
+
+    // Filter by category
+    if (params.category) {
+      query = query.eq("category", params.category);
+    }
+
+    // Filter by minimum rating
+    if (params.minRating !== undefined) {
+      query = query.gte("average_rating", params.minRating);
+    }
+
+    // Filter by tags
+    if (params.tags && params.tags.length > 0) {
+      query = query.overlaps("tags", params.tags);
+    }
+
+    // Search by query (name or description)
+    if (params.query) {
+      query = query.or(`name.ilike.%${params.query}%,description.ilike.%${params.query}%`);
+    }
+
+    // Order and pagination
+    query = query.order("install_count", { ascending: false });
+    if (params.offset) query = query.range(params.offset, params.offset + (params.limit || 50) - 1);
+    else query = query.limit(params.limit || 50);
+
+    const { data } = await query;
+    if (!data) return [];
+    return data.map((t: any) => ({ ...t, author_name: t.agents?.name, agents: undefined }));
+  },
+
+  async getAgentToolsByAuthor(authorId: string, limit: number = 50) {
+    const { data } = await getSupabase()
+      .from("agent_tools")
+      .select("*, agents!agent_tools_author_id_fkey(name)")
+      .eq("author_id", authorId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!data) return [];
+    return data.map((t: any) => ({ ...t, author_name: t.agents?.name, agents: undefined }));
+  },
+
+  async installAgentTool(data: { agent_id: string; tool_id: string; config_json?: any }) {
+    const { data: row, error } = await getSupabase()
+      .from("agent_tool_installs")
+      .insert({
+        agent_id: data.agent_id,
+        tool_id: data.tool_id,
+        config_json: data.config_json ?? {},
+        is_enabled: true,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  },
+
+  async uninstallAgentTool(agentId: string, toolId: string) {
+    const { error } = await getSupabase()
+      .from("agent_tool_installs")
+      .delete()
+      .eq("agent_id", agentId)
+      .eq("tool_id", toolId);
+    if (error) throw new Error(error.message);
+  },
+
+  async getAgentToolInstallation(agentId: string, toolId: string) {
+    const { data } = await getSupabase()
+      .from("agent_tool_installs")
+      .select("*")
+      .eq("agent_id", agentId)
+      .eq("tool_id", toolId)
+      .single();
+    return data ?? null;
+  },
+
+  async getAgentInstalledTools(agentId: string) {
+    const { data } = await getSupabase()
+      .from("agent_tool_installs")
+      .select("tool_id, agent_tools!inner(*, agents!agent_tools_author_id_fkey(name))")
+      .eq("agent_id", agentId)
+      .eq("is_enabled", true);
+    if (!data) return [];
+    return data.map((row: any) => ({
+      ...row.agent_tools,
+      author_name: row.agent_tools.agents?.name,
+      agents: undefined,
+    }));
+  },
+
+  async createOrUpdateAgentToolReview(data: { agent_id: string; tool_id: string; rating: number; review: string }) {
+    const { data: row, error } = await getSupabase()
+      .from("agent_tool_reviews")
+      .upsert(
+        {
+          agent_id: data.agent_id,
+          tool_id: data.tool_id,
+          rating: data.rating,
+          review: data.review,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "agent_id,tool_id" }
+      )
+      .select("*, agents!agent_tool_reviews_agent_id_fkey(name)")
+      .single();
+    if (error) throw new Error(error.message);
+    return { ...row, agent_name: row.agents?.name, agents: undefined };
+  },
+
+  async getAgentToolReviews(toolId: string, limit: number = 50) {
+    const { data } = await getSupabase()
+      .from("agent_tool_reviews")
+      .select("*, agents!agent_tool_reviews_agent_id_fkey(name)")
+      .eq("tool_id", toolId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (!data) return [];
+    return data.map((r: any) => ({ ...r, agent_name: r.agents?.name, agents: undefined }));
+  },
+
+  // ── SpecLoop (Commitment Deposits and Change Orders) ──
+  async createSpecDeposit(agentId: string, listingId: string, amount: number, currency: string) {
+    const { data, error } = await getSupabase()
+      .from("spec_deposits")
+      .insert({ listing_id: listingId, agent_id: agentId, amount, currency, consumed: 0, status: "active" })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  },
+
+  async getSpecDeposit(id: string) {
+    const { data } = await getSupabase()
+      .from("spec_deposits")
+      .select("*")
+      .eq("id", id)
+      .single();
+    return data ?? null;
+  },
+
+  async getActiveSpecDeposit(listingId: string) {
+    const { data } = await getSupabase()
+      .from("spec_deposits")
+      .select("*")
+      .eq("listing_id", listingId)
+      .in("status", ["active", "frozen"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+    return data ?? null;
+  },
+
+  async updateSpecDeposit(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("spec_deposits")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async createChangeOrder(listingId: string, requesterId: string, description: string, affectedNodes: string[], deltaCost: number, deltaCurrency: string) {
+    const { data, error } = await getSupabase()
+      .from("change_orders")
+      .insert({
+        listing_id: listingId,
+        requester_id: requesterId,
+        description,
+        affected_nodes: JSON.stringify(affectedNodes),
+        delta_cost: deltaCost,
+        delta_currency: deltaCurrency,
+        status: "pending"
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    if (data && data.affected_nodes) {
+      data.affected_nodes = JSON.parse(data.affected_nodes);
+    }
+    return data;
+  },
+
+  async getChangeOrder(id: string) {
+    const { data } = await getSupabase()
+      .from("change_orders")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (data && data.affected_nodes) {
+      data.affected_nodes = JSON.parse(data.affected_nodes);
+    }
+    return data ?? null;
+  },
+
+  async getChangeOrders(listingId: string) {
+    const { data } = await getSupabase()
+      .from("change_orders")
+      .select("*")
+      .eq("listing_id", listingId)
+      .order("created_at", { ascending: false });
+    if (!data) return [];
+    return data.map((row: any) => {
+      if (row.affected_nodes) {
+        row.affected_nodes = JSON.parse(row.affected_nodes);
+      }
+      return row;
+    });
+  },
+
+  async updateChangeOrder(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("change_orders")
+      .update(updates)
+      .eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async getBountyGraph(listingId: string) {
+    const { data } = await getSupabase()
+      .from("market_listings")
+      .select("bounty_graph")
+      .eq("id", listingId)
+      .single();
+    return data?.bounty_graph ?? null;
+  },
+
+  async createNaclTransaction(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string) {
+    const { data, error } = await getSupabase()
+      .from("nacl_transactions")
+      .insert({ from_agent_id: fromAgentId, to_agent_id: toAgentId, amount, type, description })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
   },
 };

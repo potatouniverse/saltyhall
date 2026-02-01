@@ -127,6 +127,13 @@ function initSchema(db: Database.Database) {
       category TEXT DEFAULT 'general',
       price TEXT DEFAULT '',
       status TEXT DEFAULT 'active',
+      listing_mode TEXT DEFAULT 'trade',
+      delivery_time TEXT,
+      rating REAL DEFAULT 0,
+      completed_count INTEGER DEFAULT 0,
+      currency TEXT DEFAULT 'salt',
+      escrow_status TEXT,
+      usdc_amount REAL,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -152,6 +159,7 @@ function initSchema(db: Database.Database) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_market_listings_status ON market_listings(status);
+    CREATE INDEX IF NOT EXISTS idx_market_listings_currency ON market_listings(currency);
     CREATE INDEX IF NOT EXISTS idx_market_offers_listing ON market_offers(listing_id);
 
     CREATE TABLE IF NOT EXISTS stage_shows (
@@ -290,10 +298,15 @@ function initSchema(db: Database.Database) {
       id TEXT PRIMARY KEY,
       agent_id TEXT NOT NULL REFERENCES agents(id),
       content TEXT NOT NULL,
-      category TEXT DEFAULT 'general',
-      created_at TEXT DEFAULT (datetime('now'))
+      category TEXT DEFAULT 'experience',
+      memory_key TEXT,
+      embedding_text TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_agent_memories_agent ON agent_memories(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_agent_memories_key ON agent_memories(agent_id, memory_key);
+    CREATE INDEX IF NOT EXISTS idx_agent_memories_category ON agent_memories(agent_id, category);
   `);
 
   // USDC escrow transactions
@@ -314,6 +327,41 @@ function initSchema(db: Database.Database) {
     );
     CREATE INDEX IF NOT EXISTS idx_usdc_tx_bounty_hash ON usdc_transactions(bounty_hash);
     CREATE INDEX IF NOT EXISTS idx_usdc_tx_status ON usdc_transactions(status);
+  `);
+
+  // SpecLoop: Commitment deposits and change orders
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS spec_deposits (
+      id TEXT PRIMARY KEY,
+      listing_id TEXT NOT NULL REFERENCES market_listings(id),
+      agent_id TEXT NOT NULL REFERENCES agents(id),
+      amount REAL NOT NULL,
+      currency TEXT NOT NULL DEFAULT 'NACL',
+      consumed REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT DEFAULT (datetime('now')),
+      frozen_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_spec_deposits_listing ON spec_deposits(listing_id);
+    CREATE INDEX IF NOT EXISTS idx_spec_deposits_agent ON spec_deposits(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_spec_deposits_status ON spec_deposits(status);
+
+    CREATE TABLE IF NOT EXISTS change_orders (
+      id TEXT PRIMARY KEY,
+      listing_id TEXT NOT NULL REFERENCES market_listings(id),
+      requester_id TEXT NOT NULL REFERENCES agents(id),
+      description TEXT NOT NULL,
+      affected_nodes TEXT NOT NULL,
+      delta_cost REAL NOT NULL,
+      delta_currency TEXT NOT NULL DEFAULT 'NACL',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      approved_at TEXT,
+      escrow_id TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_change_orders_listing ON change_orders(listing_id);
+    CREATE INDEX IF NOT EXISTS idx_change_orders_requester ON change_orders(requester_id);
+    CREATE INDEX IF NOT EXISTS idx_change_orders_status ON change_orders(status);
   `);
 
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
@@ -584,23 +632,24 @@ export const db: DatabaseInterface = {
     ).all(limit) as any;
   },
 
-  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode: string = "trade", deliveryTime?: string) {
+  async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode: string = "trade", deliveryTime?: string, currency: string = "salt", usdcAmount?: number) {
     const d = getDb();
     const id = genId();
     d.prepare(
-      `INSERT INTO market_listings (id, agent_id, title, description, type, category, price, listing_mode, delivery_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(id, agentId, title, description, type, category, price, mode, deliveryTime || null);
-    return d.prepare("SELECT l.*, a.name as agent_name FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?").get(id) as any;
+      `INSERT INTO market_listings (id, agent_id, title, description, type, category, price, listing_mode, delivery_time, currency, usdc_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, agentId, title, description, type, category, price, mode, deliveryTime || null, currency, usdcAmount || null);
+    return d.prepare("SELECT l.*, a.name as agent_name, a.wallet_address FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?").get(id) as any;
   },
 
-  async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string) {
+  async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string, currency?: string) {
     let where = "l.status = ?";
     const params: any[] = [status];
     if (mode && mode !== "all") { where += " AND l.listing_mode = ?"; params.push(mode); }
     if (category) { where += " AND l.category = ?"; params.push(category); }
+    if (currency && currency !== "all") { where += " AND l.currency = ?"; params.push(currency); }
     params.push(limit);
     return getDb().prepare(
-      `SELECT l.*, a.name as agent_name,
+      `SELECT l.*, a.name as agent_name, a.wallet_address,
         (SELECT COUNT(*) FROM market_offers WHERE listing_id = l.id AND status = 'pending') as offer_count
        FROM market_listings l JOIN agents a ON l.agent_id = a.id
        WHERE ${where} ORDER BY l.created_at DESC LIMIT ?`
@@ -609,7 +658,7 @@ export const db: DatabaseInterface = {
 
   async getMarketListing(id: string) {
     return getDb().prepare(
-      `SELECT l.*, a.name as agent_name FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?`
+      `SELECT l.*, a.name as agent_name, a.wallet_address FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.id = ?`
     ).get(id) as any ?? null;
   },
 
@@ -622,7 +671,7 @@ export const db: DatabaseInterface = {
 
   async getAgentMarketListings(agentId: string) {
     return getDb().prepare(
-      `SELECT l.*, a.name as agent_name FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.agent_id = ? ORDER BY l.created_at DESC`
+      `SELECT l.*, a.name as agent_name, a.wallet_address FROM market_listings l JOIN agents a ON l.agent_id = a.id WHERE l.agent_id = ? ORDER BY l.created_at DESC`
     ).all(agentId) as any;
   },
 
@@ -882,19 +931,38 @@ export const db: DatabaseInterface = {
     return row?.count ?? 0;
   },
 
-  async createAgentMemory(agentId: string, content: string, category: string = "general") {
+  async createAgentMemory(agentId: string, content: string, category: string = "experience", key?: string) {
     const d = getDb();
     const id = genId();
-    d.prepare("INSERT INTO agent_memories (id, agent_id, content, category) VALUES (?, ?, ?, ?)").run(id, agentId, content, category);
+    const now = new Date().toISOString();
+    d.prepare(
+      "INSERT INTO agent_memories (id, agent_id, content, category, memory_key, embedding_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(id, agentId, content, category, key || null, content, now, now);
     return d.prepare("SELECT * FROM agent_memories WHERE id = ?").get(id) as any;
   },
 
   async getAgentMemories(agentId: string, category?: string) {
     const d = getDb();
     if (category) {
-      return d.prepare("SELECT * FROM agent_memories WHERE agent_id = ? AND category = ? ORDER BY created_at DESC").all(agentId, category) as any;
+      return d.prepare("SELECT * FROM agent_memories WHERE agent_id = ? AND category = ? ORDER BY updated_at DESC, created_at DESC").all(agentId, category) as any;
     }
-    return d.prepare("SELECT * FROM agent_memories WHERE agent_id = ? ORDER BY created_at DESC").all(agentId) as any;
+    return d.prepare("SELECT * FROM agent_memories WHERE agent_id = ? ORDER BY updated_at DESC, created_at DESC").all(agentId) as any;
+  },
+
+  async getAgentMemoryById(id: string) {
+    return getDb().prepare("SELECT * FROM agent_memories WHERE id = ?").get(id) as any ?? null;
+  },
+
+  async getAgentMemoryByKey(agentId: string, key: string) {
+    return getDb().prepare("SELECT * FROM agent_memories WHERE agent_id = ? AND memory_key = ?").get(agentId, key) as any ?? null;
+  },
+
+  async updateAgentMemory(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    d.prepare(`UPDATE agent_memories SET ${sets} WHERE id = ?`).run(...keys.map(k => updates[k]), id);
   },
 
   async deleteAgentMemory(agentId: string, memoryId: string) {
@@ -1149,5 +1217,126 @@ export const db: DatabaseInterface = {
 
   async getSubmittedUsdcTransactions() {
     return getDb().prepare("SELECT * FROM usdc_transactions WHERE status = 'submitted'").all() as any;
+  },
+
+  // ── SpecLoop (Commitment Deposits and Change Orders) ──
+  async createSpecDeposit(agentId: string, listingId: string, amount: number, currency: string) {
+    const d = getDb();
+    const id = crypto.randomUUID();
+    d.prepare(
+      `INSERT INTO spec_deposits (id, listing_id, agent_id, amount, currency, consumed, status)
+       VALUES (?, ?, ?, ?, ?, 0, 'active')`
+    ).run(id, listingId, agentId, amount, currency);
+    return d.prepare("SELECT * FROM spec_deposits WHERE id = ?").get(id) as any;
+  },
+
+  async getSpecDeposit(id: string) {
+    return getDb().prepare("SELECT * FROM spec_deposits WHERE id = ?").get(id) as any ?? null;
+  },
+
+  async getActiveSpecDeposit(listingId: string) {
+    return getDb().prepare("SELECT * FROM spec_deposits WHERE listing_id = ? AND status IN ('active', 'frozen') ORDER BY created_at DESC LIMIT 1").get(listingId) as any ?? null;
+  },
+
+  async updateSpecDeposit(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE spec_deposits SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
+  async createChangeOrder(listingId: string, requesterId: string, description: string, affectedNodes: string[], deltaCost: number, deltaCurrency: string) {
+    const d = getDb();
+    const id = crypto.randomUUID();
+    const affectedNodesJson = JSON.stringify(affectedNodes);
+    d.prepare(
+      `INSERT INTO change_orders (id, listing_id, requester_id, description, affected_nodes, delta_cost, delta_currency, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`
+    ).run(id, listingId, requesterId, description, affectedNodesJson, deltaCost, deltaCurrency);
+    const row = d.prepare("SELECT * FROM change_orders WHERE id = ?").get(id) as any;
+    // Parse JSON back
+    if (row && row.affected_nodes) {
+      row.affected_nodes = JSON.parse(row.affected_nodes);
+    }
+    return row;
+  },
+
+  async getChangeOrder(id: string) {
+    const row = getDb().prepare("SELECT * FROM change_orders WHERE id = ?").get(id) as any ?? null;
+    if (row && row.affected_nodes) {
+      row.affected_nodes = JSON.parse(row.affected_nodes);
+    }
+    return row;
+  },
+
+  async getChangeOrders(listingId: string) {
+    const rows = getDb().prepare("SELECT * FROM change_orders WHERE listing_id = ? ORDER BY created_at DESC").all(listingId) as any[];
+    return rows.map(row => {
+      if (row.affected_nodes) {
+        row.affected_nodes = JSON.parse(row.affected_nodes);
+      }
+      return row;
+    });
+  },
+
+  async updateChangeOrder(id: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    const vals = keys.map(k => updates[k]);
+    d.prepare(`UPDATE change_orders SET ${sets} WHERE id = ?`).run(...vals, id);
+  },
+
+  async getBountyGraph(listingId: string) {
+    const row = getDb().prepare("SELECT bounty_graph FROM market_listings WHERE id = ?").get(listingId) as any;
+    return row?.bounty_graph ?? null;
+  },
+
+  async createNaclTransaction(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string) {
+    const d = getDb();
+    const id = crypto.randomUUID();
+    d.prepare(
+      `INSERT INTO nacl_transactions (id, from_agent_id, to_agent_id, amount, type, description)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(id, fromAgentId, toAgentId, amount, type, description);
+    return d.prepare("SELECT * FROM nacl_transactions WHERE id = ?").get(id) as any;
+  },
+
+  // ── Tool Market (SQLite stubs - use Supabase in production) ──
+  async createAgentTool(data: Partial<any>) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getAgentTool(id: string) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async updateAgentTool(id: string, updates: Record<string, any>) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async searchAgentTools(params: any) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getAgentToolsByAuthor(authorId: string, limit?: number) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async installAgentTool(data: { agent_id: string; tool_id: string; config_json?: any }) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async uninstallAgentTool(agentId: string, toolId: string) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getAgentToolInstallation(agentId: string, toolId: string) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getAgentInstalledTools(agentId: string) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async createOrUpdateAgentToolReview(data: { agent_id: string; tool_id: string; rating: number; review: string }) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
+  },
+  async getAgentToolReviews(toolId: string, limit?: number) {
+    throw new Error("Tool Market requires Supabase. Set DATABASE_PROVIDER=supabase");
   },
 };

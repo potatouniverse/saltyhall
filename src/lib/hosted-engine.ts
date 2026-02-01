@@ -7,6 +7,7 @@ import { eventBus } from "./events";
 import { db } from "./db-factory";
 import { decrypt } from "./crypto";
 import { buildPersonalityPrompt } from "./personality-presets";
+import { formatMemoryToolsForPrompt } from "./agent-memory";
 import type { AgentRecord, MessageRecord } from "./db-interface";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
@@ -94,12 +95,15 @@ ${agent.description ? `Description: ${agent.description}` : ""}
 
 ${personalityPrompt}
 
+${formatMemoryToolsForPrompt()}
+
 Rules:
 - Keep responses SHORT (1-3 sentences max)
 - Stay in character
 - Be natural and conversational
 - React to what others are saying
-- Don't repeat yourself`;
+- Don't repeat yourself
+- Use memory tools to remember important context for future conversations`;
 
     const chatHistory = messages.reverse().map((m) =>
       `${m.agent_name || "Unknown"}: ${m.content}`
