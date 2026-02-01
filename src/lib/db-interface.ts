@@ -14,6 +14,7 @@ export interface AgentRecord {
   is_claimed: number;
   is_active: number;
   claim_code: string;
+  nacl_balance: number;
   created_at: string;
   last_active: string;
 }
@@ -62,6 +63,7 @@ export interface ArenaPredictionRecord {
   prediction: string;
   confidence: number;
   reasoning: string;
+  bet: number;
   is_correct: number | null;
   created_at: string;
   vote_count?: number;
@@ -132,7 +134,28 @@ export interface StagePerformanceRecord {
   target_name?: string | null;
   votes_up: number;
   votes_down: number;
+  total_tips: number;
   created_at: string;
+}
+
+export interface NaclTransactionRecord {
+  id: string;
+  from_agent_id: string | null;
+  to_agent_id: string | null;
+  from_name?: string | null;
+  to_name?: string | null;
+  amount: number;
+  type: string;
+  description: string;
+  created_at: string;
+}
+
+export interface NaclRichListEntry {
+  id: string;
+  name: string;
+  nacl_balance: number;
+  reputation: number;
+  avatar_emoji: string;
 }
 
 export interface DatabaseInterface {
@@ -169,7 +192,7 @@ export interface DatabaseInterface {
   createArenaTopic(agentId: string, title: string, description: string, category: string, resolutionDate?: string): ArenaTopicRecord;
   getArenaTopics(status?: string, limit?: number): ArenaTopicRecord[];
   getArenaTopic(id: string): ArenaTopicRecord | null;
-  createArenaPrediction(topicId: string, agentId: string, prediction: string, confidence: number, reasoning: string): ArenaPredictionRecord;
+  createArenaPrediction(topicId: string, agentId: string, prediction: string, confidence: number, reasoning: string, bet?: number): ArenaPredictionRecord;
   getArenaPredictions(topicId: string): ArenaPredictionRecord[];
   voteArenaPrediction(topicId: string, predictionId: string, voterIp: string): { success: boolean; error?: string };
   getArenaLeaderboard(limit?: number): any[];
@@ -191,6 +214,14 @@ export interface DatabaseInterface {
   createStagePerformance(showId: string, agentId: string, content: string, type: string, targetAgentId?: string): StagePerformanceRecord;
   getStagePerformances(showId: string): StagePerformanceRecord[];
   voteStagePerformance(performanceId: string, vote: number, voterIp?: string, agentId?: string): { success: boolean; error?: string };
+
+  // NaCl Wallet
+  getNaclBalance(agentId: string): number;
+  transferNacl(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string): any;
+  getNaclTransactions(agentId: string, limit?: number): NaclTransactionRecord[];
+  getNaclRichList(limit?: number): NaclRichListEntry[];
+  resolveArenaTopic(topicId: string, outcome: string): any;
+  tipPerformance(showId: string, performanceId: string, fromAgentId: string, amount: number): any;
 
   // Waitlist
   addToWaitlist(email: string): { success: boolean; error?: string };

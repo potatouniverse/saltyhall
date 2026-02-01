@@ -199,6 +199,30 @@ function initSchema(db: Database.Database) {
   // Migrations: add avatar_emoji column
   try { db.exec("ALTER TABLE agents ADD COLUMN avatar_emoji TEXT DEFAULT ''"); } catch {}
 
+  // Migrations: add nacl_balance column
+  try { db.exec("ALTER TABLE agents ADD COLUMN nacl_balance INTEGER DEFAULT 1000"); } catch {}
+
+  // NaCl Transactions table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS nacl_transactions (
+      id TEXT PRIMARY KEY,
+      from_agent_id TEXT REFERENCES agents(id),
+      to_agent_id TEXT REFERENCES agents(id),
+      amount INTEGER NOT NULL,
+      type TEXT NOT NULL DEFAULT 'system',
+      description TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_nacl_tx_from ON nacl_transactions(from_agent_id);
+    CREATE INDEX IF NOT EXISTS idx_nacl_tx_to ON nacl_transactions(to_agent_id);
+  `);
+
+  // Migrations: add bet column to arena_predictions
+  try { db.exec("ALTER TABLE arena_predictions ADD COLUMN bet INTEGER DEFAULT 0"); } catch {}
+
+  // Migrations: add total_tips to stage_performances
+  try { db.exec("ALTER TABLE stage_performances ADD COLUMN total_tips INTEGER DEFAULT 0"); } catch {}
+
   // Seed default rooms
   const roomCount = db.prepare("SELECT COUNT(*) as count FROM rooms").get() as { count: number };
   if (roomCount.count === 0) {
@@ -385,12 +409,12 @@ export const db = {
     ).get(id) as any;
   },
 
-  createArenaPrediction(topicId: string, agentId: string, prediction: string, confidence: number, reasoning: string) {
+  createArenaPrediction(topicId: string, agentId: string, prediction: string, confidence: number, reasoning: string, bet: number = 0) {
     const d = getDb();
     const id = genId();
     d.prepare(
-      `INSERT INTO arena_predictions (id, topic_id, agent_id, prediction, confidence, reasoning) VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(id, topicId, agentId, prediction, confidence, reasoning);
+      `INSERT INTO arena_predictions (id, topic_id, agent_id, prediction, confidence, reasoning, bet) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, topicId, agentId, prediction, confidence, reasoning, bet);
     return d.prepare("SELECT p.*, a.name as agent_name FROM arena_predictions p JOIN agents a ON p.agent_id = a.id WHERE p.id = ?").get(id);
   },
 
@@ -566,6 +590,119 @@ export const db = {
       }
       return { success: true };
     } catch { return { success: false, error: "Already voted" }; }
+  },
+
+  // ========== NaCl Wallet ==========
+  getNaclBalance(agentId: string): number {
+    const row = getDb().prepare("SELECT nacl_balance FROM agents WHERE id = ?").get(agentId) as any;
+    return row?.nacl_balance ?? 0;
+  },
+
+  transferNacl(fromAgentId: string | null, toAgentId: string | null, amount: number, type: string, description: string) {
+    const d = getDb();
+    const id = genId();
+    const transfer = d.transaction(() => {
+      if (fromAgentId) {
+        const from = d.prepare("SELECT nacl_balance FROM agents WHERE id = ?").get(fromAgentId) as any;
+        if (!from || from.nacl_balance < amount) throw new Error("Insufficient NaCl balance");
+        d.prepare("UPDATE agents SET nacl_balance = nacl_balance - ? WHERE id = ?").run(amount, fromAgentId);
+      }
+      if (toAgentId) {
+        d.prepare("UPDATE agents SET nacl_balance = nacl_balance + ? WHERE id = ?").run(amount, toAgentId);
+      }
+      d.prepare(
+        "INSERT INTO nacl_transactions (id, from_agent_id, to_agent_id, amount, type, description) VALUES (?, ?, ?, ?, ?, ?)"
+      ).run(id, fromAgentId, toAgentId, amount, type, description);
+      return { id, from_agent_id: fromAgentId, to_agent_id: toAgentId, amount, type, description };
+    });
+    return transfer();
+  },
+
+  getNaclTransactions(agentId: string, limit: number = 50) {
+    return getDb().prepare(
+      `SELECT t.*, f.name as from_name, r.name as to_name
+       FROM nacl_transactions t
+       LEFT JOIN agents f ON t.from_agent_id = f.id
+       LEFT JOIN agents r ON t.to_agent_id = r.id
+       WHERE t.from_agent_id = ? OR t.to_agent_id = ?
+       ORDER BY t.created_at DESC LIMIT ?`
+    ).all(agentId, agentId, limit);
+  },
+
+  getNaclRichList(limit: number = 20) {
+    return getDb().prepare(
+      "SELECT id, name, nacl_balance, reputation, avatar_emoji FROM agents WHERE is_active = 1 ORDER BY nacl_balance DESC LIMIT ?"
+    ).all(limit);
+  },
+
+  // Arena: resolve topic and distribute pot
+  resolveArenaTopic(topicId: string, outcome: string) {
+    const d = getDb();
+    const resolve = d.transaction(() => {
+      const topic = d.prepare("SELECT * FROM arena_topics WHERE id = ?").get(topicId) as any;
+      if (!topic || topic.status !== "active") throw new Error("Topic not active");
+
+      d.prepare("UPDATE arena_topics SET status = 'resolved', resolved_at = datetime('now'), resolved_outcome = ? WHERE id = ?").run(outcome, topicId);
+
+      // Get all predictions with bets
+      const predictions = d.prepare("SELECT * FROM arena_predictions WHERE topic_id = ?").all(topicId) as any[];
+      const normalizedOutcome = outcome.trim().toUpperCase();
+
+      // Mark correct/incorrect
+      for (const p of predictions) {
+        const isCorrect = p.prediction.trim().toUpperCase().startsWith(normalizedOutcome.charAt(0)) ? 1 : 0;
+        d.prepare("UPDATE arena_predictions SET is_correct = ? WHERE id = ?").run(isCorrect, p.id);
+      }
+
+      // Calculate pot and distribute to winners
+      const totalPot = predictions.reduce((sum: number, p: any) => sum + (p.bet || 0), 0);
+      if (totalPot === 0) return { topic_id: topicId, outcome, pot: 0, winners: [] };
+
+      const winners = predictions.filter((p: any) => p.prediction.trim().toUpperCase().startsWith(normalizedOutcome.charAt(0)));
+      const winnerBets = winners.reduce((sum: number, p: any) => sum + (p.bet || 0), 0);
+
+      const payouts: any[] = [];
+      for (const w of winners) {
+        if (w.bet <= 0 || winnerBets <= 0) continue;
+        const payout = Math.floor((w.bet / winnerBets) * totalPot);
+        if (payout > 0) {
+          d.prepare("UPDATE agents SET nacl_balance = nacl_balance + ? WHERE id = ?").run(payout, w.agent_id);
+          const txId = genId();
+          d.prepare("INSERT INTO nacl_transactions (id, from_agent_id, to_agent_id, amount, type, description) VALUES (?, ?, ?, ?, ?, ?)")
+            .run(txId, null, w.agent_id, payout, "reward", `Arena win: "${topic.title}" — Crystallized ${payout} NaCl`);
+          payouts.push({ agent_id: w.agent_id, payout });
+        }
+      }
+
+      return { topic_id: topicId, outcome, pot: totalPot, winners: payouts };
+    });
+    return resolve();
+  },
+
+  // Stage: tip a performer
+  tipPerformance(showId: string, performanceId: string, fromAgentId: string, amount: number) {
+    const d = getDb();
+    const tip = d.transaction(() => {
+      const from = d.prepare("SELECT nacl_balance FROM agents WHERE id = ?").get(fromAgentId) as any;
+      if (!from || from.nacl_balance < amount) throw new Error("Insufficient NaCl balance");
+
+      const perf = d.prepare("SELECT * FROM stage_performances WHERE id = ? AND show_id = ?").get(performanceId, showId) as any;
+      if (!perf) throw new Error("Performance not found");
+      if (perf.agent_id === fromAgentId) throw new Error("Can't tip yourself");
+
+      d.prepare("UPDATE agents SET nacl_balance = nacl_balance - ? WHERE id = ?").run(amount, fromAgentId);
+      d.prepare("UPDATE agents SET nacl_balance = nacl_balance + ? WHERE id = ?").run(amount, perf.agent_id);
+      d.prepare("UPDATE stage_performances SET total_tips = total_tips + ? WHERE id = ?").run(amount, performanceId);
+
+      const txId = genId();
+      const fromAgent = d.prepare("SELECT name FROM agents WHERE id = ?").get(fromAgentId) as any;
+      const toAgent = d.prepare("SELECT name FROM agents WHERE id = ?").get(perf.agent_id) as any;
+      d.prepare("INSERT INTO nacl_transactions (id, from_agent_id, to_agent_id, amount, type, description) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(txId, fromAgentId, perf.agent_id, amount, "tip", `🎭 ${fromAgent?.name} tipped ${toAgent?.name} — Dissolved ${amount} NaCl`);
+
+      return { success: true, performance_id: performanceId, amount, total_tips: (perf.total_tips || 0) + amount };
+    });
+    return tip();
   },
 
   addToWaitlist(email: string) {

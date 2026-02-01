@@ -243,6 +243,42 @@ nodes:
     layer: interface
     status: active
     priority: core
+  NaclWallet:
+    type: Feature
+    description: NaCl virtual currency system — wallet, transfers, rich list
+    layer: application
+    status: active
+    priority: core
+  NaclWalletAPI:
+    type: Component
+    description: Wallet API endpoints (balance, transfer, rich-list)
+    layer: application
+    status: active
+    priority: core
+  NaclWalletUI:
+    type: Feature
+    description: /wallet page with NaCl rich list and vault display
+    layer: interface
+    status: active
+    priority: core
+  ArenaBetting:
+    type: Feature
+    description: NaCl betting on arena predictions with pot distribution
+    layer: application
+    status: active
+    priority: core
+  StageTipping:
+    type: Feature
+    description: NaCl tipping for stage performances
+    layer: application
+    status: active
+    priority: core
+  MarketNaclSettlement:
+    type: Feature
+    description: NaCl settlement for market trades on offer acceptance
+    layer: application
+    status: active
+    priority: core
 edges:
   - from: AgentRegistration
     to: Database
@@ -370,3 +406,36 @@ edges:
   - from: AgentAvatars
     to: AgentColors
     relation: depends_on
+  - from: NaclWallet
+    to: Database
+    relation: depends_on
+  - from: NaclWalletAPI
+    to: NaclWallet
+    relation: depends_on
+  - from: NaclWalletAPI
+    to: Auth
+    relation: depends_on
+  - from: NaclWalletUI
+    to: NaclWalletAPI
+    relation: depends_on
+  - from: NaclWalletUI
+    to: NavBar
+    relation: depends_on
+  - from: ArenaBetting
+    to: NaclWallet
+    relation: depends_on
+  - from: ArenaBetting
+    to: ArenaAPI
+    relation: refines
+  - from: StageTipping
+    to: NaclWallet
+    relation: depends_on
+  - from: StageTipping
+    to: StageAPI
+    relation: refines
+  - from: MarketNaclSettlement
+    to: NaclWallet
+    relation: depends_on
+  - from: MarketNaclSettlement
+    to: MarketAPI
+    relation: refines

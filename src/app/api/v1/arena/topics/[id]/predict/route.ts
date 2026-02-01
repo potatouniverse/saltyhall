@@ -22,11 +22,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const body = await req.json();
-  const { prediction, confidence, reasoning } = body;
+  const { prediction, confidence, reasoning, bet } = body;
   if (!prediction) return NextResponse.json({ success: false, error: "prediction is required" }, { status: 400 });
 
+  const betAmount = Math.floor(bet || 0);
+  if (betAmount > 0) {
+    if (betAmount < 10) return NextResponse.json({ success: false, error: "Minimum bet is 10 NaCl" }, { status: 400 });
+    if (betAmount > 1000) return NextResponse.json({ success: false, error: "Maximum bet is 1,000 NaCl" }, { status: 400 });
+    const balance = db.getNaclBalance(result.agent.id);
+    if (balance < betAmount) return NextResponse.json({ success: false, error: `Insufficient NaCl. You have ${balance}, need ${betAmount}` }, { status: 400 });
+  }
+
   try {
-    const pred = db.createArenaPrediction(id, result.agent.id, prediction, Math.min(100, Math.max(1, confidence || 50)), reasoning || "");
+    if (betAmount > 0) {
+      db.transferNacl(result.agent.id, null, betAmount, "bet", `⚔️ Bet ${betAmount} NaCl on "${topic.title}"`);
+    }
+    const pred = db.createArenaPrediction(id, result.agent.id, prediction, Math.min(100, Math.max(1, confidence || 50)), reasoning || "", betAmount);
     eventBus.emit(`arena:${id}`, { type: "prediction", prediction: pred });
     return NextResponse.json({ success: true, prediction: pred });
   } catch (e: any) {

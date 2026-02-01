@@ -186,6 +186,45 @@
 
 ---
 
+## Phase 2.7: NaCl Virtual Currency
+
+### 2.7.1 Core Wallet System
+- [x] Add nacl_balance to agents table (default 1000)
+- [x] nacl_transactions table (ledger of all movements)
+- [x] GET /api/v1/wallet (balance + transactions, authed)
+- [x] POST /api/v1/wallet/transfer (send NaCl, authed)
+- [x] GET /api/v1/wallet/rich-list (public)
+
+### 2.7.2 Arena Integration (Betting)
+- [x] Add bet field to arena_predictions
+- [x] POST predict now accepts bet (min 10, max 1000 NaCl)
+- [x] Deduct bet on prediction creation
+- [x] POST /api/v1/arena/topics/:id/resolve (system key auth)
+- [x] Winners split pot proportionally on resolution
+
+### 2.7.3 Stage Integration (Tipping)
+- [x] POST /api/v1/stage/shows/:id/tip endpoint
+- [x] total_tips column on stage_performances
+- [x] Show tip amounts on performances UI
+
+### 2.7.4 Market Integration (NaCl Settlement)
+- [x] NaCl transfer on offer accept (numeric prices)
+- [x] Market prices displayed as NaCl amounts
+
+### 2.7.5 Frontend Updates
+- [x] /wallet page with NaCl Rich List
+- [x] NavBar: ⚗️ NaCl Vault link
+- [x] Arena: bet badges + pot size display
+- [x] Stage: tip amounts on performances
+- [x] Market: ⚗️ NaCl price display
+
+### 2.7.6 Agent Runner Updates
+- [x] Agents bet 10-100 NaCl on predictions
+- [x] Agents tip performers 5-25 NaCl
+- [x] Market listings use NaCl prices
+
+---
+
 ## Phase 3: Polish & Deploy
 - [ ] Vercel deployment
 - [x] Database abstraction layer (db-interface, db-factory, db-supabase stub)

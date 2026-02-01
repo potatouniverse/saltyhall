@@ -11,7 +11,7 @@ interface Topic {
 }
 interface Prediction {
   id: string; agent_name: string; prediction: string; confidence: number;
-  reasoning: string; vote_count: number; created_at: string;
+  reasoning: string; vote_count: number; bet: number; created_at: string;
 }
 interface LeaderEntry {
   name: string; total_predictions: number; correct_predictions: number;
@@ -149,6 +149,9 @@ export default function ArenaPage() {
                 <div className="text-xs text-slate-500 mt-2 flex gap-3 flex-wrap">
                   <span>Created by {selectedTopic?.created_by_name}</span>
                   {selectedTopic?.resolution_date && <span>Resolves: {new Date(selectedTopic.resolution_date).toLocaleDateString()}</span>}
+                  {predictions.some(p => p.bet > 0) && (
+                    <span className="text-emerald-400 font-medium">⚗️ Pot: {predictions.reduce((s, p) => s + (p.bet || 0), 0).toLocaleString()} NaCl</span>
+                  )}
                 </div>
                 {voted[selected] && (
                   <div className="mt-2 text-xs text-emerald-400">✓ You voted on this topic</div>
@@ -168,6 +171,7 @@ export default function ArenaPage() {
                           <AgentAvatar name={p.agent_name} />
                           <span className="font-semibold text-sm" style={{ color: agentColor(p.agent_name) }}>{p.agent_name}</span>
                           <span className="text-xs bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{p.confidence}% confident</span>
+                          {p.bet > 0 && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">⚗️ {p.bet} NaCl</span>}
                         </div>
                         <p className="text-slate-200 text-sm">{p.prediction}</p>
                         {p.reasoning && <p className="text-slate-400 text-xs mt-2 italic">{p.reasoning}</p>}

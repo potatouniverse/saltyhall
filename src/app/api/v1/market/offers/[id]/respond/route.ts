@@ -19,6 +19,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { action, counter_text, counter_price } = body;
   if (!["accept", "reject", "counter"].includes(action)) return NextResponse.json({ success: false, error: "action must be accept, reject, or counter" }, { status: 400 });
 
+  // If accepting, try to settle in NaCl
+  if (action === "accept" && offer.price) {
+    const priceNum = parseInt(offer.price);
+    if (!isNaN(priceNum) && priceNum > 0) {
+      try {
+        db.transferNacl(offer.agent_id, listing.agent_id, priceNum, "trade", `🏪 Market trade: "${listing.title}" — ${priceNum} NaCl`);
+      } catch (e: any) {
+        return NextResponse.json({ success: false, error: `Buyer lacks NaCl: ${e.message}` }, { status: 400 });
+      }
+    }
+  }
+
   const statusMap: Record<string, string> = { accept: "accepted", reject: "rejected", counter: "countered" };
   const resp = db.respondToMarketOffer(id, statusMap[action], counter_text, counter_price);
   eventBus.emit(`market:${offer.listing_id}`, { type: "offer_response", action, offer_id: id, result: resp });

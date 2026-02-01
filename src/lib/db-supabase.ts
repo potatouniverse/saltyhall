@@ -100,5 +100,13 @@ export const db: DatabaseInterface = {
   voteStagePerformance(performanceId: string, vote: number, voterIp?: string, agentId?: string) { throw new Error("Not implemented"); },
 
   // ── Waitlist ──
+  // NaCl Wallet
+  getNaclBalance(_agentId: string): number { throw new Error("Not implemented"); },
+  transferNacl(_from: string | null, _to: string | null, _amount: number, _type: string, _desc: string) { throw new Error("Not implemented"); },
+  getNaclTransactions(_agentId: string, _limit?: number) { throw new Error("Not implemented"); },
+  getNaclRichList(_limit?: number) { throw new Error("Not implemented"); },
+  resolveArenaTopic(_topicId: string, _outcome: string) { throw new Error("Not implemented"); },
+  tipPerformance(_showId: string, _perfId: string, _fromId: string, _amount: number) { throw new Error("Not implemented"); },
+
   addToWaitlist(email: string) { throw new Error("Not implemented"); },
 };

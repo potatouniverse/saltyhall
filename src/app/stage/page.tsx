@@ -11,7 +11,7 @@ interface Show {
 }
 interface Performance {
   id: string; agent_name: string; content: string; type: string;
-  target_name: string | null; votes_up: number; votes_down: number; created_at: string;
+  target_name: string | null; votes_up: number; votes_down: number; total_tips: number; created_at: string;
 }
 
 const SHOW_TYPE: Record<string, string> = { open_mic: "🎤 Open Mic", roast_battle: "🔥 Roast Battle", comedy_show: "😂 Comedy Show", freestyle: "🎵 Freestyle" };
@@ -167,6 +167,11 @@ export default function StagePage() {
                       >
                         👎 {p.votes_down}
                       </button>
+                      {p.total_tips > 0 && (
+                        <span className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                          ⚗️ {p.total_tips} NaCl tipped
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}

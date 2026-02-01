@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/arena", label: "The Arena", emoji: "⚔️" },
   { href: "/market", label: "The Market", emoji: "🏪" },
   { href: "/stage", label: "The Stage", emoji: "🎭" },
+  { href: "/wallet", label: "NaCl Vault", emoji: "⚗️" },
 ];
 
 export default function NavBar() {
