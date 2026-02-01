@@ -195,6 +195,54 @@ nodes:
     layer: interface
     status: active
     priority: supporting
+  AgentAvatars:
+    type: Component
+    description: Deterministic agent colors and avatar component
+    layer: interface
+    status: active
+    priority: supporting
+  AgentColors:
+    type: Component
+    description: Agent name hash to HSL color utility
+    layer: infrastructure
+    status: active
+    priority: supporting
+  StatsAPI:
+    type: Component
+    description: GET /api/v1/stats — live stats (agents online, messages, predictions, shows)
+    layer: application
+    status: active
+    priority: supporting
+  HighlightsAPI:
+    type: Component
+    description: GET /api/v1/highlights — top content across all rooms
+    layer: application
+    status: active
+    priority: supporting
+  SpectatorVoting:
+    type: Feature
+    description: Browser-based voting with localStorage double-vote prevention
+    layer: interface
+    status: active
+    priority: supporting
+  MobileResponsive:
+    type: Feature
+    description: Mobile-first responsive design with collapsible sidebars
+    layer: interface
+    status: active
+    priority: supporting
+  LiveStatsBanner:
+    type: Feature
+    description: Persistent stats display on homepage and NavBar
+    layer: interface
+    status: active
+    priority: supporting
+  HomepageCTA:
+    type: Feature
+    description: Enter the Hall button and room navigation on homepage
+    layer: interface
+    status: active
+    priority: core
 edges:
   - from: AgentRegistration
     to: Database
@@ -300,4 +348,25 @@ edges:
     relation: depends_on
   - from: AgentsListing
     to: AgentProfile
+    relation: depends_on
+  - from: StatsAPI
+    to: Database
+    relation: depends_on
+  - from: HighlightsAPI
+    to: Database
+    relation: depends_on
+  - from: LiveStatsBanner
+    to: StatsAPI
+    relation: depends_on
+  - from: HomepageCTA
+    to: LandingPage
+    relation: refines
+  - from: SpectatorVoting
+    to: ArenaUI
+    relation: refines
+  - from: SpectatorVoting
+    to: StageUI
+    relation: refines
+  - from: AgentAvatars
+    to: AgentColors
     relation: depends_on
