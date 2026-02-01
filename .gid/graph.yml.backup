@@ -431,13 +431,121 @@ nodes:
     layer: application
     status: active
     priority: core
-  SaltdigClient:
-    type: Component
+  USDCWallet:
+    type: Feature
+    description: Base L2 wallet generation, encrypted key storage, USDC balance query
     layer: infrastructure
-    description: SDK/client to integrate with Saltdig payment infrastructure (like Stripe SDK)
+    status: active
+    priority: core
+  USDCEscrow:
+    type: Component
+    description: Solidity escrow contract on Base L2 — create/claim/submit/approve/dispute/auto-release
+    layer: infrastructure
+    status: draft
+    priority: core
+  DualCurrencyMarket:
+    type: Feature
+    description: Market supports Salt (virtual) and USDC (real) listings, currency filter, USDC badges
+    layer: application
+    status: active
+    priority: core
+  USDCTransactionFlow:
+    type: Feature
+    description: 'Full USDC bounty flow: post→claim→submit→approve/dispute, 72h auto-release, 5% platform fee'
+    layer: application
+    status: draft
+    priority: core
+  GIDBountyProtocol:
+    type: Feature
+    description: 'GID-powered bounty system — task graphs as machine-readable job specs for agent marketplace'
+    layer: application
+    status: design
+    priority: core
+  BountyNodeModel:
+    type: Component
+    description: 'Three-layer bounty node: Work Node (what to build) + Info Boundary (access scope) + Acceptance Harness (auto-verify)'
+    layer: application
+    status: design
+    priority: core
+  BountySubgraphExtract:
+    type: Component
+    description: 'Extract publishable bounty subgraphs from project GID graphs with access-scoped isolation'
+    layer: application
+    status: design
+    priority: core
+  BountySandbox:
+    type: Component
+    description: 'Agent execution sandbox — sparse checkout, path-scoped tokens, deny lists (Plan A MVP)'
+    layer: infrastructure
+    status: active
+    priority: core
+  BountyCompetitionMode:
+    type: Feature
+    description: 'Kaggle-style competition: multiple agents submit solutions, best wins (evaluation harness)'
+    layer: application
+    status: active
+    priority: supporting
+  BountyMilestoneMode:
+    type: Feature
+    description: 'Upwork-style milestone payments: subgraph chunks with partial escrow releases'
+    layer: application
+    status: active
+    priority: supporting
+  SpecLoop:
+    type: Feature
+    description: 'Commitment deposits for spec/clarify phase: deposit→consume for spec reviews→freeze→convert remaining to budget credit'
+    layer: application
+    status: active
+    priority: core
+  ChangeOrder:
+    type: Feature
+    description: 'Post-freeze change requests with dependency impact analysis and delta cost escrow'
+    layer: application
+    status: active
+    priority: core
+  CoreRegistry:
+    type: Component
+    description: 'IP Core Registry - reusable composable modules with dependency resolution'
+    layer: application
+    status: active
+    priority: core
+  IPMarketplace:
+    type: Feature
+    description: 'IP Core Marketplace UI - browse, search, install cores by capabilities/provides/requires'
+    layer: interface
     status: active
     priority: core
 edges:
+  - from: GIDBountyProtocol
+    to: BountyNodeModel
+    relation: requires
+  - from: GIDBountyProtocol
+    to: BountySubgraphExtract
+    relation: requires
+  - from: GIDBountyProtocol
+    to: USDCEscrow
+    relation: depends_on
+  - from: GIDBountyProtocol
+    to: MarketAPI
+    relation: depends_on
+  - from: BountySubgraphExtract
+    to: BountyNodeModel
+    relation: depends_on
+  - from: BountySandbox
+    to: BountySubgraphExtract
+    relation: depends_on
+  - from: BountyCompetitionMode
+    to: GIDBountyProtocol
+    relation: refines
+  - from: BountyMilestoneMode
+    to: GIDBountyProtocol
+    relation: refines
+  - from: BountyMilestoneMode
+    to: USDCEscrow
+    relation: depends_on
+  - from: USDCTransactionFlow
+    to: GIDBountyProtocol
+    relation: enables
   - from: AgentRegistration
     to: Database
     relation: depends_on
@@ -699,6 +807,24 @@ edges:
   - from: AgentRunnerV2
     to: PredictionVerification
     relation: depends_on
+  - from: USDCWallet
+    to: Database
+    relation: depends_on
+  - from: USDCEscrow
+    to: USDCWallet
+    relation: depends_on
+  - from: DualCurrencyMarket
+    to: USDCEscrow
+    relation: depends_on
+  - from: DualCurrencyMarket
+    to: BotMarketplace
+    relation: refines
+  - from: USDCTransactionFlow
+    to: USDCEscrow
+    relation: depends_on
+  - from: USDCTransactionFlow
+    to: DualCurrencyMarket
+    relation: depends_on
   - from: GidAgentMemory
     to: AgentMemory
     relation: depends_on
@@ -711,18 +837,36 @@ edges:
   - from: AgentMemory
     to: DatabaseInterface
     relation: depends_on
-  - from: MarketAPI
-    to: SaltdigClient
+  - from: SpecLoop
+    to: GIDBountyProtocol
     relation: depends_on
-  - from: NaclWalletAPI
-    to: SaltdigClient
+  - from: SpecLoop
+    to: NaclWallet
     relation: depends_on
-  - from: ArenaBetting
-    to: SaltdigClient
+  - from: SpecLoop
+    to: MarketAPI
     relation: depends_on
-  - from: StageTipping
-    to: SaltdigClient
+  - from: ChangeOrder
+    to: SpecLoop
     relation: depends_on
-  - from: MarketNaclSettlement
-    to: SaltdigClient
+  - from: ChangeOrder
+    to: BountyNodeModel
     relation: depends_on
+  - from: ChangeOrder
+    to: USDCEscrow
+    relation: depends_on
+  - from: CoreRegistry
+    to: Database
+    relation: depends_on
+  - from: CoreRegistry
+    to: DatabaseInterface
+    relation: depends_on
+  - from: IPMarketplace
+    to: CoreRegistry
+    relation: depends_on
+  - from: IPMarketplace
+    to: NavBar
+    relation: depends_on
+  - from: GIDBountyProtocol
+    to: CoreRegistry
+    relation: enables
