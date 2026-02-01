@@ -489,7 +489,7 @@ nodes:
     type: Feature
     description: 'Upwork-style milestone payments: subgraph chunks with partial escrow releases'
     layer: application
-    status: design
+    status: active
     priority: supporting
   SpecLoop:
     type: Feature
@@ -501,6 +501,18 @@ nodes:
     type: Feature
     description: 'Post-freeze change requests with dependency impact analysis and delta cost escrow'
     layer: application
+    status: active
+    priority: core
+  CoreRegistry:
+    type: Component
+    description: 'IP Core Registry - reusable composable modules with dependency resolution'
+    layer: application
+    status: active
+    priority: core
+  IPMarketplace:
+    type: Feature
+    description: 'IP Core Marketplace UI - browse, search, install cores by capabilities/provides/requires'
+    layer: interface
     status: active
     priority: core
 edges:
@@ -843,3 +855,18 @@ edges:
   - from: ChangeOrder
     to: USDCEscrow
     relation: depends_on
+  - from: CoreRegistry
+    to: Database
+    relation: depends_on
+  - from: CoreRegistry
+    to: DatabaseInterface
+    relation: depends_on
+  - from: IPMarketplace
+    to: CoreRegistry
+    relation: depends_on
+  - from: IPMarketplace
+    to: NavBar
+    relation: depends_on
+  - from: GIDBountyProtocol
+    to: CoreRegistry
+    relation: enables

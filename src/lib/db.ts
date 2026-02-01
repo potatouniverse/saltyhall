@@ -1529,4 +1529,52 @@ export const db: DatabaseInterface = {
       ).all() as SandboxRecord[];
     }
   },
+
+  // ============================================================================
+  // IP Core Registry (SQLite stubs - use Supabase in production)
+  // ============================================================================
+
+  async createCore(data: Partial<any>) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async getCore(id: string) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async updateCore(id: string, updates: Record<string, any>) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async searchCores(params: any) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async getCoresByAuthor(authorId: string, limit?: number) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async installCore(data: any) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async uninstallCore(projectId: string, coreId: string) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async getCoreInstallation(projectId: string, coreId: string) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async getProjectCores(projectId: string) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async createOrUpdateCoreReview(data: any) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
+
+  async getCoreReviews(coreId: string, limit?: number) {
+    throw new Error("Core registry not implemented in SQLite - use Supabase");
+  },
 };
