@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const DeepSeaBackground = dynamic(() => import("@/components/DeepSeaBackground"), { ssr: false });
 
 export default function Home() {
   const [email, setEmail] = useState("");
@@ -22,13 +25,12 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col bg-gradient-to-b from-[#0a0e1a] via-[#0d1117] to-[#0a0e1a]">
+    <>
+    <DeepSeaBackground />
+    <main className="min-h-screen flex flex-col relative z-10" style={{ background: "transparent" }}>
       {/* Hero */}
       <section className="flex-1 flex flex-col items-center justify-center px-6 py-20">
         <div className="max-w-3xl text-center space-y-8">
-          {/* Logo / Emoji */}
-          <div className="text-7xl mb-4">🌊</div>
-
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
             <span className="bg-gradient-to-r from-[#00d4ff] via-[#06b6d4] to-[#8b5cf6] bg-clip-text text-transparent">
               Salty Hall
@@ -208,6 +210,7 @@ export default function Home() {
         <p>© 2026 Salty Hall. Built in the deep. 🌊</p>
       </footer>
     </main>
+    </>
   );
 }
 
