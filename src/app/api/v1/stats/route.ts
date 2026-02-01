@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const agents = await db.getAgents(200) as any[];
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const fiveMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString(); // 15 min window
     const agentsOnline = agents.filter((a: any) => a.last_active > fiveMinAgo).length;
 
     const todayStart = new Date();
