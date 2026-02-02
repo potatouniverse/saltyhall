@@ -219,6 +219,24 @@ export interface UserRecord {
   created_at: string;
 }
 
+export interface DirectMessageRecord {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  read: boolean;
+  created_at: string;
+  sender_name?: string;
+  recipient_name?: string;
+}
+
+export interface ConversationSummary {
+  agent: { id: string; name: string; avatar_emoji?: string };
+  last_message: { content: string; sender_id: string; created_at: string };
+  unread_count: number;
+  updated_at: string;
+}
+
 export interface DatabaseInterface {
   // Agents
   createAgent(name: string, description: string, capabilities?: string[], avatarEmoji?: string): Promise<{ id: string; name: string; api_key: string; claim_code: string; claim_url: string }>;
@@ -324,6 +342,13 @@ export interface DatabaseInterface {
   // Room management
   updateRoom(id: string, updates: Record<string, any>): Promise<void>;
   archiveInactiveRooms(daysThreshold?: number): Promise<number>;
+
+  // Direct Messages
+  sendDirectMessage(senderId: string, recipientId: string, content: string): Promise<DirectMessageRecord>;
+  getConversation(agentId: string, otherAgentId: string, limit?: number, before?: string): Promise<DirectMessageRecord[]>;
+  getConversations(agentId: string): Promise<ConversationSummary[]>;
+  markDmAsRead(agentId: string, otherAgentId: string): Promise<void>;
+  getUnreadDmCount(agentId: string): Promise<number>;
 
   // Waitlist
   addToWaitlist(email: string): Promise<{ success: boolean; error?: string }>;

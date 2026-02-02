@@ -779,6 +779,88 @@ export const db: DatabaseInterface = {
     return archived;
   },
 
+  // ── Direct Messages ──
+  async sendDirectMessage(senderId: string, recipientId: string, content: string) {
+    const s = getSupabase();
+    const id = genId();
+    const { error } = await s.from("direct_messages").insert({ id, sender_id: senderId, recipient_id: recipientId, content });
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("direct_messages").select("*").eq("id", id).single();
+    return data;
+  },
+
+  async getConversation(agentId: string, otherAgentId: string, limit: number = 50, before?: string) {
+    const s = getSupabase();
+    let q = s.from("direct_messages").select("*, sender:agents!direct_messages_sender_id_fkey(name), recipient:agents!direct_messages_recipient_id_fkey(name)")
+      .or(`and(sender_id.eq.${agentId},recipient_id.eq.${otherAgentId}),and(sender_id.eq.${otherAgentId},recipient_id.eq.${agentId})`)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (before) q = q.lt("created_at", before);
+    const { data } = await q;
+    return (data ?? []).map((m: any) => ({
+      ...m,
+      sender_name: m.sender?.name,
+      recipient_name: m.recipient?.name,
+      sender: undefined,
+      recipient: undefined,
+    }));
+  },
+
+  async getConversations(agentId: string) {
+    const s = getSupabase();
+    // Get all DMs involving this agent
+    const { data: msgs } = await s.from("direct_messages").select("*")
+      .or(`sender_id.eq.${agentId},recipient_id.eq.${agentId}`)
+      .order("created_at", { ascending: false });
+    if (!msgs || msgs.length === 0) return [];
+
+    // Group by conversation partner
+    const convMap = new Map<string, { lastMsg: any; unread: number }>();
+    for (const m of msgs) {
+      const otherId = m.sender_id === agentId ? m.recipient_id : m.sender_id;
+      if (!convMap.has(otherId)) {
+        convMap.set(otherId, { lastMsg: m, unread: 0 });
+      }
+      if (m.recipient_id === agentId && !m.read) {
+        convMap.get(otherId)!.unread++;
+      }
+    }
+
+    // Fetch agent info
+    const otherIds = [...convMap.keys()];
+    const { data: agents } = await s.from("agents").select("id, name, avatar_emoji").in("id", otherIds);
+    const agentMap = new Map((agents ?? []).map((a: any) => [a.id, a]));
+
+    const conversations = otherIds.map(otherId => {
+      const conv = convMap.get(otherId)!;
+      const agent = agentMap.get(otherId);
+      return {
+        agent: { id: otherId, name: agent?.name ?? "unknown", avatar_emoji: agent?.avatar_emoji },
+        last_message: { content: conv.lastMsg.content, sender_id: conv.lastMsg.sender_id, created_at: conv.lastMsg.created_at },
+        unread_count: conv.unread,
+        updated_at: conv.lastMsg.created_at,
+      };
+    });
+    conversations.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    return conversations;
+  },
+
+  async markDmAsRead(agentId: string, otherAgentId: string) {
+    const s = getSupabase();
+    await s.from("direct_messages").update({ read: true })
+      .eq("sender_id", otherAgentId)
+      .eq("recipient_id", agentId)
+      .eq("read", false);
+  },
+
+  async getUnreadDmCount(agentId: string) {
+    const { count } = await getSupabase().from("direct_messages")
+      .select("*", { count: "exact", head: true })
+      .eq("recipient_id", agentId)
+      .eq("read", false);
+    return count ?? 0;
+  },
+
   async addToWaitlist(email: string) {
     const id = genId();
     const { error } = await getSupabase().from("waitlist").insert({ id, email });

@@ -1267,4 +1267,21 @@ export const db: DatabaseInterface = {
     return getDb().prepare("SELECT * FROM usdc_transactions WHERE status = 'submitted'").all() as any;
   },
 
+  // ── Direct Messages (stubs — SQLite not primary) ──
+  async sendDirectMessage(senderId: string, recipientId: string, content: string) {
+    throw new Error("DMs not implemented in SQLite");
+  },
+  async getConversation(agentId: string, otherAgentId: string, limit?: number, before?: string) {
+    throw new Error("DMs not implemented in SQLite");
+  },
+  async getConversations(agentId: string) {
+    throw new Error("DMs not implemented in SQLite");
+  },
+  async markDmAsRead(agentId: string, otherAgentId: string) {
+    throw new Error("DMs not implemented in SQLite");
+  },
+  async getUnreadDmCount(agentId: string) {
+    throw new Error("DMs not implemented in SQLite");
+  },
+
 };
