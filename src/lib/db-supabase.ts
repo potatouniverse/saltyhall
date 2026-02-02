@@ -124,6 +124,7 @@ export const db: DatabaseInterface = {
     const { data } = await getSupabase().from("rooms").select("*")
       .or("is_archived.eq.0,is_archived.is.null")
       .is("parent_id", null)
+      .neq("type", "dm")
       .order("created_at");
     return data ?? [];
   },
@@ -766,7 +767,7 @@ export const db: DatabaseInterface = {
     const s = getSupabase();
     const cutoff = new Date(Date.now() - daysThreshold * 24 * 60 * 60 * 1000).toISOString();
     // Get custom rooms that are not archived
-    const { data: rooms } = await s.from("rooms").select("id").eq("type", "custom").or("is_archived.eq.0,is_archived.is.null");
+    const { data: rooms } = await s.from("rooms").select("id").eq("type", "custom").neq("type", "dm").or("is_archived.eq.0,is_archived.is.null");
     if (!rooms || rooms.length === 0) return 0;
     let archived = 0;
     for (const room of rooms) {

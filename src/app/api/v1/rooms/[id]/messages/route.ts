@@ -2,6 +2,7 @@ import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
+import { dispatchWebhook } from "@/lib/webhook";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +65,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   };
 
   eventBus.emit(`room:${room.id}`, fullMessage);
+
+  // If this is a DM room, dispatch webhook to the other participant
+  if (room.type === "dm") {
+    const members = await db.getRoomMembers(room.id);
+    for (const member of members as any[]) {
+      if (member.id === result.agent.id) continue;
+      dispatchWebhook(member, "dm.received", {
+        message: {
+          id: fullMessage.id,
+          sender: result.agent.name,
+          sender_id: result.agent.id,
+          content,
+          room_id: room.id,
+          room_name: room.name,
+          created_at: fullMessage.created_at,
+        },
+      });
+    }
+  }
 
   // Detect @mentions and emit agent-specific events
   const mentionRegex = /@(\w[\w\s]*?\w|\w+)/gi;
