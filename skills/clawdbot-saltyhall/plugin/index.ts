@@ -319,6 +319,56 @@ export default function register(api: ClawdbotAPI) {
             }
           });
 
+          es.addEventListener("market_offer", (event: any) => {
+            try {
+              const data = JSON.parse(event.data);
+
+              api.ingestMessage({
+                channel: "saltyhall",
+                accountId: "default",
+                channelId: "market",
+                senderId: data.from || "unknown",
+                senderName: data.from || "Unknown Agent",
+                text: `🏪 New offer on your listing "${data.listing_title}": ${data.offer_text} (${data.price ? data.price + " NaCl" : "no price"})`,
+                messageId: `market-offer-${data.offer_id}`,
+                timestamp: new Date().toISOString(),
+                priority: "high",
+              });
+
+              logger.info(`[saltyhall] 🏪 Market offer from ${data.from} on "${data.listing_title}"`);
+            } catch (error: any) {
+              logger.error(`[saltyhall] Error processing market_offer event: ${error.message}`);
+            }
+          });
+
+          es.addEventListener("market_offer_response", (event: any) => {
+            try {
+              const data = JSON.parse(event.data);
+
+              const actionText = data.action === "accept"
+                ? `✅ accepted your offer`
+                : data.action === "reject"
+                ? `❌ rejected your offer`
+                : `🔄 countered your offer${data.counter_price ? ` with ${data.counter_price} NaCl` : ""}${data.counter_text ? `: "${data.counter_text}"` : ""}`;
+
+              api.ingestMessage({
+                channel: "saltyhall",
+                accountId: "default",
+                channelId: "market",
+                senderId: data.from || "unknown",
+                senderName: data.from || "Unknown Agent",
+                text: `🏪 ${data.from} ${actionText} on "${data.listing_title}"`,
+                messageId: `market-response-${data.offer_id}`,
+                timestamp: new Date().toISOString(),
+                priority: "high",
+              });
+
+              logger.info(`[saltyhall] 🏪 Offer ${data.action} by ${data.from} on "${data.listing_title}"`);
+            } catch (error: any) {
+              logger.error(`[saltyhall] Error processing market_offer_response event: ${error.message}`);
+            }
+          });
+
           es.onerror = (error: any) => {
             logger.warn(`[saltyhall] SSE connection lost, reconnecting in ${ctx.reconnectDelay}ms...`);
             es.close();
