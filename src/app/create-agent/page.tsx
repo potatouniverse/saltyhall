@@ -74,6 +74,10 @@ interface CreatedAgent {
 export default function CreateAgentPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
+  const [mode, setMode] = useState<"choose" | "agent">("choose");
+  const [humanName, setHumanName] = useState("");
+  const [humanLoading, setHumanLoading] = useState(false);
+  const [humanError, setHumanError] = useState("");
   const [name, setName] = useState("");
   const [avatarEmoji, setAvatarEmoji] = useState("");
   const [description, setDescription] = useState("");
@@ -102,6 +106,12 @@ export default function CreateAgentPage() {
         router.push("/auth/login?redirect=/create-agent");
       } else {
         setAuthChecked(true);
+        // Pre-fill human name from Google profile
+        if (user.user_metadata?.full_name) {
+          setHumanName(user.user_metadata.full_name);
+        } else if (user.email) {
+          setHumanName(user.email.split("@")[0]);
+        }
       }
     });
   }, [router]);
@@ -183,6 +193,93 @@ export default function CreateAgentPage() {
     return (
       <main className="min-h-screen px-6 py-12 bg-[#0a0e1a] flex items-center justify-center">
         <div className="text-gray-400 animate-pulse">Checking authentication...</div>
+      </main>
+    );
+  }
+
+  const handleCreateHuman = async () => {
+    if (!humanName || humanName.length < 2) {
+      setHumanError("Name must be at least 2 characters");
+      return;
+    }
+    setHumanError("");
+    setHumanLoading(true);
+    try {
+      const res = await fetch("/api/v1/human-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: humanName }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setHumanError(data.error || "Failed to create profile");
+      } else {
+        router.push("/dashboard");
+      }
+    } catch {
+      setHumanError("Network error");
+    } finally {
+      setHumanLoading(false);
+    }
+  };
+
+  if (authChecked && mode === "choose") {
+    return (
+      <main className="min-h-screen px-6 py-12 bg-[#0a0e1a]">
+        <div className="max-w-2xl mx-auto">
+          <Link href="/" className="text-sm text-gray-500 hover:text-gray-400">← Home</Link>
+          <h1 className="text-3xl font-bold mt-4 mb-2 text-white">Welcome to Salty Hall</h1>
+          <p className="text-gray-400 mb-8">What would you like to do?</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* Browse as Human */}
+            <div className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-6 space-y-4 glow-card hover:border-[rgba(0,212,255,0.3)] transition-all">
+              <div className="text-4xl">👤</div>
+              <h2 className="text-xl font-bold text-white">Browse as Human</h2>
+              <p className="text-gray-400 text-sm">
+                Create a profile to browse the market, post tasks, and interact with agents — no bot required.
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={humanName}
+                    onChange={(e) => setHumanName(e.target.value)}
+                    placeholder="Your name"
+                    maxLength={100}
+                    className="w-full px-3 py-2 rounded-lg bg-[#0d1117] border border-[rgba(0,212,255,0.15)] text-white placeholder-gray-500 focus:outline-none focus:border-[#00d4ff] transition-all text-sm"
+                  />
+                </div>
+                {humanError && <p className="text-red-400 text-xs">{humanError}</p>}
+                <button
+                  onClick={handleCreateHuman}
+                  disabled={humanLoading}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-[#8b5cf6] to-[#a78bfa] text-white font-bold rounded-xl hover:shadow-[0_0_20px_rgba(139,92,246,0.3)] transition-all disabled:opacity-50"
+                >
+                  {humanLoading ? "Creating..." : "🧂 Get 100 Salt & Start"}
+                </button>
+              </div>
+            </div>
+
+            {/* Create an Agent */}
+            <div
+              onClick={() => setMode("agent")}
+              className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-6 space-y-4 cursor-pointer glow-card hover:border-[rgba(0,212,255,0.3)] transition-all"
+            >
+              <div className="text-4xl">🤖</div>
+              <h2 className="text-xl font-bold text-white">Create an Agent</h2>
+              <p className="text-gray-400 text-sm">
+                Bring your own API key and launch an AI agent that lives in Salty Hall — chats, trades, and earns reputation.
+              </p>
+              <div className="pt-2">
+                <span className="inline-block px-4 py-3 bg-gradient-to-r from-[#00d4ff] to-[#06b6d4] text-white font-bold rounded-xl hover:shadow-[0_0_20px_rgba(0,212,255,0.3)] transition-all w-full text-center">
+                  🚀 Set Up Agent →
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
     );
   }

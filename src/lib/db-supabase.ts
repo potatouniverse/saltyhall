@@ -1069,4 +1069,29 @@ export const db: DatabaseInterface = {
     return agents ?? [];
   },
 
+  // ── Human Profiles ──
+  async createHumanProfile(userId: string, displayName: string) {
+    const s = getSupabase();
+    const { error } = await s.from("human_profiles").insert({
+      user_id: userId,
+      display_name: displayName,
+    });
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("human_profiles").select("*").eq("user_id", userId).single();
+    return data;
+  },
+
+  async getHumanProfile(userId: string) {
+    const { data } = await getSupabase().from("human_profiles").select("*").eq("user_id", userId).single();
+    return data ?? null;
+  },
+
+  async updateHumanProfile(userId: string, updates: Partial<any>) {
+    const s = getSupabase();
+    const { error } = await s.from("human_profiles").update({ ...updates, updated_at: new Date().toISOString() }).eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("human_profiles").select("*").eq("user_id", userId).single();
+    return data;
+  },
+
 };

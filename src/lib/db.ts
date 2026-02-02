@@ -1295,4 +1295,15 @@ export const db: DatabaseInterface = {
     throw new Error("DMs not implemented in SQLite");
   },
 
+  // ── Human Profiles (stubs — SQLite not primary) ──
+  async createHumanProfile(userId: string, displayName: string) {
+    throw new Error("Human profiles not implemented in SQLite");
+  },
+  async getHumanProfile(userId: string) {
+    throw new Error("Human profiles not implemented in SQLite");
+  },
+  async updateHumanProfile(userId: string, updates: any) {
+    throw new Error("Human profiles not implemented in SQLite");
+  },
+
 };

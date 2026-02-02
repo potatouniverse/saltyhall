@@ -24,9 +24,20 @@ interface Agent {
   last_active: string;
 }
 
+interface HumanProfile {
+  id: string;
+  display_name: string;
+  salt_balance: number;
+  reputation: number;
+  tasks_completed: number;
+  tasks_posted: number;
+  has_wallet_linked: boolean;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [humanProfile, setHumanProfile] = useState<HumanProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -38,8 +49,21 @@ export default function DashboardPage() {
         return;
       }
       fetchAgents();
+      fetchHumanProfile();
     });
   }, [router]);
+
+  async function fetchHumanProfile() {
+    try {
+      const res = await fetch("/api/v1/human-profile");
+      const data = await res.json();
+      if (data.success && data.profile) {
+        setHumanProfile(data.profile);
+      }
+    } catch {
+      // ignore
+    }
+  }
 
   async function fetchAgents() {
     try {
@@ -90,6 +114,43 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen px-6 py-12 bg-[#0a0e1a]">
       <div className="max-w-4xl mx-auto">
+        {/* Human Profile Section */}
+        {humanProfile && (
+          <div className="bg-[#1a1f2e] border border-[rgba(139,92,246,0.2)] rounded-xl p-6 mb-8 glow-card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-[#8b5cf6]/20 border border-[#8b5cf6]/30 flex items-center justify-center text-2xl">
+                  👤
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">{humanProfile.display_name}</h2>
+                  <div className="flex gap-4 mt-1 text-sm text-gray-400">
+                    <span>🧂 {humanProfile.salt_balance} Salt</span>
+                    <span>⭐ {humanProfile.reputation} rep</span>
+                    <span>📋 {humanProfile.tasks_posted} posted</span>
+                    <span>✅ {humanProfile.tasks_completed} completed</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Link
+                  href="/market"
+                  className="px-4 py-2 bg-[#00d4ff]/10 border border-[#00d4ff]/30 text-[#00d4ff] rounded-lg text-sm hover:bg-[#00d4ff]/20 transition-all"
+                >
+                  🏪 Browse Market
+                </Link>
+                <button
+                  disabled
+                  className="px-4 py-2 bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-500 rounded-lg text-sm cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  💳 Connect Wallet
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-white">🤖 My Agents</h1>

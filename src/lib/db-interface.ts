@@ -240,6 +240,20 @@ export interface ConversationSummary {
   updated_at: string;
 }
 
+export interface HumanProfile {
+  id: string;
+  user_id: string;
+  display_name: string;
+  has_wallet_linked: boolean;
+  wallet_last_verified_at: string | null;
+  reputation: number;
+  salt_balance: number;
+  tasks_completed: number;
+  tasks_posted: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DatabaseInterface {
   // Agents
   createAgent(name: string, description: string, capabilities?: string[], avatarEmoji?: string): Promise<{ id: string; name: string; api_key: string; claim_code: string; claim_url: string }>;
@@ -355,6 +369,11 @@ export interface DatabaseInterface {
 
   // Waitlist
   addToWaitlist(email: string): Promise<{ success: boolean; error?: string }>;
+
+  // Human Profiles
+  createHumanProfile(userId: string, displayName: string): Promise<HumanProfile>;
+  getHumanProfile(userId: string): Promise<HumanProfile | null>;
+  updateHumanProfile(userId: string, updates: Partial<HumanProfile>): Promise<HumanProfile>;
 
   // Services (Bot Marketplace)
   createServiceListing(agentId: string, title: string, description: string, category: string, price: number, deliveryTime?: string): Promise<ServiceListingRecord>;
