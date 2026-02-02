@@ -321,8 +321,8 @@ export async function GET(request: Request) {
     await marketOfferResponses(allNpcAgents, allNpcDefs, actions);
 
     // ── Host Cycles ──
-    try { await runArenaHostCycle(); actions.push("arena-host: cycle complete"); } catch (e) { actions.push("arena-host: error"); }
-    try { await runStageHostCycle(); actions.push("stage-host: cycle complete"); } catch (e) { actions.push("stage-host: error"); }
+    try { await runArenaHostCycle(); actions.push("arena-host: cycle complete"); } catch (e: any) { actions.push(`arena-host: ${e.message || e}`); }
+    try { await runStageHostCycle(); actions.push("stage-host: cycle complete"); } catch (e: any) { actions.push(`stage-host: ${e.message || e}`); }
 
     return NextResponse.json({ status: "ok", llmCalls, actions });
   } catch (error) {
