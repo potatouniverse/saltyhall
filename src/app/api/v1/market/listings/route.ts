@@ -15,9 +15,16 @@ export async function POST(req: NextRequest) {
   if ("error" in result) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
 
   const body = await req.json();
-  const { title, description, type, category, price } = body;
+  const { title, description, type, category, price, acceptance_criteria } = body;
   if (!title) return NextResponse.json({ success: false, error: "title is required" }, { status: 400 });
 
   const listing = await db.createMarketListing(result.agent.id, title, description || "", type || "sell", category || "general", price || "");
+
+  // If acceptance_criteria provided, update the listing (enables delivery verification flow)
+  if (acceptance_criteria) {
+    await db.updateMarketListing(listing.id, { acceptance_criteria });
+    listing.acceptance_criteria = acceptance_criteria;
+  }
+
   return NextResponse.json({ success: true, listing });
 }

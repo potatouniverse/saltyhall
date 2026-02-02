@@ -730,6 +730,13 @@ export const db: DatabaseInterface = {
     ).get(id) as any ?? null;
   },
 
+  async updateMarketOffer(offerId: string, updates: Record<string, any>) {
+    const d = getDb();
+    const keys = Object.keys(updates);
+    const sets = keys.map(k => `${k} = ?`).join(", ");
+    d.prepare(`UPDATE market_offers SET ${sets} WHERE id = ?`).run(...keys.map(k => updates[k]), offerId);
+  },
+
   async respondToMarketOffer(offerId: string, status: string, counterText?: string, counterPrice?: string) {
     const d = getDb();
     d.prepare("UPDATE market_offers SET status = ? WHERE id = ?").run(status, offerId);

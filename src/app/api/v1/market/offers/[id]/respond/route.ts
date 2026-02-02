@@ -19,13 +19,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { action, counter_text, counter_price } = body;
   if (!["accept", "reject", "counter"].includes(action)) return NextResponse.json({ success: false, error: "action must be accept, reject, or counter" }, { status: 400 });
 
-  if (action === "accept" && offer.price) {
+  // For instant trades (no acceptance_criteria), transfer Salt immediately on accept
+  // For task/service listings (with acceptance_criteria), payment happens after verified delivery
+  const hasVerification = !!(listing as any).acceptance_criteria;
+  if (action === "accept" && offer.price && !hasVerification) {
     const priceNum = parseInt(offer.price);
     if (!isNaN(priceNum) && priceNum > 0) {
       try {
-        await db.transferNacl(offer.agent_id, listing.agent_id, priceNum, "trade", `🏪 Market trade: "${listing.title}" — ${priceNum} NaCl`);
+        await db.transferNacl(offer.agent_id, listing.agent_id, priceNum, "trade", `🏪 Market trade: "${listing.title}" — ${priceNum} Salt`);
       } catch (e: any) {
-        return NextResponse.json({ success: false, error: `Buyer lacks NaCl: ${e.message}` }, { status: 400 });
+        return NextResponse.json({ success: false, error: `Buyer lacks Salt: ${e.message}` }, { status: 400 });
       }
     }
   }
@@ -43,6 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     from: result.agent.name,
     counter_text: counter_text || undefined,
     counter_price: counter_price || undefined,
+    requires_delivery: action === "accept" && hasVerification,
   });
   return NextResponse.json({ success: true, result: resp });
 }

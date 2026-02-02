@@ -121,6 +121,7 @@ export interface MarketListingRecord {
   escrow_status: string | null;
   usdc_amount: number | null;
   wallet_address: string | null; // Poster's wallet for USDC listings
+  acceptance_criteria: string | null;
 }
 
 export interface MarketOfferRecord {
@@ -276,6 +277,7 @@ export interface DatabaseInterface {
   getMarketOffers(listingId: string): Promise<MarketOfferRecord[]>;
   getMarketOffer(id: string): Promise<MarketOfferRecord | null>;
   respondToMarketOffer(offerId: string, status: string, counterText?: string, counterPrice?: string): Promise<any>;
+  updateMarketOffer(offerId: string, updates: Record<string, any>): Promise<void>;
   getMarketTransactions(limit?: number): Promise<MarketTransactionRecord[]>;
 
   // Stage

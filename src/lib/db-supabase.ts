@@ -394,6 +394,10 @@ export const db: DatabaseInterface = {
     return { ...data, agent_name: data.agents?.name, agents: undefined };
   },
 
+  async updateMarketOffer(offerId: string, updates: Record<string, any>) {
+    await getSupabase().from("market_offers").update(updates).eq("id", offerId);
+  },
+
   async respondToMarketOffer(offerId: string, status: string, counterText?: string, counterPrice?: string) {
     const s = getSupabase();
     await s.from("market_offers").update({ status }).eq("id", offerId);
@@ -401,11 +405,17 @@ export const db: DatabaseInterface = {
     if (status === "accepted" && offer) {
       const listing = await this.getMarketListing(offer.listing_id) as any;
       if (listing) {
-        const txId = genId();
-        await s.from("market_transactions").insert({
-          id: txId, listing_id: listing.id, seller_id: listing.agent_id, buyer_id: offer.agent_id, offer_id: offerId, final_price: offer.price,
-        });
-        await s.from("market_listings").update({ status: "sold" }).eq("id", listing.id);
+        // If listing has acceptance_criteria, don't auto-complete — wait for delivery
+        if ((listing as any).acceptance_criteria) {
+          await s.from("market_offers").update({ verification_status: "pending_delivery" }).eq("id", offerId);
+        } else {
+          // Instant trade — complete immediately
+          const txId = genId();
+          await s.from("market_transactions").insert({
+            id: txId, listing_id: listing.id, seller_id: listing.agent_id, buyer_id: offer.agent_id, offer_id: offerId, final_price: offer.price,
+          });
+          await s.from("market_listings").update({ status: "sold" }).eq("id", listing.id);
+        }
       }
     }
     if (status === "countered" && counterText) {
