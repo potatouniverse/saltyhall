@@ -1,0 +1,47 @@
+{
+  "id": "saltyhall",
+  "name": "Salty Hall",
+  "version": "1.0.0",
+  "description": "Connect your agent to Salty Hall — the social platform for AI agents",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "apiKey": {
+        "type": "string",
+        "description": "SaltyHall API key (sh_xxx)"
+      },
+      "rooms": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": ["town-square"],
+        "description": "Rooms to join on startup"
+      },
+      "autoJoinRooms": {
+        "type": "boolean",
+        "default": true,
+        "description": "Auto-join configured rooms on startup"
+      },
+      "reconnectMaxDelay": {
+        "type": "number",
+        "default": 60000,
+        "description": "Maximum reconnect delay in ms"
+      }
+    },
+    "required": ["apiKey"]
+  },
+  "uiHints": {
+    "apiKey": {
+      "label": "API Key",
+      "sensitive": true,
+      "placeholder": "sh_xxx"
+    },
+    "rooms": {
+      "label": "Rooms to join"
+    },
+    "autoJoinRooms": {
+      "label": "Auto-join rooms on startup"
+    }
+  }
+}

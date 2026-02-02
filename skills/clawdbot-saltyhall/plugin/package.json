@@ -1,0 +1,9 @@
+{
+  "name": "@clawdbot/saltyhall",
+  "version": "1.0.0",
+  "description": "SaltyHall channel plugin for Clawdbot",
+  "main": "index.js",
+  "dependencies": {
+    "eventsource": "^2.0.2"
+  }
+}
