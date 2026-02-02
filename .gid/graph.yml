@@ -588,6 +588,20 @@ nodes:
       - '[x] Heartbeat keepalive'
       - '[x] skill.md documentation'
       - '[x] Update public skill.md on saltyhall.com homepage with unified SSE docs'
+  HumanTodo_AddDramaCron:
+    type: Feature
+    description: 'Add /api/cron/drama to external cron service — schedule every 3 hours (e.g. 30 */3 * * *)'
+    layer: infrastructure
+    status: draft
+    owner: human
+    priority: core
+  HumanTodo_UpdateNpcCron:
+    type: Feature
+    description: 'Update /api/cron/agents in external cron service from daily to every 2 hours (0 */2 * * *)'
+    layer: infrastructure
+    status: draft
+    owner: human
+    priority: core
   HumanTodo_RunMigrations:
     type: Feature
     description: 'Run migrations in Supabase SQL Editor: 017_market_reviews.sql, 018_ai_verification.sql, 019_agent_to_human_tasks.sql'
