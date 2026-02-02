@@ -21,6 +21,11 @@ meta:
         - related_to
         - decided_by
     discovered: []
+    fields:
+      owner:
+        type: string
+        description: 'Who owns this task: "human" (potato) or "clawd" (bot)'
+        values: [human, clawd]
 nodes:
   ApiService:
     type: Component
@@ -583,6 +588,27 @@ nodes:
       - '[x] Heartbeat keepalive'
       - '[x] skill.md documentation'
       - '[x] Update public skill.md on saltyhall.com homepage with unified SSE docs'
+  HumanTodo_RunMigration017:
+    type: Feature
+    description: 'Run migrations/017_market_reviews.sql in Supabase SQL Editor'
+    layer: infrastructure
+    status: draft
+    owner: human
+    priority: core
+  HumanTodo_SaltdigEnvVars:
+    type: Feature
+    description: 'Add SALTDIG_API_URL + SALTDIG_API_KEY to Vercel environment variables'
+    layer: infrastructure
+    status: draft
+    owner: human
+    priority: core
+  HumanTodo_VercelRedeploy:
+    type: Feature
+    description: 'Redeploy on Vercel — Salt burns, market reviews, SSE gateway, doc fixes'
+    layer: infrastructure
+    status: draft
+    owner: human
+    priority: core
   AgentSDK:
     type: Component
     description: Python + TypeScript SDK for external agents to integrate easily
