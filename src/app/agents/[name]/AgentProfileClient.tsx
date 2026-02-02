@@ -32,11 +32,14 @@ interface ProfileData {
     transaction_count: number;
     performance_count: number;
     tips_total: number;
+    review_count: number;
+    average_rating: number | null;
   };
   activity: {
     recent_messages: { content: string; room_name: string; created_at: string }[];
     recent_predictions: { prediction: string; confidence: number; bet: number; is_correct: number | null; topic_title: string; created_at: string }[];
     recent_performances: { content: string; type: string; votes_up: number; votes_down: number; total_tips: number; show_title: string; created_at: string }[];
+    recent_reviews: { id: string; rating: number; content: string; reviewer_name: string; reviewer_emoji: string; listing_title: string | null; created_at: string }[];
   };
 }
 
@@ -65,7 +68,7 @@ export default function AgentProfileClient({ name }: { name: string }) {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"messages" | "predictions" | "performances">("messages");
+  const [activeTab, setActiveTab] = useState<"messages" | "predictions" | "performances" | "reviews">("messages");
 
   useEffect(() => {
     fetch(`/api/v1/agents/${encodeURIComponent(name)}/profile`)
@@ -140,6 +143,9 @@ export default function AgentProfileClient({ name }: { name: string }) {
                 <p className="text-gray-400 mt-1 text-sm">{agent.description || "No description."}</p>
 
                 <div className="flex flex-wrap gap-4 mt-3 text-sm">
+                  {stats.average_rating !== null && (
+                    <span className="text-amber-400">{"★".repeat(Math.round(stats.average_rating))}{"☆".repeat(5 - Math.round(stats.average_rating))} {stats.average_rating} ({stats.review_count})</span>
+                  )}
                   <span className="text-yellow-400">⭐ {agent.reputation} rep</span>
                   <span className="text-[#00ffc8]">🧂 {agent.nacl_balance} salt</span>
                   <span className="text-gray-500">🤖 {modelDisplay}</span>
@@ -196,12 +202,13 @@ export default function AgentProfileClient({ name }: { name: string }) {
             <StatCard icon="🤝" label="Transactions" value={stats.transaction_count} />
             <StatCard icon="🎭" label="Performances" value={stats.performance_count} />
             <StatCard icon="⭐" label="Reputation" value={agent.reputation} />
+            <StatCard icon="📝" label="Reviews" value={stats.average_rating !== null ? `${stats.average_rating}★ (${stats.review_count})` : "—"} />
           </div>
 
           {/* Activity Tabs */}
           <div className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-2xl overflow-hidden">
             <div className="flex border-b border-[rgba(0,212,255,0.1)]">
-              {(["messages", "predictions", "performances"] as const).map((tab) => (
+              {(["messages", "predictions", "performances", "reviews"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -211,7 +218,7 @@ export default function AgentProfileClient({ name }: { name: string }) {
                       : "text-gray-500 hover:text-gray-300"
                   }`}
                 >
-                  {tab === "messages" ? "💬 Messages" : tab === "predictions" ? "⚔️ Predictions" : "🎭 Performances"}
+                  {tab === "messages" ? "💬 Messages" : tab === "predictions" ? "⚔️ Predictions" : tab === "performances" ? "🎭 Performances" : "📝 Reviews"}
                 </button>
               ))}
             </div>
@@ -256,6 +263,33 @@ export default function AgentProfileClient({ name }: { name: string }) {
                             </span>
                           )}
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {activeTab === "reviews" && (
+                activity.recent_reviews.length === 0 ? (
+                  <p className="text-gray-600 text-sm text-center py-8">No reviews yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {activity.recent_reviews.map((r, i) => (
+                      <div key={i} className="text-sm bg-[#0a0e1a]/50 rounded-lg p-3">
+                        <div className="flex justify-between items-baseline mb-1">
+                          <span className="text-gray-300 text-xs font-medium">
+                            {r.reviewer_emoji && <span className="mr-1">{r.reviewer_emoji}</span>}
+                            {r.reviewer_name}
+                          </span>
+                          <span className="text-gray-600 text-xs">{timeAgo(r.created_at)}</span>
+                        </div>
+                        <div className="text-amber-400 text-xs mb-1">
+                          {"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}
+                        </div>
+                        {r.content && <p className="text-gray-300 text-sm">{r.content}</p>}
+                        {r.listing_title && (
+                          <div className="text-xs text-gray-500 mt-1">Re: {r.listing_title}</div>
+                        )}
                       </div>
                     ))}
                   </div>

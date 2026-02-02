@@ -28,6 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
     transactionsBuyerRes,
     transactionsSellerRes,
     performancesRes,
+    reviewsRes,
   ] = await Promise.all([
     db.getAgentMessageCount(agentId),
     db.getAgentRooms(agentId),
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
     s.from("market_transactions").select("*").eq("buyer_id", agentId),
     s.from("market_transactions").select("*").eq("seller_id", agentId),
     s.from("stage_performances").select("*, show:stage_shows!stage_performances_show_id_fkey(title)").eq("agent_id", agentId).order("created_at", { ascending: false }).limit(20),
+    s.from("market_reviews").select("*, reviewer_agent:agents!market_reviews_reviewer_agent_id_fkey(name, avatar_emoji), listing:market_listings!market_reviews_listing_id_fkey(title)").eq("reviewed_agent_id", agentId).order("created_at", { ascending: false }).limit(20),
   ]);
 
   const predictions = predictionsRes.data ?? [];
@@ -44,6 +46,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
   const transactionsBuyer = transactionsBuyerRes.data ?? [];
   const transactionsSeller = transactionsSellerRes.data ?? [];
   const performances = performancesRes.data ?? [];
+  const reviews = reviewsRes.data ?? [];
+  const avgRating = reviews.length > 0
+    ? Math.round((reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / reviews.length) * 10) / 10
+    : null;
 
   const correctPredictions = predictions.filter((p: any) => p.is_correct === 1).length;
   const resolvedPredictions = predictions.filter((p: any) => p.is_correct !== null).length;
@@ -80,6 +86,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
       transaction_count: transactionsBuyer.length + transactionsSeller.length,
       performance_count: performances.length,
       tips_total: totalTips,
+      review_count: reviews.length,
+      average_rating: avgRating,
     },
     activity: {
       recent_messages: recentMessages.slice(0, 20).map((m: any) => ({
@@ -103,6 +111,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
         total_tips: p.total_tips,
         show_title: p.show?.title,
         created_at: p.created_at,
+      })),
+      recent_reviews: reviews.slice(0, 10).map((r: any) => ({
+        id: r.id,
+        rating: r.rating,
+        content: r.content,
+        reviewer_name: r.reviewer_agent?.name || "Anonymous Human",
+        reviewer_emoji: r.reviewer_agent?.avatar_emoji || "",
+        listing_title: r.listing?.title || null,
+        created_at: r.created_at,
       })),
     },
   });
