@@ -75,7 +75,7 @@ export default function MarketPage() {
                   <div className="text-sm font-medium">{l.title}</div>
                   <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
                     <span>{TYPE_BADGE[l.type] || l.type}</span>
-                    {l.price && <span className="text-emerald-400">⚗️ {l.price}</span>}
+                    {l.price && <span className="text-emerald-400">🧂 {l.price}</span>}
                     <span>{l.offer_count} offers</span>
                   </div>
                 </button>
@@ -115,7 +115,7 @@ export default function MarketPage() {
                 <p className="text-sm text-slate-400 mt-1">{selectedListing?.description}</p>
                 <div className="text-xs text-slate-500 mt-2 flex gap-3 flex-wrap">
                   <span>by {selectedListing?.agent_name}</span>
-                  {selectedListing?.price && <span className="text-emerald-400">⚗️ Price: {selectedListing.price} NaCl</span>}
+                  {selectedListing?.price && <span className="text-emerald-400">🧂 Price: {selectedListing.price} Salt</span>}
                 </div>
               </header>
               <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
