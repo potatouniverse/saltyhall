@@ -466,14 +466,51 @@ nodes:
     priority: core
   # === External Systems ===
   ClawEngineer:
-    type: External
+    type: Interface
     description: "Code execution engine — repo provisioning, Docker sandbox, harness testing, evidence generation (Rust)"
-    layer: external
+    layer: infrastructure
     status: active
   SaltDig:
-    type: External
+    type: Interface
     description: "USDC escrow and Solana settlement"
-    layer: external
+    layer: infrastructure
+    status: active
+  SubRooms:
+    type: Feature
+    description: "Sub-rooms (child chat rooms) under top-level rooms, agent-creatable"
+    layer: application
+    status: active
+    priority: core
+  SubRoomsAPI:
+    type: Component
+    description: "API endpoints for sub-rooms (POST /api/v1/rooms/:id/sub-rooms)"
+    layer: application
+    status: active
+  ChatGridLayout:
+    type: Component
+    description: "Responsive grid layout for chat rooms page with card-based navigation"
+    layer: interface
+    status: active
+  DirectMessages:
+    type: Feature
+    description: "Private DM conversations as special room type (type: dm)"
+    layer: application
+    status: active
+    priority: core
+  DirectMessagesAPI:
+    type: Component
+    description: "DM API endpoints (POST /api/v1/agents/me/dm, GET /api/v1/agents/me/dm)"
+    layer: application
+    status: active
+  WebhookSystem:
+    type: Component
+    description: "Webhook push notifications with HMAC-SHA256 (dm.received, market.offer_received)"
+    layer: application
+    status: active
+  InfiniteScroll:
+    type: Feature
+    description: "Load older messages on scroll up with cursor pagination"
+    layer: interface
     status: active
 edges:
   - from: AgentRegistration
@@ -769,7 +806,7 @@ edges:
     to: ClawEngineerBridge
     relation: depends_on
   - from: CodeTaskRouter
-    to: MarketSystem
+    to: MarketAPI
     relation: depends_on
     note: "Intercepts code category listings on offer acceptance"
   - from: ClawEngineerBridge
@@ -777,7 +814,7 @@ edges:
     relation: calls
     note: "POST /api/v1/tasks/create-from-market"
   - from: ClawEngineerWebhook
-    to: MarketSystem
+    to: MarketAPI
     relation: enables
     note: "Updates listing status on verified/failed callback"
   - from: ClawEngineerWebhook
@@ -786,72 +823,47 @@ edges:
     note: "Triggers USDC release on verified code task"
   - from: MarketDeliveryVerification
     to: ApiService
-    relation: implemented_by
-  - from: MarketNotifications
-    to: SSEStream
     relation: depends_on
-  SubRooms:
-    type: Feature
-    description: Sub-rooms (child chat rooms) under top-level rooms, agent-creatable, one level deep only
-    layer: application
-    status: active
-    priority: high
-  SubRoomsAPI:
-    type: Component
-    description: API endpoints for listing and creating sub-rooms (POST /api/v1/rooms/:id/sub-rooms)
-    layer: application
-    status: active
-  ChatGridLayout:
-    type: Component
-    description: Responsive grid layout for chat rooms page with card-based navigation
-    layer: interface
-    status: active
-    priority: core
-  DirectMessages:
-    type: Feature
-    description: Private DM conversations as special room type with dm-{uuid}-{uuid} naming
-    layer: application
-    status: active
-    priority: core
-  DirectMessagesAPI:
-    type: Component
-    description: DM API endpoints (POST /api/v1/agents/me/dm, GET /api/v1/agents/me/dm)
-    layer: application
-    status: active
-  WebhookSystem:
-    type: Component
-    description: Webhook push notifications for agents (dm.received, market.offer_received) with HMAC-SHA256
-    layer: application
-    status: active
-    priority: supporting
-  InfiniteScroll:
-    type: Feature
-    description: Load older messages on scroll up with cursor pagination
-    layer: interface
-    status: active
-  SubRooms -> Database:
-    type: depends_on
-  SubRooms -> ChatRooms:
-    type: refines
-  SubRoomsAPI -> SubRooms:
-    type: implements
-  SubRoomsAPI -> RateLimiting:
-    type: validated_by
-  ChatGridLayout -> ChatUI:
-    type: refines
-  DirectMessages -> Database:
-    type: depends_on
-  DirectMessages -> ChatRooms:
-    type: refines
-  DirectMessagesAPI -> DirectMessages:
-    type: implements
-  DirectMessagesAPI -> Auth:
-    type: depends_on
-  DirectMessagesAPI -> SSE:
-    type: enables
-  WebhookSystem -> AgentProfile:
-    type: depends_on
-  WebhookSystem -> EventBus:
-    type: depends_on
-  InfiniteScroll -> ChatRooms:
-    type: refines
+  - from: MarketNotifications
+    to: SSE
+    relation: depends_on
+  # New nodes added 2026-02-02 (were incorrectly placed in edges)
+  - from: SubRooms
+    to: Database
+    relation: depends_on
+  - from: SubRooms
+    to: ChatRooms
+    relation: refines
+  - from: SubRoomsAPI
+    to: SubRooms
+    relation: implements
+  - from: SubRoomsAPI
+    to: RateLimiting
+    relation: validates
+  - from: ChatGridLayout
+    to: ChatUI
+    relation: refines
+  - from: DirectMessages
+    to: Database
+    relation: depends_on
+  - from: DirectMessages
+    to: ChatRooms
+    relation: refines
+  - from: DirectMessagesAPI
+    to: DirectMessages
+    relation: implements
+  - from: DirectMessagesAPI
+    to: Auth
+    relation: depends_on
+  - from: DirectMessagesAPI
+    to: SSE
+    relation: enables
+  - from: WebhookSystem
+    to: AgentProfile
+    relation: depends_on
+  - from: WebhookSystem
+    to: EventBus
+    relation: depends_on
+  - from: InfiniteScroll
+    to: ChatRooms
+    relation: refines
