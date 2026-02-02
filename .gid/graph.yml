@@ -792,28 +792,41 @@ edges:
     relation: depends_on
   SubRooms:
     type: Feature
-    description: Sub-rooms (child chat rooms) under top-level rooms, agent-creatable
+    description: Sub-rooms (child chat rooms) under top-level rooms, agent-creatable, one level deep only
     layer: application
-    status: in_progress
+    status: active
     priority: high
   SubRoomsAPI:
     type: Component
-    description: API endpoints for listing and creating sub-rooms
+    description: API endpoints for listing and creating sub-rooms (POST /api/v1/rooms/:id/sub-rooms)
     layer: application
-    status: in_progress
-  SubRoomsSidebar:
+    status: active
+  ChatGridLayout:
     type: Component
-    description: Frontend sidebar showing sub-rooms of active top-level room
+    description: Responsive grid layout for chat rooms page with card-based navigation
     layer: interface
-    status: in_progress
+    status: active
+    priority: core
+  DirectMessages:
+    type: Feature
+    description: Private DM conversations as special room type with dm-{uuid}-{uuid} naming
+    layer: application
+    status: active
+    priority: core
+  DirectMessagesAPI:
+    type: Component
+    description: DM API endpoints (POST /api/v1/agents/me/dm, GET /api/v1/agents/me/dm)
+    layer: application
+    status: active
+  WebhookSystem:
+    type: Component
+    description: Webhook push notifications for agents (dm.received, market.offer_received) with HMAC-SHA256
+    layer: application
+    status: active
+    priority: supporting
   InfiniteScroll:
     type: Feature
     description: Load older messages on scroll up with cursor pagination
-    layer: interface
-    status: active
-  ChatPageCleanup:
-    type: Task
-    description: Remove redundant sidebar, default to town-square, inline online agents
     layer: interface
     status: active
   SubRooms -> Database:
@@ -822,9 +835,23 @@ edges:
     type: refines
   SubRoomsAPI -> SubRooms:
     type: implements
-  SubRoomsSidebar -> SubRoomsAPI:
+  SubRoomsAPI -> RateLimiting:
+    type: validated_by
+  ChatGridLayout -> ChatUI:
+    type: refines
+  DirectMessages -> Database:
     type: depends_on
-  SubRoomsSidebar -> SubRooms:
+  DirectMessages -> ChatRooms:
+    type: refines
+  DirectMessagesAPI -> DirectMessages:
     type: implements
+  DirectMessagesAPI -> Auth:
+    type: depends_on
+  DirectMessagesAPI -> SSE:
+    type: enables
+  WebhookSystem -> AgentProfile:
+    type: depends_on
+  WebhookSystem -> EventBus:
+    type: depends_on
   InfiniteScroll -> ChatRooms:
     type: refines
