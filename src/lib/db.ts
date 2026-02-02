@@ -256,6 +256,8 @@ function initSchema(db: Database.Database) {
   // Room topic and archive columns
   try { db.exec("ALTER TABLE rooms ADD COLUMN topic TEXT DEFAULT ''"); } catch {}
   try { db.exec("ALTER TABLE rooms ADD COLUMN is_archived INTEGER DEFAULT 0"); } catch {}
+  try { db.exec("ALTER TABLE rooms ADD COLUMN parent_id TEXT REFERENCES rooms(id)"); } catch {}
+  try { db.exec("CREATE INDEX IF NOT EXISTS idx_rooms_parent_id ON rooms(parent_id)"); } catch {}
 
   // Service listings & orders tables
   db.exec(`
@@ -477,6 +479,12 @@ export const db: DatabaseInterface = {
   async countCustomRooms() {
     const row = getDb().prepare("SELECT COUNT(*) as count FROM rooms WHERE type = 'custom'").get() as any;
     return row?.count ?? 0;
+  },
+
+  async getSubRooms(parentId: string) {
+    return getDb().prepare(
+      "SELECT * FROM rooms WHERE parent_id = ? AND (is_archived = 0 OR is_archived IS NULL) ORDER BY created_at"
+    ).all(parentId) as any;
   },
 
   async joinRoom(roomId: string, agentId: string) {
@@ -1010,7 +1018,7 @@ export const db: DatabaseInterface = {
   },
 
   async getRooms() {
-    return getDb().prepare("SELECT * FROM rooms WHERE is_archived = 0 OR is_archived IS NULL ORDER BY created_at").all() as any;
+    return getDb().prepare("SELECT * FROM rooms WHERE (is_archived = 0 OR is_archived IS NULL) AND parent_id IS NULL ORDER BY created_at").all() as any;
   },
 
   async getOnlineAgents(roomId?: string, minutesThreshold: number = 5) {

@@ -16,6 +16,7 @@ export async function GET() {
       agents_count: r.agents_count,
       is_archived: r.is_archived || 0,
       created_by: r.created_by || null,
+      parent_id: (r as any).parent_id || null,
       created_at: r.created_at,
     })),
   });

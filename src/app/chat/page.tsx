@@ -16,6 +16,7 @@ interface Room {
   agents_count: number;
   is_archived?: number;
   created_by?: string | null;
+  parent_id?: string | null;
 }
 
 interface Message {
@@ -57,6 +58,9 @@ export default function ChatPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [subRooms, setSubRooms] = useState<Room[]>([]);
+  const [activeSubRoom, setActiveSubRoom] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -114,8 +118,24 @@ export default function ChatPage() {
     return () => clearInterval(iv);
   }, [activeRoom]);
 
+  // Fetch sub-rooms when active room changes
   useEffect(() => {
     if (!activeRoom) return;
+    setSubRooms([]);
+    setActiveSubRoom(null);
+    fetch(`/api/v1/rooms/${activeRoom}/sub-rooms`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) setSubRooms(data.rooms);
+      })
+      .catch(() => {});
+  }, [activeRoom]);
+
+  // The effective room for messages: sub-room if selected, otherwise parent
+  const effectiveRoom = activeSubRoom || activeRoom;
+
+  useEffect(() => {
+    if (!effectiveRoom) return;
     setMessages([]);
     setConnected(false);
     setSettingsOpen(false);
@@ -123,7 +143,7 @@ export default function ChatPage() {
     setLoadingMore(false);
     shouldScrollToBottom.current = true;
 
-    fetch(`/api/v1/rooms/${activeRoom}/messages?limit=50`)
+    fetch(`/api/v1/rooms/${effectiveRoom}/messages?limit=50`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success && data.messages.length > 0) {
@@ -134,7 +154,7 @@ export default function ChatPage() {
         }
       });
 
-    const es = new EventSource(`/api/v1/rooms/${activeRoom}/stream`);
+    const es = new EventSource(`/api/v1/rooms/${effectiveRoom}/stream`);
     eventSourceRef.current = es;
 
     es.addEventListener("connected", () => setConnected(true));
@@ -151,7 +171,7 @@ export default function ChatPage() {
       es.close();
       eventSourceRef.current = null;
     };
-  }, [activeRoom]);
+  }, [effectiveRoom]);
 
   // Auto-scroll to bottom only for new messages (not prepended old ones)
   useEffect(() => {
@@ -176,7 +196,7 @@ export default function ChatPage() {
           shouldScrollToBottom.current = false;
           const prevScrollHeight = container.scrollHeight;
 
-          fetch(`/api/v1/rooms/${activeRoom}/messages?limit=50&before=${oldestId}`)
+          fetch(`/api/v1/rooms/${effectiveRoom}/messages?limit=50&before=${oldestId}`)
             .then((r) => r.json())
             .then((data) => {
               if (data.success && data.messages.length > 0) {
@@ -206,7 +226,7 @@ export default function ChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, messages, activeRoom]);
+  }, [hasMore, loadingMore, messages, effectiveRoom]);
 
   const activeRoomData = rooms.find((r) => r.name === activeRoom);
   const serverOnlineAgents = roomDetails?.online_agents ?? [];
@@ -226,8 +246,57 @@ export default function ChatPage() {
     <div className="min-h-screen flex flex-col bg-[#0a0e1a]">
       <NavBar />
       <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex">
+          {/* Sub-rooms sidebar — only shown when parent room has sub-rooms */}
+          {subRooms.length > 0 && (
+            <>
+              {/* Mobile toggle */}
+              <button
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="md:hidden fixed bottom-20 left-4 z-50 w-10 h-10 bg-[#1a1f2e] border border-[rgba(0,212,255,0.2)] rounded-full flex items-center justify-center text-gray-400 hover:text-white"
+              >
+                {sidebarOpen ? "✕" : "☰"}
+              </button>
+              <aside className={`${sidebarOpen ? "fixed inset-y-0 left-0 z-40" : "hidden"} md:relative md:block w-56 bg-[#0d1117] border-r border-[rgba(0,212,255,0.1)] flex-shrink-0 overflow-y-auto`}>
+                <div className="p-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Channels</p>
+                  {/* Parent room as "General" */}
+                  <button
+                    onClick={() => { setActiveSubRoom(null); setSidebarOpen(false); }}
+                    className={`w-full text-left px-3 py-1.5 rounded text-sm mb-0.5 flex items-center gap-2 ${
+                      !activeSubRoom
+                        ? "bg-[rgba(0,212,255,0.1)] text-white"
+                        : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
+                    }`}
+                  >
+                    <span className="text-gray-500">#</span>
+                    <span className="truncate">{activeRoomData?.display_name || "General"}</span>
+                  </button>
+                  {/* Sub-rooms */}
+                  {subRooms.map(sr => (
+                    <button
+                      key={sr.id}
+                      onClick={() => { setActiveSubRoom(sr.name); setSidebarOpen(false); }}
+                      className={`w-full text-left px-3 py-1.5 rounded text-sm mb-0.5 flex items-center gap-2 ${
+                        activeSubRoom === sr.name
+                          ? "bg-[rgba(0,212,255,0.1)] text-white"
+                          : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
+                      }`}
+                    >
+                      <span className="text-gray-500">#</span>
+                      <span className="truncate">{sr.display_name}</span>
+                    </button>
+                  ))}
+                </div>
+              </aside>
+              {/* Mobile backdrop */}
+              {sidebarOpen && (
+                <div className="fixed inset-0 z-30 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} />
+              )}
+            </>
+          )}
         {/* Chat Area */}
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col min-w-0">
           {/* Room Header */}
           <header className="px-6 py-4 border-b border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 backdrop-blur-sm">
             <div className="flex items-center gap-3">
@@ -353,6 +422,7 @@ export default function ChatPage() {
             </p>
           </footer>
         </main>
+        </div>
       </div>
     </div>
   );

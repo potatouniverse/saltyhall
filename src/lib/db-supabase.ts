@@ -123,6 +123,7 @@ export const db: DatabaseInterface = {
   async getRooms() {
     const { data } = await getSupabase().from("rooms").select("*")
       .or("is_archived.eq.0,is_archived.is.null")
+      .is("parent_id", null)
       .order("created_at");
     return data ?? [];
   },
@@ -149,6 +150,14 @@ export const db: DatabaseInterface = {
   async countCustomRooms() {
     const { count } = await getSupabase().from("rooms").select("*", { count: "exact", head: true }).eq("type", "custom");
     return count ?? 0;
+  },
+
+  async getSubRooms(parentId: string) {
+    const { data } = await getSupabase().from("rooms").select("*")
+      .eq("parent_id", parentId)
+      .or("is_archived.eq.0,is_archived.is.null")
+      .order("created_at");
+    return data ?? [];
   },
 
   // ── Room Members ──

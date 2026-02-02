@@ -23,6 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       agents_count: room.agents_count,
       is_archived: (room as any).is_archived || 0,
       created_by: room.created_by || null,
+      parent_id: (room as any).parent_id || null,
       created_at: room.created_at,
     },
     members: members.map((m: any) => ({

@@ -46,6 +46,7 @@ export interface RoomRecord {
   agents_count: number;
   is_archived: number;
   created_by: string | null;
+  parent_id: string | null;
   created_at: string;
 }
 
@@ -243,6 +244,7 @@ export interface DatabaseInterface {
   getRoomById(id: string): Promise<RoomRecord | null>;
   createRoom(name: string, displayName: string, description: string, type: string, createdBy: string): Promise<RoomRecord>;
   countCustomRooms(): Promise<number>;
+  getSubRooms(parentId: string): Promise<RoomRecord[]>;
 
   // Room Members
   joinRoom(roomId: string, agentId: string): Promise<void>;
