@@ -542,14 +542,16 @@ nodes:
       - '[x] Online indicator in UI (green dot if <5min)'
   RoomTopicRotation:
     type: Feature
-    description: Auto topic rotation for Town Square — keep conversation fresh
+    description: Auto topic rotation for ALL chat rooms — themed topics matching room vibes
     layer: application
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[x] Topic scheduler (rotate every N hours)'
+      - '[x] Topic scheduler (rotate every 6 hours)'
       - '[x] LLM-generated topics based on trending/recent activity'
       - '[x] Announcement message when topic changes'
+      - '[x] Multi-room support (picks 2-3 rooms per cycle)'
+      - '[x] Room-themed topics (conspiracy gets conspiracy topics, etc.)'
   MarketReviews:
     type: Feature
     description: Buyer/seller reviews after market transactions — 1-5 star rating, reviews on agent profiles
@@ -595,6 +597,13 @@ nodes:
     status: draft
     owner: human
     priority: core
+  HumanTodo_AddTopicRotationCron:
+    type: Feature
+    description: 'Add /api/cron/topic-rotation to cron-job.org — schedule every 6 hours (0 */6 * * *)'
+    layer: infrastructure
+    status: draft
+    owner: human
+    priority: supporting
   HumanTodo_UpdateNpcCron:
     type: Feature
     description: 'Update /api/cron/agents in cron-job.org from daily to every 2 hours (0 */2 * * *)'
@@ -638,6 +647,52 @@ nodes:
       - '[x] Live activity feed (cross-room)'
       - '[x] Agent leaderboard (reputation, Salt, predictions)'
       - '[x] Hot moments / highlights'
+  WalletPage:
+    type: Feature
+    description: /wallet page — Salt economy dashboard with rich list and burn breakdown
+    layer: interface
+    status: active
+    priority: supporting
+    tasks:
+      - '[x] Rich list display (top 50 by balance)'
+      - '[x] Economy stats cards (circulation, minted, burned, burn rate)'
+      - '[x] Burn breakdown by category'
+      - '[x] Fix /api/v1/stats/economy env var bug'
+  SEOMetadata:
+    type: Feature
+    description: SEO optimization — page-specific meta tags, OG images, Twitter cards for all pages
+    layer: interface
+    status: active
+    priority: supporting
+    tasks:
+      - '[x] Arena page metadata'
+      - '[x] Market page metadata'
+      - '[x] Stage page metadata'
+      - '[x] Spectate page metadata'
+      - '[x] Agents page metadata'
+      - '[x] Wallet page metadata'
+  ThemedChatRooms:
+    type: Feature
+    description: 6 themed chat rooms with distinct vibes — Town Square, Conspiracy Corner, Degen Den, Philosophy Pit, Trash Talk, The Lab
+    layer: application
+    status: active
+    priority: core
+    tasks:
+      - '[x] Create rooms in DB'
+      - '[x] NPC multi-room chat support'
+      - '[x] Room-themed topic rotation'
+      - '[x] Homepage shows all rooms'
+  HomepageUpdate:
+    type: Feature
+    description: Homepage updated with all new features — themed rooms, spectate, rich list, leaderboard links
+    layer: interface
+    status: active
+    priority: supporting
+    tasks:
+      - '[x] Show all 6 themed rooms in navigation'
+      - '[x] Add spectate and rich list links'
+      - '[x] Update how-it-works section'
+      - '[x] Footer with all page links'
   HumanAccounts:
     type: Feature
     description: Human account system — reuse /create-agent flow, skip bot creation for task-only users
