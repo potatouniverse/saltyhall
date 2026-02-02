@@ -348,14 +348,14 @@ export const db: DatabaseInterface = {
     if (deliveryTime) insertData.delivery_time = deliveryTime;
     const { error } = await s.from("market_listings").insert(insertData);
     if (error) throw new Error(error.message);
-    const { data } = await s.from("market_listings").select("*, agents!inner(name, wallet_address)").eq("id", id).single();
+    const { data } = await s.from("market_listings").select("*, agents!market_listings_agent_id_fkey(name, wallet_address)").eq("id", id).single();
     return data ? { ...data, agent_name: data.agents?.name, wallet_address: data.agents?.wallet_address, agents: undefined } : data;
   },
 
   async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string, currency?: string) {
     const s = getSupabase();
     // Use left join to include human-posted listings (no agent)
-    let q = s.from("market_listings").select("*, agents(name, wallet_address)");
+    let q = s.from("market_listings").select("*, agents!market_listings_agent_id_fkey(name, wallet_address)");
     if (status !== "all") q = q.eq("status", status);
     if (mode && mode !== "all") q = q.eq("listing_mode", mode);
     if (category) q = q.eq("category", category);
@@ -378,7 +378,7 @@ export const db: DatabaseInterface = {
   },
 
   async getMarketListing(id: string) {
-    const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name, wallet_address)").eq("id", id).single();
+    const { data } = await getSupabase().from("market_listings").select("*, agents!market_listings_agent_id_fkey(name, wallet_address)").eq("id", id).single();
     if (!data) return null;
     return { ...data, agent_name: data.agents?.name, wallet_address: data.agents?.wallet_address, agents: undefined };
   },
@@ -389,7 +389,7 @@ export const db: DatabaseInterface = {
   },
 
   async getAgentMarketListings(agentId: string) {
-    const { data } = await getSupabase().from("market_listings").select("*, agents!inner(name, wallet_address)").eq("agent_id", agentId).order("created_at", { ascending: false });
+    const { data } = await getSupabase().from("market_listings").select("*, agents!market_listings_agent_id_fkey(name, wallet_address)").eq("agent_id", agentId).order("created_at", { ascending: false });
     return (data ?? []).map((l: any) => ({ ...l, agent_name: l.agents?.name, wallet_address: l.agents?.wallet_address, agents: undefined }));
   },
 
@@ -400,18 +400,18 @@ export const db: DatabaseInterface = {
       id, listing_id: listingId, agent_id: agentId, offer_text: offerText, price, parent_offer_id: parentOfferId || null,
     });
     if (error) throw new Error(error.message);
-    const { data } = await s.from("market_offers").select("*, agents!inner(name)").eq("id", id).single();
+    const { data } = await s.from("market_offers").select("*, agents!market_offers_agent_id_fkey(name)").eq("id", id).single();
     return data ? { ...data, agent_name: data.agents?.name, agents: undefined } : data;
   },
 
   async getMarketOffers(listingId: string) {
-    const { data } = await getSupabase().from("market_offers").select("*, agents!inner(name)")
+    const { data } = await getSupabase().from("market_offers").select("*, agents!market_offers_agent_id_fkey(name)")
       .eq("listing_id", listingId).order("created_at", { ascending: false });
     return (data ?? []).map((o: any) => ({ ...o, agent_name: o.agents?.name, agents: undefined }));
   },
 
   async getMarketOffer(id: string) {
-    const { data } = await getSupabase().from("market_offers").select("*, agents!inner(name)").eq("id", id).single();
+    const { data } = await getSupabase().from("market_offers").select("*, agents!market_offers_agent_id_fkey(name)").eq("id", id).single();
     if (!data) return null;
     return { ...data, agent_name: data.agents?.name, agents: undefined };
   },
@@ -1143,13 +1143,13 @@ export const db: DatabaseInterface = {
 
   async getTaskSubmissions(listingId: string) {
     const s = getSupabase();
-    const { data } = await s.from("task_submissions").select("*, agents(name)")
+    const { data } = await s.from("task_submissions").select("*, agents!task_submissions_agent_id_fkey(name)")
       .eq("listing_id", listingId).order("created_at", { ascending: false });
     return (data ?? []).map((s: any) => ({ ...s, agent_name: s.agents?.name, agents: undefined }));
   },
 
   async getTaskSubmission(id: string) {
-    const { data } = await getSupabase().from("task_submissions").select("*, agents(name)").eq("id", id).single();
+    const { data } = await getSupabase().from("task_submissions").select("*, agents!task_submissions_agent_id_fkey(name)").eq("id", id).single();
     if (!data) return null;
     return { ...data, agent_name: data.agents?.name, agents: undefined };
   },
