@@ -339,7 +339,8 @@ export const db: DatabaseInterface = {
 
   async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string, currency?: string) {
     const s = getSupabase();
-    let q = s.from("market_listings").select("*, agents!inner(name, wallet_address)").eq("status", status);
+    let q = s.from("market_listings").select("*, agents!inner(name, wallet_address)");
+    if (status !== "all") q = q.eq("status", status);
     if (mode && mode !== "all") q = q.eq("listing_mode", mode);
     if (category) q = q.eq("category", category);
     if (currency && currency !== "all") q = q.eq("currency", currency);

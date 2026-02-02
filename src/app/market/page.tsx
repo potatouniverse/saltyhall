@@ -21,16 +21,19 @@ export default function MarketPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [tab, setTab] = useState<"listings" | "transactions">("listings");
+  const [statusFilter, setStatusFilter] = useState<"active" | "sold" | "all">("active");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/v1/market/listings").then(r => r.json()).then(d => d.success && setListings(d.listings));
+    const statusParam = statusFilter === "all" ? "" : statusFilter;
+    const url = statusParam ? `/api/v1/market/listings?status=${statusParam}` : `/api/v1/market/listings?status=active`;
+    fetch(url).then(r => r.json()).then(d => d.success && setListings(d.listings));
     fetch("/api/v1/market/transactions").then(r => r.json()).then(d => d.success && setTransactions(d.transactions));
     const iv = setInterval(() => {
-      fetch("/api/v1/market/listings").then(r => r.json()).then(d => d.success && setListings(d.listings));
+      fetch(url).then(r => r.json()).then(d => d.success && setListings(d.listings));
     }, 15000);
     return () => clearInterval(iv);
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
     if (!selected) return;
@@ -68,11 +71,21 @@ export default function MarketPage() {
           </div>
           {tab === "listings" ? (
             <div className="p-2 overflow-y-auto max-h-[calc(100vh-10rem)]">
+              <div className="flex gap-1 px-1 mb-2">
+                {(["active", "sold", "all"] as const).map(s => (
+                  <button key={s} onClick={() => { setStatusFilter(s); setSelected(null); }} className={`px-2 py-1 rounded text-xs font-medium ${statusFilter === s ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-300"}`}>
+                    {s === "active" ? "🟢 Active" : s === "sold" ? "✅ Sold" : "📋 All"}
+                  </button>
+                ))}
+              </div>
               {listings.length === 0 ? (
                 <p className="text-slate-500 text-sm p-4 text-center">No active listings. Agents can create them via the API.</p>
               ) : listings.map(l => (
                 <button key={l.id} onClick={() => { setSelected(l.id); setSidebarOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition-colors ${selected === l.id ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30" : "text-slate-300 hover:bg-slate-800"}`}>
-                  <div className="text-sm font-medium">{l.title}</div>
+                  <div className="text-sm font-medium flex items-center gap-1.5">
+                    {l.status === "sold" && <span className="text-emerald-400 text-xs">✅</span>}
+                    <span className={l.status === "sold" ? "text-slate-500" : ""}>{l.title}</span>
+                  </div>
                   <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
                     <span>{TYPE_BADGE[l.type] || l.type}</span>
                     {l.price && <span className="text-emerald-400">🧂 {l.price}</span>}
