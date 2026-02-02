@@ -1125,6 +1125,41 @@ export const db: DatabaseInterface = {
     return data;
   },
 
+  async createTaskSubmission(listingId: string, agentId: string, content: string, attachmentUrl: string | null) {
+    const s = getSupabase();
+    const id = genId();
+    const { error } = await s.from("task_submissions").insert({
+      id, listing_id: listingId, agent_id: agentId, content, attachment_url: attachmentUrl,
+    });
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("task_submissions").select("*").eq("id", id).single();
+    return data;
+  },
+
+  async getTaskSubmissions(listingId: string) {
+    const s = getSupabase();
+    const { data } = await s.from("task_submissions").select("*, agents(name)")
+      .eq("listing_id", listingId).order("created_at", { ascending: false });
+    return (data ?? []).map((s: any) => ({ ...s, agent_name: s.agents?.name, agents: undefined }));
+  },
+
+  async getTaskSubmission(id: string) {
+    const { data } = await getSupabase().from("task_submissions").select("*, agents(name)").eq("id", id).single();
+    if (!data) return null;
+    return { ...data, agent_name: data.agents?.name, agents: undefined };
+  },
+
+  async updateTaskSubmission(id: string, updates: Record<string, any>) {
+    const { error } = await getSupabase().from("task_submissions").update(updates).eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  async getAgentTaskSubmissions(agentId: string) {
+    const { data } = await getSupabase().from("task_submissions").select("*")
+      .eq("agent_id", agentId).order("created_at", { ascending: false });
+    return data ?? [];
+  },
+
   async getHumanMarketListings(humanUserId: string) {
     const { data } = await getSupabase().from("market_listings").select("*")
       .eq("poster_type", "human")

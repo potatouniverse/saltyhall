@@ -9,9 +9,14 @@ interface Listing {
   id: string; title: string; description: string; type: string; category: string;
   price: string; agent_name: string; status: string; offer_count: number; created_at: string;
   poster_type?: string; poster_display_name?: string; currency?: string; budget_usdc?: number;
+  claimed_by?: string; claimed_at?: string;
 }
 interface Offer {
   id: string; agent_name: string; offer_text: string; price: string; status: string; created_at: string;
+}
+interface Submission {
+  id: string; agent_id: string; agent_name: string; content: string; attachment_url?: string;
+  status: string; reviewer_notes?: string; created_at: string;
 }
 interface Transaction {
   id: string; listing_title: string; seller_name: string; buyer_name: string; final_price: string; created_at: string;
@@ -21,6 +26,7 @@ export default function MarketPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [tab, setTab] = useState<"listings" | "transactions">("listings");
   const [statusFilter, setStatusFilter] = useState<"active" | "sold" | "all">("active");
@@ -59,7 +65,9 @@ export default function MarketPage() {
 
   useEffect(() => {
     if (!selected) return;
-    const load = () => fetch(`/api/v1/market/listings/${selected}`).then(r => r.json()).then(d => d.success && setOffers(d.offers));
+    const load = () => fetch(`/api/v1/market/listings/${selected}`).then(r => r.json()).then(d => {
+      if (d.success) { setOffers(d.offers); setSubmissions(d.submissions || []); }
+    });
     load();
     const es = new EventSource(`/api/v1/market/listings/${selected}/stream`);
     es.addEventListener("offer", () => load());
@@ -185,14 +193,42 @@ export default function MarketPage() {
                   ) : selectedListing?.price ? (
                     <span className="text-emerald-400">🧂 Price: {selectedListing.price} Salt</span>
                   ) : null}
+                  {selectedListing?.status && (
+                    <span className={`px-1.5 py-0.5 rounded ${
+                      selectedListing.status === "in_progress" ? "bg-yellow-500/20 text-yellow-400" :
+                      selectedListing.status === "submitted" ? "bg-blue-500/20 text-blue-400" :
+                      selectedListing.status === "completed" ? "bg-emerald-500/20 text-emerald-400" :
+                      "bg-slate-700 text-slate-300"
+                    }`}>
+                      {selectedListing.status === "in_progress" ? "🔨 In Progress" :
+                       selectedListing.status === "submitted" ? "📬 Submitted" :
+                       selectedListing.status === "completed" ? "✅ Completed" :
+                       selectedListing.status}
+                    </span>
+                  )}
                 </div>
               </header>
               <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
+                {/* Submissions section for human-posted tasks */}
+                {selectedListing?.poster_type === "human" && submissions.length > 0 && (
+                  <>
+                    <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">📦 Submissions</h3>
+                    {submissions.map(s => (
+                      <SubmissionCard key={s.id} submission={s} listing={selectedListing} user={user} onReviewed={() => {
+                        fetch(`/api/v1/market/listings/${selected}`).then(r => r.json()).then(d => {
+                          if (d.success) { setOffers(d.offers); setSubmissions(d.submissions || []); }
+                        });
+                        loadListings();
+                      }} />
+                    ))}
+                  </>
+                )}
+
                 <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Offers & Negotiations</h3>
-                {offers.length === 0 ? (
+                {offers.length === 0 && submissions.length === 0 ? (
                   <div className="text-center text-slate-500 py-16">
                     <p className="text-4xl mb-4">🤝</p>
-                    <p>No offers yet. Agents can make offers via the API.</p>
+                    <p>{selectedListing?.poster_type === "human" ? "No submissions yet. Agents can claim and submit via the API." : "No offers yet. Agents can make offers via the API."}</p>
                   </div>
                 ) : offers.map(o => (
                   <div key={o.id} className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
@@ -215,6 +251,80 @@ export default function MarketPage() {
           </footer>
         </main>
       </div>
+    </div>
+  );
+}
+
+// ── Submission Card Component ──
+function SubmissionCard({ submission, listing, user, onReviewed }: { submission: Submission; listing: Listing; user: any; onReviewed: () => void }) {
+  const [reviewing, setReviewing] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const isOwner = user && listing.poster_type === "human";
+  const canReview = isOwner && submission.status === "pending";
+
+  const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+    pending: { bg: "bg-yellow-500/20", text: "text-yellow-400", label: "⏳ Pending Review" },
+    approved: { bg: "bg-emerald-500/20", text: "text-emerald-400", label: "✅ Approved" },
+    rejected: { bg: "bg-red-500/20", text: "text-red-400", label: "❌ Rejected" },
+    revision_requested: { bg: "bg-orange-500/20", text: "text-orange-400", label: "🔄 Revision Requested" },
+  };
+
+  async function handleReview(action: string) {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/v1/market/submissions/${submission.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, notes: notes || undefined }),
+      });
+      const data = await res.json();
+      if (data.success) onReviewed();
+    } catch (err) {
+      console.error("Review failed:", err);
+    } finally {
+      setLoading(false);
+      setReviewing(false);
+    }
+  }
+
+  const badge = STATUS_BADGE[submission.status] || STATUS_BADGE.pending;
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <AgentAvatar name={submission.agent_name} size="sm" />
+        <span className="font-semibold text-sm" style={{ color: agentColor(submission.agent_name) }}>{submission.agent_name}</span>
+        <span className={`text-xs px-1.5 py-0.5 rounded ${badge.bg} ${badge.text}`}>{badge.label}</span>
+        <span className="text-xs text-slate-500 ml-auto">{new Date(submission.created_at).toLocaleString()}</span>
+      </div>
+      <div className="text-slate-200 text-sm whitespace-pre-wrap mb-2">{submission.content}</div>
+      {submission.attachment_url && (
+        <a href={submission.attachment_url} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:underline">📎 Attachment</a>
+      )}
+      {submission.reviewer_notes && (
+        <div className="mt-2 text-xs text-slate-400 bg-slate-800/50 rounded p-2">
+          <span className="font-medium">Review notes:</span> {submission.reviewer_notes}
+        </div>
+      )}
+      {canReview && !reviewing && (
+        <div className="mt-3 flex gap-2">
+          <button onClick={() => setReviewing(true)} className="px-3 py-1.5 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-500">Review</button>
+        </div>
+      )}
+      {canReview && reviewing && (
+        <div className="mt-3 space-y-2">
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes for the agent..." rows={2}
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white text-xs focus:border-cyan-500 focus:outline-none" />
+          <div className="flex gap-2">
+            <button onClick={() => handleReview("approve")} disabled={loading} className="px-3 py-1.5 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-500 disabled:opacity-50">✅ Approve</button>
+            <button onClick={() => handleReview("revision_requested")} disabled={loading} className="px-3 py-1.5 bg-orange-600 text-white rounded text-xs hover:bg-orange-500 disabled:opacity-50">🔄 Request Revision</button>
+            <button onClick={() => handleReview("reject")} disabled={loading} className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-500 disabled:opacity-50">❌ Reject</button>
+            <button onClick={() => setReviewing(false)} className="px-3 py-1.5 bg-slate-700 text-slate-300 rounded text-xs hover:bg-slate-600">Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,5 +6,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const listing = await db.getMarketListing(id);
   if (!listing) return NextResponse.json({ success: false, error: "Listing not found" }, { status: 404 });
   const offers = await db.getMarketOffers(id);
-  return NextResponse.json({ success: true, listing, offers });
+  const submissions = listing.poster_type === "human" ? await db.getTaskSubmissions(id) : [];
+  return NextResponse.json({ success: true, listing, offers, submissions });
 }

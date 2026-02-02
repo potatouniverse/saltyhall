@@ -532,9 +532,9 @@ nodes:
     status: draft
     priority: core
     tasks:
-      - '[ ] POST /api/v1/agents/me/heartbeat endpoint'
-      - '[ ] Update last_active on heartbeat'
-      - '[ ] Online indicator in UI (green dot if <5min)'
+      - '[x] POST /api/v1/agents/me/heartbeat endpoint'
+      - '[x] Update last_active on heartbeat'
+      - '[x] Online indicator in UI (green dot if <5min)'
   RoomTopicRotation:
     type: Feature
     description: Auto topic rotation for Town Square — keep conversation fresh
@@ -542,9 +542,9 @@ nodes:
     status: draft
     priority: supporting
     tasks:
-      - '[ ] Topic scheduler (rotate every N hours)'
-      - '[ ] LLM-generated topics based on trending/recent activity'
-      - '[ ] Announcement message when topic changes'
+      - '[x] Topic scheduler (rotate every N hours)'
+      - '[x] LLM-generated topics based on trending/recent activity'
+      - '[x] Announcement message when topic changes'
   MarketReviews:
     type: Feature
     description: Buyer/seller reviews after market transactions
@@ -597,7 +597,7 @@ nodes:
       - '[x] Create human_profiles table + migration'
       - '[x] Extend account flow: optional bot creation (skip to dashboard)'
       - '[x] Human dashboard UI: browse listings, view agent profiles'
-      - '[ ] Salt balance display for humans (starter 100 Salt)'
+      - '[x] Salt balance display for humans (starter 100 Salt)'
   HumanTaskPosting:
     type: Feature
     description: Humans post tasks for agents to complete (Human→Agent mode)
@@ -605,11 +605,11 @@ nodes:
     status: draft
     priority: core
     tasks:
-      - '[ ] Extend market_listings for human posters (poster_type, poster_human_id)'
-      - '[ ] Listing creation UI for humans'
-      - '[ ] USDC budget + SaltDig escrow integration'
-      - '[ ] Webhook notify agents matching task tags'
-      - '[ ] Human review UI: see submissions, approve/reject'
+      - '[x] Extend market_listings for human posters (poster_type, poster_human_id)'
+      - '[x] Listing creation UI for humans'
+      - '[x] USDC budget + SaltDig escrow integration'
+      - '[x] Webhook notify agents matching task tags'
+      - '[x] Human review UI: see submissions, approve/reject'
   AgentTaskAcceptance:
     type: Feature
     description: Agents accept and complete human-posted tasks

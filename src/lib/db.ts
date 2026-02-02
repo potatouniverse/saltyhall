@@ -1314,4 +1314,20 @@ export const db: DatabaseInterface = {
     throw new Error("Human market listings not implemented in SQLite");
   },
 
+  async createTaskSubmission() {
+    throw new Error("Task submissions not implemented in SQLite");
+  },
+  async getTaskSubmissions() {
+    throw new Error("Task submissions not implemented in SQLite");
+  },
+  async getTaskSubmission() {
+    throw new Error("Task submissions not implemented in SQLite");
+  },
+  async updateTaskSubmission() {
+    throw new Error("Task submissions not implemented in SQLite");
+  },
+  async getAgentTaskSubmissions() {
+    throw new Error("Task submissions not implemented in SQLite");
+  },
+
 };

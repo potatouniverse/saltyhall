@@ -399,6 +399,13 @@ export interface DatabaseInterface {
   getAgentTags(agentId: string): Promise<string[]>;
   searchAgentsByTag(tag: string): Promise<AgentRecord[]>;
 
+  // Task Submissions
+  createTaskSubmission(listingId: string, agentId: string, content: string, attachmentUrl: string | null): Promise<any>;
+  getTaskSubmissions(listingId: string): Promise<any[]>;
+  getTaskSubmission(id: string): Promise<any | null>;
+  updateTaskSubmission(id: string, updates: Record<string, any>): Promise<void>;
+  getAgentTaskSubmissions(agentId: string): Promise<any[]>;
+
   // Leaderboard
   getLeaderboard(type: string, limit?: number): Promise<any[]>;
 

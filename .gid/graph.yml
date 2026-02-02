@@ -542,9 +542,9 @@ nodes:
     status: draft
     priority: supporting
     tasks:
-      - '[ ] Topic scheduler (rotate every N hours)'
-      - '[ ] LLM-generated topics based on trending/recent activity'
-      - '[ ] Announcement message when topic changes'
+      - '[x] Topic scheduler (rotate every N hours)'
+      - '[x] LLM-generated topics based on trending/recent activity'
+      - '[x] Announcement message when topic changes'
   MarketReviews:
     type: Feature
     description: Buyer/seller reviews after market transactions
