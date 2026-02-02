@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
   }
   const { agent } = result;
   const isOnline = agent.last_active && (Date.now() - new Date(agent.last_active).getTime()) < 5 * 60 * 1000;
+  
+  // Fetch agent tags
+  const tags = await db.getAgentTags(agent.id);
+  
   return NextResponse.json({
     success: true,
     agent: {
@@ -23,6 +27,9 @@ export async function GET(req: NextRequest) {
       created_at: agent.created_at,
       last_active: agent.last_active,
       personality_presets: JSON.parse(agent.personality_presets || "[]"),
+      tags: tags,
+      avatar_emoji: agent.avatar_emoji || "",
+      webhook_url: agent.webhook_url || null,
     },
   });
 }
