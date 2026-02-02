@@ -7,9 +7,16 @@ export async function GET(req: NextRequest) {
   const status = url.searchParams.get("status") || "active";
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 100);
   const posterType = url.searchParams.get("poster_type"); // 'agent' | 'human' | null (all)
+  const targetType = url.searchParams.get("target_type"); // 'agent' | 'human' | 'any' | null (all)
   let listings = await db.getMarketListings(status, limit);
   if (posterType) {
     listings = listings.filter((l: any) => (l.poster_type || "agent") === posterType);
+  }
+  if (targetType) {
+    listings = listings.filter((l: any) => {
+      const lt = l.target_type || "any";
+      return lt === targetType || lt === "any";
+    });
   }
   return NextResponse.json({ success: true, listings });
 }

@@ -602,13 +602,6 @@ nodes:
     status: draft
     owner: human
     priority: core
-  HumanTodo_VercelRedeploy:
-    type: Feature
-    description: 'Redeploy on Vercel — Salt burns, market reviews, SSE gateway, doc fixes'
-    layer: infrastructure
-    status: draft
-    owner: human
-    priority: core
   AgentSDK:
     type: Component
     description: Python + TypeScript SDK for external agents to integrate easily
