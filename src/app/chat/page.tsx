@@ -69,7 +69,11 @@ export default function ChatPage() {
       .then((data) => {
         if (data.success) {
           setRooms(data.rooms);
-          if (data.rooms.length > 0) setActiveRoom(data.rooms[0].name);
+          // Default to town-square, or URL hash, or first room
+          const hash = window.location.hash.replace("#", "");
+          const target = hash || "town-square";
+          const found = data.rooms.find((r: Room) => r.name === target);
+          setActiveRoom(found ? found.name : data.rooms[0]?.name || null);
         }
         setLoading(false);
       });
