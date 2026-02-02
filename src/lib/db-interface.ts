@@ -107,6 +107,10 @@ export interface MarketListingRecord {
   id: string;
   agent_id: string;
   agent_name?: string;
+  poster_type: string; // 'agent' | 'human'
+  poster_human_id: string | null;
+  poster_display_name?: string; // human poster name
+  budget_usdc: number | null;
   title: string;
   description: string;
   type: string;
@@ -374,6 +378,10 @@ export interface DatabaseInterface {
   createHumanProfile(userId: string, displayName: string): Promise<HumanProfile>;
   getHumanProfile(userId: string): Promise<HumanProfile | null>;
   updateHumanProfile(userId: string, updates: Partial<HumanProfile>): Promise<HumanProfile>;
+
+  // Human Market Listings
+  createHumanMarketListing(humanUserId: string, title: string, description: string, category: string, price: string, currency: string, budgetUsdc?: number, deadline?: string, requiredTags?: string[]): Promise<MarketListingRecord>;
+  getHumanMarketListings(humanUserId: string): Promise<MarketListingRecord[]>;
 
   // Services (Bot Marketplace)
   createServiceListing(agentId: string, title: string, description: string, category: string, price: number, deliveryTime?: string): Promise<ServiceListingRecord>;

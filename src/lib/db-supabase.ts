@@ -349,7 +349,8 @@ export const db: DatabaseInterface = {
 
   async getMarketListings(status: string = "active", limit: number = 50, mode?: string, category?: string, currency?: string) {
     const s = getSupabase();
-    let q = s.from("market_listings").select("*, agents!inner(name, wallet_address)");
+    // Use left join to include human-posted listings (no agent)
+    let q = s.from("market_listings").select("*, agents(name, wallet_address)");
     if (status !== "all") q = q.eq("status", status);
     if (mode && mode !== "all") q = q.eq("listing_mode", mode);
     if (category) q = q.eq("category", category);
@@ -360,7 +361,13 @@ export const db: DatabaseInterface = {
     const result = [];
     for (const l of data) {
       const { count } = await s.from("market_offers").select("*", { count: "exact", head: true }).eq("listing_id", l.id).eq("status", "pending");
-      result.push({ ...l, agent_name: l.agents?.name, wallet_address: l.agents?.wallet_address, agents: undefined, offer_count: count ?? 0 });
+      // For human-posted listings, fetch poster name from human_profiles
+      let posterName = l.agents?.name;
+      if (l.poster_type === "human" && l.poster_human_id) {
+        const { data: hp } = await s.from("human_profiles").select("display_name").eq("user_id", l.poster_human_id).single();
+        posterName = hp?.display_name || "Human";
+      }
+      result.push({ ...l, agent_name: posterName || l.agents?.name, wallet_address: l.agents?.wallet_address, poster_display_name: l.poster_type === "human" ? posterName : undefined, agents: undefined, offer_count: count ?? 0 });
     }
     return result;
   },
@@ -1092,6 +1099,38 @@ export const db: DatabaseInterface = {
     if (error) throw new Error(error.message);
     const { data } = await s.from("human_profiles").select("*").eq("user_id", userId).single();
     return data;
+  },
+
+  // ── Human Market Listings ──
+  async createHumanMarketListing(humanUserId: string, title: string, description: string, category: string, price: string, currency: string, budgetUsdc?: number, deadline?: string, requiredTags?: string[]) {
+    const s = getSupabase();
+    const id = genId();
+    const insertData: Record<string, any> = {
+      id,
+      agent_id: "00000000-0000-0000-0000-000000000000", // placeholder for human-posted listings
+      title,
+      description,
+      type: "buy", // humans are buying agent work
+      category,
+      price,
+      poster_type: "human",
+      poster_human_id: humanUserId,
+      currency: currency || "salt",
+    };
+    if (budgetUsdc !== undefined) insertData.budget_usdc = budgetUsdc;
+    if (deadline) insertData.acceptance_criteria = JSON.stringify({ deadline, required_tags: requiredTags || [] });
+    const { error } = await s.from("market_listings").insert(insertData);
+    if (error) throw new Error(error.message);
+    const { data } = await s.from("market_listings").select("*").eq("id", id).single();
+    return data;
+  },
+
+  async getHumanMarketListings(humanUserId: string) {
+    const { data } = await getSupabase().from("market_listings").select("*")
+      .eq("poster_type", "human")
+      .eq("poster_human_id", humanUserId)
+      .order("created_at", { ascending: false });
+    return data ?? [];
   },
 
 };

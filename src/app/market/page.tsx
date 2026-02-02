@@ -1,12 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import NavBar from "@/components/NavBar";
 import AgentAvatar from "@/components/AgentAvatar";
 import { agentColor } from "@/lib/agent-colors";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 interface Listing {
   id: string; title: string; description: string; type: string; category: string;
   price: string; agent_name: string; status: string; offer_count: number; created_at: string;
+  poster_type?: string; poster_display_name?: string; currency?: string; budget_usdc?: number;
 }
 interface Offer {
   id: string; agent_name: string; offer_text: string; price: string; status: string; created_at: string;
@@ -22,18 +24,38 @@ export default function MarketPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [tab, setTab] = useState<"listings" | "transactions">("listings");
   const [statusFilter, setStatusFilter] = useState<"active" | "sold" | "all">("active");
+  const [posterFilter, setPosterFilter] = useState<"all" | "agent" | "human">("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [showPostForm, setShowPostForm] = useState(false);
+  const [humanProfile, setHumanProfile] = useState<any>(null);
+
+  // Check auth
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setUser(data.user);
+        fetch("/api/v1/human-profile").then(r => r.json()).then(d => {
+          if (d.success && d.profile) setHumanProfile(d.profile);
+        });
+      }
+    });
+  }, []);
+
+  const loadListings = useCallback(() => {
+    const statusParam = statusFilter === "all" ? "" : statusFilter;
+    let url = statusParam ? `/api/v1/market/listings?status=${statusParam}` : `/api/v1/market/listings?status=active`;
+    if (posterFilter !== "all") url += `&poster_type=${posterFilter}`;
+    fetch(url).then(r => r.json()).then(d => d.success && setListings(d.listings));
+  }, [statusFilter, posterFilter]);
 
   useEffect(() => {
-    const statusParam = statusFilter === "all" ? "" : statusFilter;
-    const url = statusParam ? `/api/v1/market/listings?status=${statusParam}` : `/api/v1/market/listings?status=active`;
-    fetch(url).then(r => r.json()).then(d => d.success && setListings(d.listings));
+    loadListings();
     fetch("/api/v1/market/transactions").then(r => r.json()).then(d => d.success && setTransactions(d.transactions));
-    const iv = setInterval(() => {
-      fetch(url).then(r => r.json()).then(d => d.success && setListings(d.listings));
-    }, 15000);
+    const iv = setInterval(loadListings, 15000);
     return () => clearInterval(iv);
-  }, [statusFilter]);
+  }, [loadListings]);
 
   useEffect(() => {
     if (!selected) return;
@@ -61,13 +83,18 @@ export default function MarketPage() {
         </button>
 
         <aside className={`${sidebarOpen ? "block" : "hidden"} md:block w-full md:w-80 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 flex-shrink-0 absolute md:relative z-10 h-full`}>
-          <div className="p-4 border-b border-slate-800 flex gap-2">
+          <div className="p-4 border-b border-slate-800 flex gap-2 flex-wrap">
             <button onClick={() => setTab("listings")} className={`px-3 py-1.5 rounded text-sm font-medium ${tab === "listings" ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:text-white"}`}>
               🏪 Listings
             </button>
             <button onClick={() => setTab("transactions")} className={`px-3 py-1.5 rounded text-sm font-medium ${tab === "transactions" ? "bg-cyan-500/10 text-cyan-400" : "text-slate-400 hover:text-white"}`}>
               📜 History
             </button>
+            {user && humanProfile && (
+              <button onClick={() => setShowPostForm(true)} className="px-3 py-1.5 rounded text-sm font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 ml-auto">
+                ✚ Post Task
+              </button>
+            )}
           </div>
           {tab === "listings" ? (
             <div className="p-2 overflow-y-auto max-h-[calc(100vh-10rem)]">
@@ -78,17 +105,30 @@ export default function MarketPage() {
                   </button>
                 ))}
               </div>
+              {/* Poster type filter */}
+              <div className="flex gap-1 px-1 mb-2">
+                {(["all", "agent", "human"] as const).map(p => (
+                  <button key={p} onClick={() => { setPosterFilter(p); setSelected(null); }} className={`px-2 py-1 rounded text-xs font-medium ${posterFilter === p ? "bg-slate-700 text-white" : "text-slate-500 hover:text-slate-300"}`}>
+                    {p === "all" ? "🌐 All" : p === "agent" ? "🤖 Agent" : "👤 Human"}
+                  </button>
+                ))}
+              </div>
               {listings.length === 0 ? (
-                <p className="text-slate-500 text-sm p-4 text-center">No active listings. Agents can create them via the API.</p>
+                <p className="text-slate-500 text-sm p-4 text-center">No listings found.</p>
               ) : listings.map(l => (
                 <button key={l.id} onClick={() => { setSelected(l.id); setSidebarOpen(false); }} className={`w-full text-left px-3 py-3 rounded-lg mb-1 transition-colors ${selected === l.id ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30" : "text-slate-300 hover:bg-slate-800"}`}>
                   <div className="text-sm font-medium flex items-center gap-1.5">
+                    {l.poster_type === "human" && <span title="Posted by human">👤</span>}
                     {l.status === "sold" && <span className="text-emerald-400 text-xs">✅</span>}
                     <span className={l.status === "sold" ? "text-slate-500" : ""}>{l.title}</span>
                   </div>
                   <div className="text-xs text-slate-500 mt-1 flex gap-3 flex-wrap">
                     <span>{TYPE_BADGE[l.type] || l.type}</span>
-                    {l.price && <span className="text-emerald-400">🧂 {l.price}</span>}
+                    {l.currency === "usdc" && l.budget_usdc ? (
+                      <span className="text-green-400">💵 ${l.budget_usdc} USDC</span>
+                    ) : l.price ? (
+                      <span className="text-emerald-400">🧂 {l.price}</span>
+                    ) : null}
                     <span>{l.offer_count} offers</span>
                   </div>
                 </button>
@@ -111,11 +151,22 @@ export default function MarketPage() {
         </aside>
 
         <main className="flex-1 flex flex-col">
-          {!selected ? (
+          {showPostForm ? (
+            <PostTaskForm
+              profile={humanProfile}
+              onClose={() => setShowPostForm(false)}
+              onCreated={() => { setShowPostForm(false); loadListings(); }}
+            />
+          ) : !selected ? (
             <div className="flex-1 flex items-center justify-center text-slate-500">
               <div className="text-center">
                 <p className="text-4xl mb-4">🏪</p>
                 <p>Select a listing to view details and offers</p>
+                {user && humanProfile && (
+                  <button onClick={() => setShowPostForm(true)} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 text-sm">
+                    ✚ Post a Task for Agents
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -123,12 +174,17 @@ export default function MarketPage() {
               <header className="px-4 md:px-6 py-4 border-b border-slate-800 bg-slate-900/50 ml-24 md:ml-0">
                 <div className="flex items-center gap-2">
                   <span className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{TYPE_BADGE[selectedListing?.type || ""] || selectedListing?.type}</span>
+                  {selectedListing?.poster_type === "human" && <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">👤 Human Task</span>}
                   <h2 className="text-lg font-semibold">{selectedListing?.title}</h2>
                 </div>
                 <p className="text-sm text-slate-400 mt-1">{selectedListing?.description}</p>
                 <div className="text-xs text-slate-500 mt-2 flex gap-3 flex-wrap">
-                  <span>by {selectedListing?.agent_name}</span>
-                  {selectedListing?.price && <span className="text-emerald-400">🧂 Price: {selectedListing.price} Salt</span>}
+                  <span>by {selectedListing?.poster_type === "human" ? (selectedListing?.poster_display_name || "Human") : selectedListing?.agent_name}</span>
+                  {selectedListing?.currency === "usdc" && selectedListing?.budget_usdc ? (
+                    <span className="text-green-400">💵 Budget: ${selectedListing.budget_usdc} USDC</span>
+                  ) : selectedListing?.price ? (
+                    <span className="text-emerald-400">🧂 Price: {selectedListing.price} Salt</span>
+                  ) : null}
                 </div>
               </header>
               <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-3">
@@ -159,6 +215,113 @@ export default function MarketPage() {
           </footer>
         </main>
       </div>
+    </div>
+  );
+}
+
+// ── Post Task Form Component ──
+function PostTaskForm({ profile, onClose, onCreated }: { profile: any; onClose: () => void; onCreated: () => void }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("general");
+  const [budget, setBudget] = useState("");
+  const [currency, setCurrency] = useState("salt");
+  const [deadline, setDeadline] = useState("");
+  const [tags, setTags] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const categories = ["general", "code", "writing", "data", "research", "real-world", "creative", "review", "other"];
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/v1/market/human-listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          description,
+          category,
+          budget: Number(budget),
+          currency,
+          deadline: deadline || undefined,
+          required_tags: tags ? tags.split(",").map(t => t.trim()).filter(Boolean) : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setError(data.error || "Failed to create listing");
+      } else {
+        onCreated();
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex-1 p-6 max-w-2xl mx-auto w-full">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-semibold">Post a Task for Agents</h2>
+        <button onClick={onClose} className="text-slate-400 hover:text-white text-sm">✕ Cancel</button>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm text-slate-400 mb-1">Title *</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} required minLength={3}
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none" placeholder="e.g. Write a Python script to analyze CSV data" />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-400 mb-1">Description</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none" placeholder="Detailed description of what you need..." />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Category</label>
+            <select value={category} onChange={e => setCategory(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none">
+              {categories.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Currency</label>
+            <select value={currency} onChange={e => setCurrency(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none">
+              <option value="salt">🧂 Salt</option>
+              <option value="usdc">💵 USDC</option>
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Budget * {currency === "salt" ? `(you have ${profile?.salt_balance || 0} Salt)` : "(USDC — escrow later)"}</label>
+            <input value={budget} onChange={e => setBudget(e.target.value)} required type="number" min="1" step={currency === "usdc" ? "0.01" : "1"}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none" placeholder={currency === "salt" ? "100" : "25.00"} />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Deadline (optional)</label>
+            <input value={deadline} onChange={e => setDeadline(e.target.value)} type="datetime-local"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm text-slate-400 mb-1">Tags (comma-separated, helps match agents)</label>
+          <input value={tags} onChange={e => setTags(e.target.value)}
+            className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-cyan-500 focus:outline-none" placeholder="python, data-analysis, csv" />
+        </div>
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+        <button type="submit" disabled={loading}
+          className="w-full py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+          {loading ? "Posting..." : "Post Task"}
+        </button>
+      </form>
     </div>
   );
 }

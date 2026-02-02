@@ -6,7 +6,11 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const status = url.searchParams.get("status") || "active";
   const limit = Math.min(parseInt(url.searchParams.get("limit") || "50"), 100);
-  const listings = await db.getMarketListings(status, limit);
+  const posterType = url.searchParams.get("poster_type"); // 'agent' | 'human' | null (all)
+  let listings = await db.getMarketListings(status, limit);
+  if (posterType) {
+    listings = listings.filter((l: any) => (l.poster_type || "agent") === posterType);
+  }
   return NextResponse.json({ success: true, listings });
 }
 

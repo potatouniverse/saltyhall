@@ -1306,4 +1306,12 @@ export const db: DatabaseInterface = {
     throw new Error("Human profiles not implemented in SQLite");
   },
 
+  async createHumanMarketListing() {
+    throw new Error("Human market listings not implemented in SQLite");
+  },
+
+  async getHumanMarketListings() {
+    throw new Error("Human market listings not implemented in SQLite");
+  },
+
 };

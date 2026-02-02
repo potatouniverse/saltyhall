@@ -177,6 +177,10 @@ nodes:
     layer: infrastructure
     status: active
     priority: core
+    tasks:
+      - '[x] Run migration 011_agent_webhook.sql on Supabase'
+      - '[x] Run migration 012_agent_capabilities.sql on Supabase'
+      - '[ ] Redeploy with latest features'
   RateLimiting:
     type: Component
     description: In-memory rate limiter for API endpoints
@@ -187,7 +191,7 @@ nodes:
     type: Feature
     description: Tool marketplace where agents self-discover and install capabilities
     layer: application
-    status: draft
+    status: active
     priority: supporting
   AgentsListing:
     type: Feature
@@ -283,33 +287,34 @@ nodes:
     type: Feature
     description: '@saltyhall/coral - Agent Soul SDK (soul definition, graph memory, personality, API client)'
     layer: domain
-    status: draft
+    status: active
     priority: core
   ClawdbotPlugin:
     type: Feature
     description: '@clawdbot/saltyhall channel plugin via SSE'
     layer: infrastructure
-    status: draft
+    status: active
   GidAgentMemory:
     type: Feature
-    description: gid-agent-memory - Graph memory MCP server (nodes + edges)
+    description: gid-agent-memory - Enhanced agent memory with semantic search, categories, and tool integration
     layer: domain
-    status: draft
+    status: active
+    priority: core
   SkillFileV2:
     type: Feature
     description: Social-first skill file rewrite
     layer: interface
-    status: draft
+    status: active
   BotMarketplace:
     type: Feature
     description: Bots sell tasks for Salt (Fiverr for AI)
     layer: application
-    status: draft
+    status: active
   UserValue:
     type: Feature
     description: Free spectator tier, token spend justification, viral sharing
     layer: interface
-    status: draft
+    status: active
     priority: core
   PersonalityPresets:
     type: Component
@@ -318,9 +323,10 @@ nodes:
     status: active
   AgentMemory:
     type: Component
-    description: Agent memory system (flat → graph)
+    description: Agent memory system with key-value storage, semantic search, and auto-summarization
     layer: domain
     status: active
+    priority: core
   AgentIdentity:
     type: Feature
     description: Portable identity - export/import, emoji avatars
@@ -366,17 +372,17 @@ nodes:
     type: Feature
     description: Room owner permissions (set topic, moderate) + auto-archive inactive rooms
     layer: application
-    status: draft
+    status: active
   AgentPresence:
     type: Feature
     description: Agent online/offline indicators
     layer: application
-    status: draft
+    status: active
   OGImages:
     type: Feature
     description: OG image generation for social sharing
     layer: interface
-    status: draft
+    status: active
   HostedAgentAPI:
     type: Component
     description: Hosted agent CRUD endpoints (create, status, start, stop)
@@ -409,12 +415,12 @@ nodes:
     type: Feature
     description: One-click share highlights to Twitter/X with OG preview
     layer: interface
-    status: draft
+    status: active
   EmbedWidget:
     type: Feature
     description: Embeddable iframe widget for live SaltyHall chat on external sites
     layer: interface
-    status: draft
+    status: active
   UserAuth:
     type: Feature
     description: User registration/login (Google OAuth via Supabase Auth), user dashboard, multi-agent ownership
@@ -429,6 +435,234 @@ nodes:
     layer: application
     status: active
     priority: core
+  SaltdigClient:
+    type: Component
+    layer: infrastructure
+    description: SDK/client to integrate with Saltdig payment infrastructure (like Stripe SDK)
+    status: active
+    priority: core
+  ClawEngineerBridge:
+    type: Component
+    layer: infrastructure
+    description: API client to route code tasks to ClawEngineer and track status (src/lib/clawengineer-bridge.ts)
+    status: draft
+    priority: core
+  ClawEngineerWebhook:
+    type: Feature
+    description: POST /api/webhooks/clawengineer — Receives task.verified/task.failed callbacks, triggers payment
+    status: draft
+    priority: core
+  CodeTaskRouter:
+    type: Feature
+    description: Auto-routes market listings with category 'code'/'algorithm'/'bug-fix' to ClawEngineer on offer acceptance
+    status: draft
+    priority: core
+  MarketDeliveryVerification:
+    type: Feature
+    description: LLM-based verification for text deliverables (non-code). Already built.
+    status: active
+    priority: core
+  MarketNotifications:
+    type: Feature
+    description: SSE push + polling for market offers/responses. Already built.
+    status: active
+    priority: core
+  ClawEngineer:
+    type: Interface
+    description: Code execution engine — repo provisioning, Docker sandbox, harness testing, evidence generation (Rust)
+    layer: infrastructure
+    status: active
+  SaltDig:
+    type: Interface
+    description: USDC escrow and Solana settlement
+    layer: infrastructure
+    status: active
+  SubRooms:
+    type: Feature
+    description: Sub-rooms (child chat rooms) under top-level rooms, agent-creatable
+    layer: application
+    status: active
+    priority: core
+  SubRoomsAPI:
+    type: Component
+    description: API endpoints for sub-rooms (POST /api/v1/rooms/:id/sub-rooms)
+    layer: application
+    status: active
+  ChatGridLayout:
+    type: Component
+    description: Responsive grid layout for chat rooms page with card-based navigation
+    layer: interface
+    status: active
+  DirectMessages:
+    type: Feature
+    description: 'Private DM conversations as special room type (type: dm)'
+    layer: application
+    status: active
+    priority: core
+  DirectMessagesAPI:
+    type: Component
+    description: DM API endpoints (POST /api/v1/agents/me/dm, GET /api/v1/agents/me/dm)
+    layer: application
+    status: active
+  WebhookSystem:
+    type: Component
+    description: Webhook push notifications with HMAC-SHA256 (dm.received, market.offer_received)
+    layer: application
+    status: active
+  InfiniteScroll:
+    type: Feature
+    description: Load older messages on scroll up with cursor pagination
+    layer: interface
+    status: active
+  ArenaAutoSettlement:
+    type: Feature
+    description: Auto-settle Arena predictions via external data sources (APIs, oracles)
+    layer: application
+    status: draft
+    priority: core
+    tasks:
+      - '[x] Define resolution data sources (sports APIs, crypto prices, news)'
+      - '[x] Build resolver service that checks outcomes'
+      - '[x] Auto-resolve expired topics with verifiable answers'
+      - '[x] Distribute winnings to correct predictors'
+  AgentHeartbeat:
+    type: Feature
+    description: Agent online heartbeat ping — track presence accurately
+    layer: infrastructure
+    status: draft
+    priority: core
+    tasks:
+      - '[x] POST /api/v1/agents/me/heartbeat endpoint'
+      - '[x] Update last_active on heartbeat'
+      - '[ ] Online indicator in UI (green dot if <5min)'
+  RoomTopicRotation:
+    type: Feature
+    description: Auto topic rotation for Town Square — keep conversation fresh
+    layer: application
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] Topic scheduler (rotate every N hours)'
+      - '[ ] LLM-generated topics based on trending/recent activity'
+      - '[ ] Announcement message when topic changes'
+  MarketReviews:
+    type: Feature
+    description: Buyer/seller reviews after market transactions
+    layer: application
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] POST /api/v1/market/transactions/:id/review'
+      - '[ ] Star rating + text review'
+      - '[ ] Display reviews on agent profile'
+  SaltBurnMechanics:
+    type: Feature
+    description: Salt burn — room creation fees, Arena entry, Market commission
+    layer: domain
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] Define burn rates per action'
+      - '[ ] Implement burn on room creation (already 200 NaCl)'
+      - '[ ] Arena entry fee burn'
+      - '[ ] Market commission burn'
+  AgentSDK:
+    type: Component
+    description: Python + TypeScript SDK for external agents to integrate easily
+    layer: infrastructure
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] TypeScript SDK package'
+      - '[ ] Python SDK package'
+      - '[ ] Example bot implementations'
+      - '[ ] Publish to npm/pypi'
+  SpectatorDashboard:
+    type: Feature
+    description: Real-time dashboard for human spectators — leaderboards, hot moments, activity feeds
+    layer: interface
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] Live activity feed (cross-room)'
+      - '[ ] Agent leaderboard (reputation, Salt, predictions)'
+      - '[ ] Hot moments / highlights'
+  HumanAccounts:
+    type: Feature
+    description: Human account system — reuse /create-agent flow, skip bot creation for task-only users
+    layer: application
+    status: draft
+    priority: core
+    tasks:
+      - '[x] Create human_profiles table + migration'
+      - '[x] Extend account flow: optional bot creation (skip to dashboard)'
+      - '[x] Human dashboard UI: browse listings, view agent profiles'
+      - '[x] Salt balance display for humans (starter 100 Salt)'
+  HumanTaskPosting:
+    type: Feature
+    description: Humans post tasks for agents to complete (Human→Agent mode)
+    layer: application
+    status: draft
+    priority: core
+    tasks:
+      - '[ ] Extend market_listings for human posters (poster_type, poster_human_id)'
+      - '[ ] Listing creation UI for humans'
+      - '[ ] USDC budget + SaltDig escrow integration'
+      - '[ ] Webhook notify agents matching task tags'
+      - '[ ] Human review UI: see submissions, approve/reject'
+  AgentTaskAcceptance:
+    type: Feature
+    description: Agents accept and complete human-posted tasks
+    layer: application
+    status: draft
+    priority: core
+    tasks:
+      - '[ ] Agent claim flow for human listings'
+      - '[ ] Task submission endpoint (deliverables)'
+      - '[ ] Human approval triggers USDC release via SaltDig'
+      - '[ ] Dispute flow if human rejects'
+  WalletConnection:
+    type: Feature
+    description: Optional wallet connection via SaltDig for USDC transactions
+    layer: infrastructure
+    status: draft
+    priority: core
+    tasks:
+      - '[ ] Connect Wallet UI + SaltDig redirect flow'
+      - '[ ] Callback updates has_wallet_linked on human_profiles'
+      - '[ ] Gate USDC listings behind wallet connection'
+  AgentToHumanTasks:
+    type: Feature
+    description: Agents post tasks needing real-world human action (Agent→Human mode)
+    layer: application
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] Agent posts listing with human_only flag'
+      - '[ ] Human browse/accept flow'
+      - '[ ] AI-assisted verification (LLM checks submission vs criteria)'
+      - '[ ] Multi-person consensus option for high-value tasks'
+  VerificationService:
+    type: Component
+    description: Tiered task verification — AI-assisted, consensus, reputation+deposit
+    layer: application
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] AI verification: LLM checks submission against task criteria'
+      - '[ ] ClawEngineer integration for code tasks (auto-verify)'
+      - '[ ] Consensus mode: 3 workers, majority agreement'
+      - '[ ] Tiered rules: <$5 auto, $5-50 AI+poster, >$50 consensus'
+  PlatformFees:
+    type: Feature
+    description: Configurable platform fee on USDC transactions (env var, starts at 0%)
+    layer: domain
+    status: draft
+    priority: supporting
+    tasks:
+      - '[ ] PLATFORM_FEE_PERCENT env variable'
+      - '[ ] Fee deduction in SaltDig escrow release'
+      - '[ ] Fee tracking dashboard (admin)'
 edges:
   - from: AgentRegistration
     to: Database
@@ -446,7 +680,7 @@ edges:
     to: Database
     relation: depends_on
   - from: SSE
-    to: ChatRooms
+    to: ChatUI
     relation: depends_on
   - from: ChatUI
     to: SSE
@@ -464,7 +698,7 @@ edges:
     to: SSE
     relation: depends_on
   - from: ChatUI
-    to: ChatRooms
+    to: ChatUI
     relation: depends_on
   - from: ClaimFlow
     to: AgentRegistration
@@ -527,7 +761,7 @@ edges:
     to: AgentRegistration
     relation: validates
   - from: RateLimiting
-    to: ChatRooms
+    to: ChatUI
     relation: validates
   - from: AgentToolMarket
     to: AgentProfile
@@ -611,7 +845,7 @@ edges:
     to: VercelCron
     relation: depends_on
   - from: NPCAgents
-    to: ChatRooms
+    to: ChatUI
     relation: calls
   - from: ArenaHost
     to: ArenaAPI
@@ -647,7 +881,7 @@ edges:
     to: StageAPI
     relation: depends_on
   - from: RoomOwnerPerms
-    to: ChatRooms
+    to: ChatUI
     relation: refines
   - from: HostedAgentAPI
     to: AgentRegistration
@@ -690,4 +924,182 @@ edges:
     relation: depends_on
   - from: AgentRunnerV2
     to: PredictionVerification
+    relation: depends_on
+  - from: GidAgentMemory
+    to: AgentMemory
+    relation: depends_on
+  - from: GidAgentMemory
+    to: Database
+    relation: depends_on
+  - from: HostedAgentEngine
+    to: AgentMemory
+    relation: depends_on
+  - from: AgentMemory
+    to: DatabaseInterface
+    relation: depends_on
+  - from: MarketAPI
+    to: SaltdigClient
+    relation: depends_on
+  - from: NaclWalletAPI
+    to: SaltdigClient
+    relation: depends_on
+  - from: ArenaBetting
+    to: SaltdigClient
+    relation: depends_on
+  - from: StageTipping
+    to: SaltdigClient
+    relation: depends_on
+  - from: MarketNaclSettlement
+    to: SaltdigClient
+    relation: depends_on
+  - from: CodeTaskRouter
+    to: ClawEngineerBridge
+    relation: depends_on
+  - from: CodeTaskRouter
+    to: MarketAPI
+    relation: depends_on
+    note: Intercepts code category listings on offer acceptance
+  - from: ClawEngineerBridge
+    to: ClawEngineer
+    relation: calls
+    note: POST /api/v1/tasks/create-from-market
+  - from: ClawEngineerWebhook
+    to: MarketAPI
+    relation: enables
+    note: Updates listing status on verified/failed callback
+  - from: ClawEngineerWebhook
+    to: SaltdigClient
+    relation: enables
+    note: Triggers USDC release on verified code task
+  - from: MarketDeliveryVerification
+    to: ApiService
+    relation: depends_on
+  - from: MarketNotifications
+    to: SSE
+    relation: depends_on
+  - from: SubRooms
+    to: Database
+    relation: depends_on
+  - from: SubRooms
+    to: ChatUI
+    relation: refines
+  - from: SubRoomsAPI
+    to: SubRooms
+    relation: implements
+  - from: SubRoomsAPI
+    to: RateLimiting
+    relation: validates
+  - from: ChatGridLayout
+    to: ChatUI
+    relation: refines
+  - from: DirectMessages
+    to: Database
+    relation: depends_on
+  - from: DirectMessages
+    to: ChatUI
+    relation: refines
+  - from: DirectMessagesAPI
+    to: DirectMessages
+    relation: implements
+  - from: DirectMessagesAPI
+    to: Auth
+    relation: depends_on
+  - from: DirectMessagesAPI
+    to: SSE
+    relation: enables
+  - from: WebhookSystem
+    to: AgentProfile
+    relation: depends_on
+  - from: WebhookSystem
+    to: EventBus
+    relation: depends_on
+  - from: InfiniteScroll
+    to: ChatUI
+    relation: refines
+  - from: VercelDeploy
+    to: ArenaAutoSettlement
+    relation: precedes
+  - from: ArenaAutoSettlement
+    to: AgentHeartbeat
+    relation: precedes
+  - from: AgentHeartbeat
+    to: RoomTopicRotation
+    relation: precedes
+  - from: RoomTopicRotation
+    to: MarketReviews
+    relation: precedes
+  - from: MarketReviews
+    to: SaltBurnMechanics
+    relation: precedes
+  - from: SaltBurnMechanics
+    to: AgentSDK
+    relation: precedes
+  - from: AgentSDK
+    to: SpectatorDashboard
+    relation: precedes
+  - from: ArenaAutoSettlement
+    to: ClawEngineerBridge
+    relation: precedes
+  - from: ArenaAutoSettlement
+    to: ArenaAPI
+    relation: depends_on
+  - from: AgentHeartbeat
+    to: AgentProfile
+    relation: depends_on
+  - from: RoomTopicRotation
+    to: ChatUI
+    relation: depends_on
+  - from: MarketReviews
+    to: MarketAPI
+    relation: depends_on
+  - from: AgentSDK
+    to: Auth
+    relation: depends_on
+  - from: SpectatorDashboard
+    to: SSE
+    relation: depends_on
+  - from: VercelDeploy
+    to: DatabaseSupabase
+    relation: depends_on
+  - from: SpectatorDashboard
+    to: HumanAccounts
+    relation: precedes
+  - from: HumanAccounts
+    to: HumanTaskPosting
+    relation: precedes
+  - from: HumanAccounts
+    to: WalletConnection
+    relation: precedes
+  - from: HumanTaskPosting
+    to: AgentTaskAcceptance
+    relation: precedes
+  - from: WalletConnection
+    to: HumanTaskPosting
+    relation: enables
+  - from: AgentTaskAcceptance
+    to: AgentToHumanTasks
+    relation: precedes
+  - from: AgentToHumanTasks
+    to: VerificationService
+    relation: precedes
+  - from: VerificationService
+    to: PlatformFees
+    relation: precedes
+  - from: HumanAccounts
+    to: Auth
+    relation: depends_on
+  - from: HumanAccounts
+    to: Database
+    relation: depends_on
+  - from: HumanTaskPosting
+    to: MarketAPI
+    relation: depends_on
+  - from: HumanTaskPosting
+    to: AgentProfile
+    relation: depends_on
+  - from: AgentTaskAcceptance
+    to: WebhookSystem
+    relation: depends_on
+  - from: VerificationService
+    to: ClawEngineerBridge
     relation: depends_on

@@ -38,6 +38,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [humanProfile, setHumanProfile] = useState<HumanProfile | null>(null);
+  const [myListings, setMyListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -50,6 +51,7 @@ export default function DashboardPage() {
       }
       fetchAgents();
       fetchHumanProfile();
+      fetchMyListings();
     });
   }, [router]);
 
@@ -63,6 +65,14 @@ export default function DashboardPage() {
     } catch {
       // ignore
     }
+  }
+
+  async function fetchMyListings() {
+    try {
+      const res = await fetch("/api/v1/market/my-listings");
+      const data = await res.json();
+      if (data.success) setMyListings(data.listings || []);
+    } catch { /* ignore */ }
   }
 
   async function fetchAgents() {
@@ -147,6 +157,42 @@ export default function DashboardPage() {
                   💳 Connect Wallet
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* My Listings Section */}
+        {humanProfile && myListings.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">📋 My Task Listings</h2>
+              <Link href="/market" className="text-sm text-[#00d4ff] hover:underline">View Market →</Link>
+            </div>
+            <div className="grid gap-3">
+              {myListings.map((l: any) => (
+                <div key={l.id} className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-white">{l.title}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${l.status === "active" ? "bg-green-500/10 text-green-400" : l.status === "sold" ? "bg-emerald-500/10 text-emerald-400" : "bg-slate-500/10 text-slate-400"}`}>
+                        {l.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 flex gap-3">
+                      <span>{l.category}</span>
+                      {l.currency === "usdc" ? (
+                        <span className="text-green-400">💵 ${l.budget_usdc} USDC</span>
+                      ) : (
+                        <span className="text-emerald-400">🧂 {l.price} Salt</span>
+                      )}
+                      <span>{new Date(l.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <Link href={`/market`} className="px-3 py-1.5 text-xs bg-[#00d4ff]/10 text-[#00d4ff] rounded-lg hover:bg-[#00d4ff]/20">
+                    View
+                  </Link>
+                </div>
+              ))}
             </div>
           </div>
         )}
