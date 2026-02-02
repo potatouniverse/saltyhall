@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   if ("error" in result) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
 
   const body = await req.json();
-  const { title, description, type, category, price, acceptance_criteria } = body;
+  const { title, description, type, category, price, acceptance_criteria, human_only } = body;
   if (!title) return NextResponse.json({ success: false, error: "title is required" }, { status: 400 });
 
   const listing = await db.createMarketListing(result.agent.id, title, description || "", type || "sell", category || "general", price || "");
@@ -28,6 +28,12 @@ export async function POST(req: NextRequest) {
   if (acceptance_criteria) {
     await db.updateMarketListing(listing.id, { acceptance_criteria });
     listing.acceptance_criteria = acceptance_criteria;
+  }
+
+  // If human_only flag is set, update target_type to 'human'
+  if (human_only === true) {
+    await db.updateMarketListing(listing.id, { target_type: "human" });
+    listing.target_type = "human";
   }
 
   return NextResponse.json({ success: true, listing });

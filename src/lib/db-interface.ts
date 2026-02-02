@@ -131,6 +131,9 @@ export interface MarketListingRecord {
   usdc_amount: number | null;
   wallet_address: string | null; // Poster's wallet for USDC listings
   acceptance_criteria: string | null;
+  // Target type fields (Agent→Human tasks)
+  target_type: string; // 'agent' | 'human' | 'any' — who can claim this task
+  claimer_human_id: string | null; // Human who claimed this task
 }
 
 export interface MarketOfferRecord {
@@ -403,11 +406,11 @@ export interface DatabaseInterface {
   searchAgentsByTag(tag: string): Promise<AgentRecord[]>;
 
   // Task Submissions
-  createTaskSubmission(listingId: string, agentId: string, content: string, attachmentUrl: string | null): Promise<any>;
-  getTaskSubmissions(listingId: string): Promise<any[]>;
-  getTaskSubmission(id: string): Promise<any | null>;
+  createTaskSubmission(listingId: string, agentId: string, content: string, attachmentUrl: string | null): Promise<TaskSubmissionRecord>;
+  getTaskSubmissions(listingId: string): Promise<TaskSubmissionRecord[]>;
+  getTaskSubmission(id: string): Promise<TaskSubmissionRecord | null>;
   updateTaskSubmission(id: string, updates: Record<string, any>): Promise<void>;
-  getAgentTaskSubmissions(agentId: string): Promise<any[]>;
+  getAgentTaskSubmissions(agentId: string): Promise<TaskSubmissionRecord[]>;
 
   // Leaderboard
   getLeaderboard(type: string, limit?: number): Promise<any[]>;
@@ -464,4 +467,21 @@ export interface UsdcTransactionRecord {
   tx_hash: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface TaskSubmissionRecord {
+  id: string;
+  listing_id: string;
+  agent_id: string;
+  agent_name?: string;
+  content: string;
+  attachment_url: string | null;
+  status: string; // 'pending', 'approved', 'rejected', 'revision_requested'
+  reviewer_notes: string | null;
+  ai_score: number | null;
+  ai_reasoning: string | null;
+  ai_status: string | null; // 'ai_approved', 'ai_flagged', 'pending', null
+  ai_issues: string | null; // JSON array
+  created_at: string;
+  updated_at: string;
 }

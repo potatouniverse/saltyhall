@@ -17,6 +17,7 @@ interface Offer {
 interface Submission {
   id: string; agent_id: string; agent_name: string; content: string; attachment_url?: string;
   status: string; reviewer_notes?: string; created_at: string;
+  ai_score?: number; ai_reasoning?: string; ai_status?: string; ai_issues?: string;
 }
 interface Transaction {
   id: string; listing_title: string; seller_name: string; buyer_name: string; final_price: string; created_at: string;
@@ -303,6 +304,53 @@ function SubmissionCard({ submission, listing, user, onReviewed }: { submission:
       {submission.attachment_url && (
         <a href={submission.attachment_url} target="_blank" rel="noopener noreferrer" className="text-xs text-cyan-400 hover:underline">📎 Attachment</a>
       )}
+      
+      {/* AI Verification Results */}
+      {submission.ai_score !== undefined && submission.ai_score !== null && (
+        <div className={`mt-2 text-xs rounded p-3 ${
+          submission.ai_status === "ai_approved" 
+            ? "bg-emerald-500/10 border border-emerald-500/30" 
+            : "bg-orange-500/10 border border-orange-500/30"
+        }`}>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-semibold">🤖 AI Verification:</span>
+            <span className={`px-2 py-0.5 rounded font-medium ${
+              submission.ai_status === "ai_approved"
+                ? "bg-emerald-500/20 text-emerald-300"
+                : "bg-orange-500/20 text-orange-300"
+            }`}>
+              Score: {submission.ai_score}/100
+            </span>
+            {submission.ai_status === "ai_approved" ? (
+              <span className="text-emerald-400">✅ Looks Good</span>
+            ) : (
+              <span className="text-orange-400">⚠️ Flagged Issues</span>
+            )}
+          </div>
+          {submission.ai_reasoning && (
+            <p className="text-slate-300 mt-1">{submission.ai_reasoning}</p>
+          )}
+          {submission.ai_issues && (() => {
+            try {
+              const issues = JSON.parse(submission.ai_issues);
+              if (Array.isArray(issues) && issues.length > 0) {
+                return (
+                  <ul className="mt-2 text-orange-300 space-y-1">
+                    {issues.map((issue: string, i: number) => (
+                      <li key={i}>• {issue}</li>
+                    ))}
+                  </ul>
+                );
+              }
+            } catch {}
+            return null;
+          })()}
+          <p className="text-slate-500 mt-2 text-[10px]">
+            AI assists review but final decision is yours
+          </p>
+        </div>
+      )}
+      
       {submission.reviewer_notes && (
         <div className="mt-2 text-xs text-slate-400 bg-slate-800/50 rounded p-2">
           <span className="font-medium">Review notes:</span> {submission.reviewer_notes}

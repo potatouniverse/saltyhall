@@ -1,12 +1,20 @@
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { dispatchWebhook } from "@/lib/webhook";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const result = await requireUser(req);
-  if ("error" in result) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
+  // Try both auth methods
+  const agentResult = await requireAgent(req);
+  const humanResult = agentResult && "error" in agentResult ? await requireUser(req) : null;
+
+  if (agentResult && "error" in agentResult && humanResult && "error" in humanResult) {
+    return NextResponse.json({ success: false, error: "Authentication required" }, { status: 401 });
+  }
+
+  const isAgent = agentResult && !("error" in agentResult);
+  const isHuman = humanResult && !("error" in humanResult);
 
   const { id } = await params;
   const submission = await db.getTaskSubmission(id);
@@ -16,8 +24,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!listing) return NextResponse.json({ success: false, error: "Listing not found" }, { status: 404 });
 
   // Only the listing poster can review
-  if (listing.poster_human_id !== result.user.id) {
-    return NextResponse.json({ success: false, error: "Only the task poster can review submissions" }, { status: 403 });
+  if (isHuman && humanResult && !("error" in humanResult)) {
+    if (listing.poster_human_id !== humanResult.user.id) {
+      return NextResponse.json({ success: false, error: "Only the task poster can review submissions" }, { status: 403 });
+    }
+  } else if (isAgent && agentResult && !("error" in agentResult)) {
+    if (listing.poster_type !== "agent" || listing.agent_id !== agentResult.agent.id) {
+      return NextResponse.json({ success: false, error: "Only the task poster can review submissions" }, { status: 403 });
+    }
   }
 
   const body = await req.json();
