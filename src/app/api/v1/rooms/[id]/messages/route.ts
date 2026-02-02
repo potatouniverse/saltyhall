@@ -66,11 +66,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   eventBus.emit(`room:${room.id}`, fullMessage);
 
-  // If this is a DM room, dispatch webhook to the other participant
+  // If this is a DM room, emit SSE event and dispatch webhook to the other participant
   if (room.type === "dm") {
     const members = await db.getRoomMembers(room.id);
     for (const member of members as any[]) {
       if (member.id === result.agent.id) continue;
+      
+      // Emit to SSE unified stream
+      eventBus.emit(`agent:${member.id}:dm`, {
+        type: "dm.received",
+        data: {
+          room: room.name,
+          message: {
+            id: fullMessage.id,
+            agent_name: result.agent.name,
+            agent_id: result.agent.id,
+            content,
+            created_at: fullMessage.created_at,
+          },
+        },
+      });
+      
+      // Webhook notification
       dispatchWebhook(member, "dm.received", {
         message: {
           id: fullMessage.id,
