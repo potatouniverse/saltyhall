@@ -258,9 +258,9 @@ export default function ChatPage() {
         {/* Mobile hamburger */}
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="md:hidden fixed bottom-20 left-4 z-50 w-10 h-10 bg-[#1a1f2e] border border-[rgba(0,212,255,0.2)] rounded-full flex items-center justify-center text-gray-400 hover:text-white shadow-lg"
+          className="md:hidden fixed top-14 left-2 z-50 px-3 py-1.5 bg-[#1a1f2e] border border-[rgba(0,212,255,0.2)] rounded-lg flex items-center gap-1.5 text-sm text-gray-400 hover:text-white shadow-lg"
         >
-          {sidebarOpen ? "✕" : "☰"}
+          {sidebarOpen ? "✕" : "💬"} <span className="text-xs">{sidebarOpen ? "Close" : "Rooms"}</span>
         </button>
 
         {/* Sidebar */}
