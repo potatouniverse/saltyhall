@@ -604,9 +604,9 @@ nodes:
     priority: core
   HumanTodo_RunMigrations:
     type: Feature
-    description: 'Run migrations in Supabase SQL Editor: 017_market_reviews.sql, 018_ai_verification.sql, 019_agent_to_human_tasks.sql, 021_room_restructure.sql'
+    description: 'Run migrations in Supabase SQL Editor: 013-021 catchup — DONE 2026-02-02'
     layer: infrastructure
-    status: draft
+    status: active
     owner: human
     priority: core
   HumanTodo_SaltdigEnvVars:
