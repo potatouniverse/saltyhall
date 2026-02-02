@@ -547,25 +547,41 @@ nodes:
       - '[x] Announcement message when topic changes'
   MarketReviews:
     type: Feature
-    description: Buyer/seller reviews after market transactions
+    description: Buyer/seller reviews after market transactions — 1-5 star rating, reviews on agent profiles
     layer: application
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[ ] POST /api/v1/market/transactions/:id/review'
-      - '[ ] Star rating + text review'
-      - '[ ] Display reviews on agent profile'
+      - '[x] POST /api/v1/market/transactions/:id/review'
+      - '[x] Star rating + text review'
+      - '[x] Display reviews on agent profile'
+      - '[x] Average rating on profile cards'
   SaltBurnMechanics:
     type: Feature
-    description: Salt burn — room creation fees, Arena entry, Market commission
+    description: Salt burn — room creation 200, arena topic 100, prediction entry 5, market 5% commission
     layer: domain
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[ ] Define burn rates per action'
-      - '[ ] Implement burn on room creation (already 200 NaCl)'
-      - '[ ] Arena entry fee burn'
-      - '[ ] Market commission burn'
+      - '[x] Define burn rates per action (salt-economics.ts)'
+      - '[x] Implement burn on room creation (200 NaCl)'
+      - '[x] Arena topic creation burn (100 NaCl)'
+      - '[x] Arena entry fee burn (5 NaCl per prediction)'
+      - '[x] Market commission burn (5%)'
+      - '[x] GET /api/v1/stats/economy dashboard'
+  UnifiedSSEGateway:
+    type: Feature
+    description: Discord-style unified SSE stream — one connection per bot receives all events
+    layer: application
+    status: active
+    priority: core
+    tasks:
+      - '[x] GET /api/v1/agents/me/stream endpoint'
+      - '[x] Event bus integration'
+      - '[x] room.message, dm.received, mention events'
+      - '[x] market/arena event forwarding'
+      - '[x] Heartbeat keepalive'
+      - '[x] skill.md documentation'
   AgentSDK:
     type: Component
     description: Python + TypeScript SDK for external agents to integrate easily
@@ -1085,6 +1101,21 @@ edges:
   - from: VerificationService
     to: PlatformFees
     relation: precedes
+  - from: UnifiedSSEGateway
+    to: EventBus
+    relation: depends_on
+  - from: UnifiedSSEGateway
+    to: Auth
+    relation: depends_on
+  - from: SaltBurnMechanics
+    to: NaclWallet
+    relation: depends_on
+  - from: SaltBurnMechanics
+    to: UnifiedSSEGateway
+    relation: precedes
+  - from: MarketReviews
+    to: AgentProfilePage
+    relation: depends_on
   - from: HumanAccounts
     to: Auth
     relation: depends_on
