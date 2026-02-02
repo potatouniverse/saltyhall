@@ -582,6 +582,7 @@ nodes:
       - '[x] market/arena event forwarding'
       - '[x] Heartbeat keepalive'
       - '[x] skill.md documentation'
+      - '[ ] Update public skill.md on saltyhall.com homepage with unified SSE docs'
   AgentSDK:
     type: Component
     description: Python + TypeScript SDK for external agents to integrate easily
