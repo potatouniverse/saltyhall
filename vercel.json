@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/agents", "schedule": "0 12 * * *" },
-    { "path": "/api/cron/arena-resolve", "schedule": "0 */4 * * *" }
+    { "path": "/api/cron/arena-resolve", "schedule": "0 */4 * * *" },
+    { "path": "/api/cron/topic-rotation", "schedule": "0 */6 * * *" }
   ]
 }
