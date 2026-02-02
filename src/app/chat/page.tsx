@@ -97,43 +97,25 @@ export default function ChatPage() {
       });
   }, []);
 
-  // Build card data for grid view
+  // Build card data for grid view — Town Square + sub-rooms all as equal cards
   useEffect(() => {
     if (rooms.length === 0) return;
-    const parentRooms = rooms.filter((r) => !r.parent_id && r.type === "square");
+    const squareRooms = rooms.filter((r) => !r.parent_id && r.type === "square");
     const newCardData = new Map<string, RoomCardData>();
 
-    parentRooms.forEach((room) => {
-      const subs = rooms.filter((r) => r.parent_id === room.id);
+    // Add parent square rooms as cards
+    squareRooms.forEach((room) => {
       newCardData.set(room.name, {
         room,
-        subRooms: subs,
+        subRooms: [],
         onlineCount: 0,
         latestMessage: null,
       });
     });
     setCardData(newCardData);
 
-    // Fetch sub-rooms, latest message, and online count for each parent room
-    parentRooms.forEach((room) => {
-      // Sub-rooms
-      fetch(`/api/v1/rooms/${room.name}/sub-rooms`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success && data.rooms?.length > 0) {
-            setCardData((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(room.name);
-              if (existing) {
-                next.set(room.name, { ...existing, subRooms: data.rooms });
-              }
-              return next;
-            });
-          }
-        })
-        .catch(() => {});
-
-      // Latest message
+    // Helper to fetch latest message + online count for a room
+    function fetchRoomMeta(room: Room) {
       fetch(`/api/v1/rooms/${room.name}/messages?limit=1`)
         .then((r) => r.json())
         .then((data) => {
@@ -150,7 +132,6 @@ export default function ChatPage() {
         })
         .catch(() => {});
 
-      // Online agents count
       fetch(`/api/v1/rooms/${room.name}`)
         .then((r) => r.json())
         .then((data) => {
@@ -159,13 +140,38 @@ export default function ChatPage() {
               const next = new Map(prev);
               const existing = next.get(room.name);
               if (existing) {
-                next.set(room.name, {
-                  ...existing,
-                  onlineCount: data.online_agents?.length || 0,
-                });
+                next.set(room.name, { ...existing, onlineCount: data.online_agents?.length || 0 });
               }
               return next;
             });
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Fetch meta for parent rooms
+    squareRooms.forEach(fetchRoomMeta);
+
+    // Fetch sub-rooms and add them as equal-level cards
+    squareRooms.forEach((room) => {
+      fetch(`/api/v1/rooms/${room.name}/sub-rooms`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.rooms?.length > 0) {
+            setCardData((prev) => {
+              const next = new Map(prev);
+              data.rooms.forEach((sr: Room) => {
+                next.set(sr.name, {
+                  room: sr,
+                  subRooms: [],
+                  onlineCount: 0,
+                  latestMessage: null,
+                });
+              });
+              return next;
+            });
+            // Fetch meta for each sub-room too
+            data.rooms.forEach((sr: Room) => fetchRoomMeta(sr));
           }
         })
         .catch(() => {});
@@ -174,7 +180,22 @@ export default function ChatPage() {
 
   // Navigate to a room's chat
   function openRoom(roomName: string) {
-    setActiveRoom(roomName);
+    // Check if this is a sub-room
+    const cardEntry = cardData.get(roomName);
+    if (cardEntry?.room.parent_id) {
+      // Find the parent room name
+      const parentCard = Array.from(cardData.values()).find(cd => cd.room.id === cardEntry.room.parent_id);
+      const parentName = parentCard?.room.name || rooms.find(r => r.id === cardEntry.room.parent_id)?.name;
+      if (parentName) {
+        setActiveRoom(parentName);
+        setActiveSubRoom(roomName);
+      } else {
+        setActiveRoom(roomName);
+      }
+    } else {
+      setActiveRoom(roomName);
+      setActiveSubRoom(null);
+    }
     setView("chat");
     window.location.hash = roomName;
   }
@@ -425,22 +446,12 @@ export default function ChatPage() {
                         </div>
                       )}
 
-                      {/* Sub-rooms */}
-                      {cd.subRooms.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-[rgba(0,212,255,0.05)]">
-                          <p className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">
-                            Channels
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {cd.subRooms.map((sr) => (
-                              <span
-                                key={sr.id}
-                                className="text-[11px] text-gray-500 bg-[#0a0e1a] px-2 py-0.5 rounded border border-[rgba(0,212,255,0.05)]"
-                              >
-                                # {sr.display_name}
-                              </span>
-                            ))}
-                          </div>
+                      {/* Parent room indicator for sub-rooms */}
+                      {cd.room.parent_id && (
+                        <div className="mt-3 pt-2 border-t border-[rgba(0,212,255,0.05)]">
+                          <span className="text-[10px] text-gray-600">
+                            📍 sub-room
+                          </span>
                         </div>
                       )}
                     </button>
