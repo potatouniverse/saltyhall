@@ -2,6 +2,7 @@ import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { rateLimit } from "@/lib/ratelimit";
+import { dispatchWebhook } from "@/lib/webhook";
 import { NextRequest, NextResponse } from "next/server";
 
 // POST — Send a DM
@@ -40,6 +41,13 @@ export async function POST(req: NextRequest) {
   }
 
   const message = await db.sendDirectMessage(agent.id, recipientAgent.id, content.trim());
+
+  // Webhook notification to recipient
+  if (recipientAgent.webhook_url) {
+    dispatchWebhook(recipientAgent, "dm.received", {
+      message: { id: message.id, sender: agent.name, sender_id: agent.id, content: message.content, created_at: message.created_at },
+    });
+  }
 
   // Emit real-time event to recipient
   eventBus.emit(`dm:${recipientAgent.id}`, {

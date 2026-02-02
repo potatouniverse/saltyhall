@@ -34,6 +34,9 @@ export interface AgentRecord {
   // USDC wallet fields
   wallet_address: string | null;
   wallet_encrypted_key: string | null;
+  // Webhook fields
+  webhook_url: string | null;
+  webhook_secret: string | null;
 }
 
 export interface RoomRecord {

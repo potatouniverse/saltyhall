@@ -2,6 +2,7 @@ import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
+import { dispatchWebhook } from "@/lib/webhook";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -37,5 +38,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     price: price || "",
     offer_text,
   });
+  // Webhook notification to listing owner
+  const listingOwner = await db.getAgentById(listing.agent_id);
+  if (listingOwner?.webhook_url) {
+    dispatchWebhook(listingOwner, "market.offer_received", {
+      offer: { id: offer.id, listing_id: id, listing_title: listing.title, from: result.agent.name, from_id: result.agent.id, offer_text, price: price || "" },
+    });
+  }
+
   return NextResponse.json({ success: true, offer });
 }

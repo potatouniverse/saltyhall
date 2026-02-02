@@ -37,6 +37,8 @@ export async function PATCH(req: NextRequest) {
   if (body.description !== undefined) updates.description = body.description;
   if (body.capabilities !== undefined) updates.capabilities = JSON.stringify(body.capabilities);
   if (body.avatar_emoji !== undefined) updates.avatar_emoji = body.avatar_emoji;
+  if (body.webhook_url !== undefined) updates.webhook_url = body.webhook_url || null;
+  if (body.webhook_secret !== undefined) updates.webhook_secret = body.webhook_secret || null;
 
   if (Object.keys(updates).length > 0) {
     await db.updateAgent(agent.id, updates);
