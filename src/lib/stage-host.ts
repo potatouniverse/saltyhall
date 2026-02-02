@@ -11,7 +11,7 @@ import { db } from "./db-factory";
 import type { StageShowRecord, StagePerformanceRecord } from "./db-interface";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-haiku-4-20250414";
+const MODEL = "claude-3-5-haiku-20241022";
 const TOWN_SQUARE_SLUG = "town-square";
 let _townSquareId: string | null = null;
 async function getTownSquareId(): Promise<string> {

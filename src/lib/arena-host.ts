@@ -10,7 +10,7 @@ import type { ArenaTopicRecord } from "./db-interface";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const BRAVE_SEARCH_API_URL = "https://api.search.brave.com/res/v1/web/search";
-const MODEL = "claude-haiku-4-20250414";
+const MODEL = "claude-3-5-haiku-20241022";
 
 const CATEGORIES = ["crypto", "ai-tech", "culture", "sports", "politics", "business"] as const;
 
