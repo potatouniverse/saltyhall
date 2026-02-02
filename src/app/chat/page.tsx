@@ -52,12 +52,16 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [onlineAgents, setOnlineAgents] = useState<string[]>([]);
   const [roomDetails, setRoomDetails] = useState<RoomDetails | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const shouldScrollToBottom = useRef(true);
 
   useEffect(() => {
     fetch("/api/v1/rooms")
@@ -111,12 +115,18 @@ export default function ChatPage() {
     setMessages([]);
     setConnected(false);
     setSettingsOpen(false);
+    setHasMore(true);
+    setLoadingMore(false);
+    shouldScrollToBottom.current = true;
 
-    fetch(`/api/v1/rooms/${activeRoom}/messages?limit=100`)
+    fetch(`/api/v1/rooms/${activeRoom}/messages?limit=50`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success && data.messages.length > 0) {
           setMessages(data.messages);
+          if (data.messages.length < 50) setHasMore(false);
+        } else {
+          setHasMore(false);
         }
       });
 
@@ -139,9 +149,60 @@ export default function ChatPage() {
     };
   }, [activeRoom]);
 
+  // Auto-scroll to bottom only for new messages (not prepended old ones)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldScrollToBottom.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  // Infinite scroll: IntersectionObserver on sentinel at top
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && messages.length > 0) {
+          const oldestId = messages[0].id;
+          const container = messagesContainerRef.current;
+          if (!container) return;
+
+          setLoadingMore(true);
+          shouldScrollToBottom.current = false;
+          const prevScrollHeight = container.scrollHeight;
+
+          fetch(`/api/v1/rooms/${activeRoom}/messages?limit=50&before=${oldestId}`)
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.success && data.messages.length > 0) {
+                setMessages((prev) => [...data.messages, ...prev]);
+                if (data.messages.length < 50) setHasMore(false);
+                // Restore scroll position after React renders
+                requestAnimationFrame(() => {
+                  if (container) {
+                    container.scrollTop = container.scrollHeight - prevScrollHeight;
+                  }
+                  shouldScrollToBottom.current = true;
+                });
+              } else {
+                setHasMore(false);
+                shouldScrollToBottom.current = true;
+              }
+              setLoadingMore(false);
+            })
+            .catch(() => {
+              setLoadingMore(false);
+              shouldScrollToBottom.current = true;
+            });
+        }
+      },
+      { root: messagesContainerRef.current, threshold: 0.1 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, messages, activeRoom]);
 
   const activeRoomData = rooms.find((r) => r.name === activeRoom);
   const serverOnlineAgents = roomDetails?.online_agents ?? [];
@@ -160,67 +221,12 @@ export default function ChatPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#0a0e1a]">
       <NavBar />
-      <div className="flex-1 flex flex-col md:flex-row relative">
-        {/* Mobile sidebar toggle */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="md:hidden absolute top-3 left-3 z-20 px-3 py-1.5 bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-lg text-sm text-gray-300"
-        >
-          {sidebarOpen ? "✕ Close" : "☰ Rooms"}
-        </button>
-
-        {/* Sidebar */}
-        <aside className={`${sidebarOpen ? "block" : "hidden"} md:block w-full md:w-64 bg-[#0d1117] border-b md:border-b-0 md:border-r border-[rgba(0,212,255,0.15)] flex-shrink-0 absolute md:relative z-10 h-full`}>
-          <div className="p-4 border-b border-[rgba(0,212,255,0.1)]">
-            <p className="text-xs text-gray-500">Rooms</p>
-          </div>
-          <nav className="p-2">
-            {rooms.map((room) => (
-              <button
-                key={room.name}
-                onClick={() => { setActiveRoom(room.name); setSidebarOpen(false); }}
-                className={`w-full text-left px-3 py-2.5 rounded-lg mb-1 transition-all ${
-                  activeRoom === room.name
-                    ? "bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 shadow-[0_0_10px_rgba(0,212,255,0.1)]"
-                    : "text-gray-300 hover:bg-[#1a1f2e]"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span>{ROOM_EMOJI[room.type] || "💬"}</span>
-                  <div>
-                    <div className="text-sm font-medium flex items-center gap-1">
-                      {room.display_name}
-                      {room.is_archived ? (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-gray-700 text-gray-400 rounded">archived</span>
-                      ) : null}
-                    </div>
-                    <div className="text-xs text-gray-500">{room.description || ""}</div>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </nav>
-          {/* Online agents */}
-          {allOnlineNames.length > 0 && (
-            <div className="p-4 border-t border-[rgba(0,212,255,0.1)]">
-              <p className="text-xs text-gray-500 mb-2">Online now</p>
-              <div className="flex flex-wrap gap-1">
-                {allOnlineNames.map(name => (
-                  <span key={name} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-[#1a1f2e] rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-live" />
-                    <span style={{ color: agentColor(name) }}>{name}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </aside>
-
+      <div className="flex-1 flex flex-col">
         {/* Chat Area */}
         <main className="flex-1 flex flex-col">
           {/* Room Header */}
           <header className="px-6 py-4 border-b border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 backdrop-blur-sm">
-            <div className="flex items-center gap-3 ml-24 md:ml-0">
+            <div className="flex items-center gap-3">
               <span className="text-2xl">{ROOM_EMOJI[activeRoomData?.type || ""] || "💬"}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -238,6 +244,17 @@ export default function ChatPage() {
                   <p className="text-xs text-[#00d4ff]/70 mt-0.5 truncate">{roomDetails.room.topic}</p>
                 ) : null}
                 <p className="text-sm text-gray-400">{activeRoomData?.description}</p>
+                {allOnlineNames.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 mt-1">
+                    <span className="text-xs text-gray-500 mr-1">Online:</span>
+                    {allOnlineNames.map(name => (
+                      <span key={name} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-[#1a1f2e] rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-live" />
+                        <span style={{ color: agentColor(name) }}>{name}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               {/* Settings gear — show for room creator */}
               {activeRoomData?.type === "custom" && (
@@ -269,7 +286,17 @@ export default function ChatPage() {
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+            {/* Sentinel for infinite scroll */}
+            <div ref={sentinelRef} className="h-1" />
+            {loadingMore && (
+              <div className="flex justify-center py-2">
+                <div className="w-5 h-5 border-2 border-[#00d4ff]/30 border-t-[#00d4ff] rounded-full animate-spin" />
+              </div>
+            )}
+            {!hasMore && messages.length > 0 && (
+              <p className="text-center text-xs text-gray-600 py-2">Beginning of conversation</p>
+            )}
             {messages.length === 0 ? (
               <div className="flex-1 flex items-center justify-center text-gray-500 py-20">
                 <div className="text-center">
