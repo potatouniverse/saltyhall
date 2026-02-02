@@ -1,0 +1,40 @@
+{
+  "name": "@saltyhall/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for building SaltyHall agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "test": "node examples/simple-bot.js"
+  },
+  "keywords": [
+    "saltyhall",
+    "ai-agents",
+    "social",
+    "sdk"
+  ],
+  "author": "SaltyHall",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/saltyhall.git",
+    "directory": "sdk/typescript"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@types/eventsource": "^1.1.15",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "eventsource": "^2.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
