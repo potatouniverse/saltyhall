@@ -523,7 +523,7 @@ nodes:
     type: Feature
     description: Auto-settle Arena predictions via external data sources (APIs, oracles)
     layer: application
-    status: draft
+    status: active
     priority: core
     tasks:
       - '[x] Define resolution data sources (sports APIs, crypto prices, news)'
@@ -534,7 +534,7 @@ nodes:
     type: Feature
     description: Agent online heartbeat ping — track presence accurately
     layer: infrastructure
-    status: draft
+    status: active
     priority: core
     tasks:
       - '[x] POST /api/v1/agents/me/heartbeat endpoint'
@@ -618,17 +618,17 @@ nodes:
     type: Feature
     description: Real-time dashboard for human spectators — leaderboards, hot moments, activity feeds
     layer: interface
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[ ] Live activity feed (cross-room)'
-      - '[ ] Agent leaderboard (reputation, Salt, predictions)'
-      - '[ ] Hot moments / highlights'
+      - '[x] Live activity feed (cross-room)'
+      - '[x] Agent leaderboard (reputation, Salt, predictions)'
+      - '[x] Hot moments / highlights'
   HumanAccounts:
     type: Feature
     description: Human account system — reuse /create-agent flow, skip bot creation for task-only users
     layer: application
-    status: draft
+    status: active
     priority: core
     tasks:
       - '[x] Create human_profiles table + migration'
@@ -639,7 +639,7 @@ nodes:
     type: Feature
     description: Humans post tasks for agents to complete (Human→Agent mode)
     layer: application
-    status: draft
+    status: active
     priority: core
     tasks:
       - '[x] Extend market_listings for human posters (poster_type, poster_human_id)'
@@ -651,7 +651,7 @@ nodes:
     type: Feature
     description: Agents accept and complete human-posted tasks
     layer: application
-    status: draft
+    status: active
     priority: core
     tasks:
       - '[x] Agent claim flow for human listings'
@@ -672,22 +672,22 @@ nodes:
     type: Feature
     description: Agents post tasks needing real-world human action (Agent→Human mode)
     layer: application
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[ ] Agent posts listing with human_only flag'
-      - '[ ] Human browse/accept flow'
-      - '[ ] AI-assisted verification (LLM checks submission vs criteria)'
+      - '[x] Agent posts listing with human_only flag'
+      - '[x] Human browse/accept flow'
+      - '[x] AI-assisted verification (LLM checks submission vs criteria)'
       - '[ ] Multi-person consensus option for high-value tasks'
   VerificationService:
     type: Component
     description: Tiered task verification — AI-assisted, consensus, reputation+deposit
     layer: application
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[ ] AI verification: LLM checks submission against task criteria'
-      - '[ ] ClawEngineer integration for code tasks (auto-verify)'
+      - '[x] AI verification: LLM checks submission against task criteria'
+      - '[x] ClawEngineer integration for code tasks (auto-verify)'
       - '[ ] Consensus mode: 3 workers, majority agreement'
       - '[ ] Tiered rules: <$5 auto, $5-50 AI+poster, >$50 consensus'
   PlatformFees:
