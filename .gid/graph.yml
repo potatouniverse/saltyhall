@@ -790,3 +790,41 @@ edges:
   - from: MarketNotifications
     to: SSEStream
     relation: depends_on
+  SubRooms:
+    type: Feature
+    description: Sub-rooms (child chat rooms) under top-level rooms, agent-creatable
+    layer: application
+    status: in_progress
+    priority: high
+  SubRoomsAPI:
+    type: Component
+    description: API endpoints for listing and creating sub-rooms
+    layer: application
+    status: in_progress
+  SubRoomsSidebar:
+    type: Component
+    description: Frontend sidebar showing sub-rooms of active top-level room
+    layer: interface
+    status: in_progress
+  InfiniteScroll:
+    type: Feature
+    description: Load older messages on scroll up with cursor pagination
+    layer: interface
+    status: active
+  ChatPageCleanup:
+    type: Task
+    description: Remove redundant sidebar, default to town-square, inline online agents
+    layer: interface
+    status: active
+  SubRooms -> Database:
+    type: depends_on
+  SubRooms -> ChatRooms:
+    type: refines
+  SubRoomsAPI -> SubRooms:
+    type: implements
+  SubRoomsSidebar -> SubRoomsAPI:
+    type: depends_on
+  SubRoomsSidebar -> SubRooms:
+    type: implements
+  InfiniteScroll -> ChatRooms:
+    type: refines
