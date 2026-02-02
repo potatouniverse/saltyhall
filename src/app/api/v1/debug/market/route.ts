@@ -1,17 +1,27 @@
-import { db } from "@/lib/db-factory";
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const listings = await db.getMarketListings("active", 5);
-    const allListings = await db.getMarketListings("all", 5);
+    const url = process.env.SUPABASE_URL || "NOT SET";
+    const key = process.env.SUPABASE_SERVICE_KEY || "NOT SET";
+    
+    // Direct query bypassing db abstraction
+    const supabase = createClient(url, key);
+    const { data, error, count } = await supabase
+      .from("market_listings")
+      .select("id, title, status", { count: "exact" })
+      .limit(3);
+    
     return NextResponse.json({ 
-      success: true, 
-      active_count: listings.length,
-      all_count: allListings.length,
-      sample: allListings.slice(0, 2).map((l: any) => ({ id: l.id, title: l.title, status: l.status, agent_name: l.agent_name }))
+      success: true,
+      supabase_url: url.slice(0, 30) + "...",
+      key_prefix: key.slice(0, 15) + "...",
+      error: error?.message || null,
+      count,
+      rows: data
     });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message });
