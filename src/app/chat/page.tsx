@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+// Discord-like chat layout with sidebar navigation
 import NavBar from "@/components/NavBar";
 import AgentAvatar from "@/components/AgentAvatar";
 import { agentColor } from "@/lib/agent-colors";
@@ -47,17 +48,12 @@ const ROOM_EMOJI: Record<string, string> = {
   lounge: "☕",
 };
 
-interface RoomCardData {
-  room: Room;
-  subRooms: Room[];
-  onlineCount: number;
-  latestMessage: Message | null;
-}
-
 export default function ChatPage() {
-  const [view, setView] = useState<"grid" | "chat">("grid");
+  const router = useRouter();
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [activeRoom, setActiveRoom] = useState<string | null>(null);
+  const [parentRoom, setParentRoom] = useState<Room | null>(null);
+  const [subRooms, setSubRooms] = useState<Room[]>([]);
+  const [activeRoomName, setActiveRoomName] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
@@ -66,157 +62,59 @@ export default function ChatPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [subRooms, setSubRooms] = useState<Room[]>([]);
-  const [activeSubRoom, setActiveSubRoom] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [cardData, setCardData] = useState<Map<string, RoomCardData>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const shouldScrollToBottom = useRef(true);
 
-  // Fetch rooms
+  // Fetch rooms and find Town Square
   useEffect(() => {
     fetch("/api/v1/rooms")
       .then((r) => r.json())
       .then((data) => {
         if (data.success) {
           setRooms(data.rooms);
-          // Check URL hash for direct room link
-          const hash = window.location.hash.replace("#", "");
-          if (hash) {
-            const found = data.rooms.find((r: Room) => r.name === hash);
-            if (found) {
-              setActiveRoom(found.name);
-              setView("chat");
+          const townSquare = data.rooms.find(
+            (r: Room) => r.type === "square" && !r.parent_id
+          );
+          if (townSquare) {
+            setParentRoom(townSquare);
+            // Check URL hash for direct room link
+            const hash = window.location.hash.replace("#", "");
+            if (hash) {
+              // Will be resolved after sub-rooms load
+              setActiveRoomName(hash);
+            } else {
+              setActiveRoomName(townSquare.name);
             }
+            // Fetch sub-rooms
+            fetch(`/api/v1/rooms/${townSquare.name}/sub-rooms`)
+              .then((r) => r.json())
+              .then((subData) => {
+                if (subData.success) {
+                  setSubRooms(subData.rooms || []);
+                }
+              })
+              .catch(() => {});
           }
         }
         setLoading(false);
       });
   }, []);
 
-  // Build card data for grid view — Town Square + sub-rooms all as equal cards
-  useEffect(() => {
-    if (rooms.length === 0) return;
-    const squareRooms = rooms.filter((r) => !r.parent_id && r.type === "square");
-    const newCardData = new Map<string, RoomCardData>();
+  // Switch active room (sidebar click)
+  const switchRoom = useCallback(
+    (roomName: string) => {
+      setActiveRoomName(roomName);
+      setSidebarOpen(false);
+      window.history.replaceState(null, "", `/chat#${roomName}`);
+    },
+    []
+  );
 
-    // Add parent square rooms as cards
-    squareRooms.forEach((room) => {
-      newCardData.set(room.name, {
-        room,
-        subRooms: [],
-        onlineCount: 0,
-        latestMessage: null,
-      });
-    });
-    setCardData(newCardData);
-
-    // Helper to fetch latest message + online count for a room
-    function fetchRoomMeta(room: Room) {
-      fetch(`/api/v1/rooms/${room.name}/messages?limit=1`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success && data.messages?.length > 0) {
-            setCardData((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(room.name);
-              if (existing) {
-                next.set(room.name, { ...existing, latestMessage: data.messages[0] });
-              }
-              return next;
-            });
-          }
-        })
-        .catch(() => {});
-
-      fetch(`/api/v1/rooms/${room.name}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success) {
-            setCardData((prev) => {
-              const next = new Map(prev);
-              const existing = next.get(room.name);
-              if (existing) {
-                next.set(room.name, { ...existing, onlineCount: data.online_agents?.length || 0 });
-              }
-              return next;
-            });
-          }
-        })
-        .catch(() => {});
-    }
-
-    // Fetch meta for parent rooms
-    squareRooms.forEach(fetchRoomMeta);
-
-    // Fetch sub-rooms and add them as equal-level cards
-    squareRooms.forEach((room) => {
-      fetch(`/api/v1/rooms/${room.name}/sub-rooms`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success && data.rooms?.length > 0) {
-            setCardData((prev) => {
-              const next = new Map(prev);
-              data.rooms.forEach((sr: Room) => {
-                next.set(sr.name, {
-                  room: sr,
-                  subRooms: [],
-                  onlineCount: 0,
-                  latestMessage: null,
-                });
-              });
-              return next;
-            });
-            // Fetch meta for each sub-room too
-            data.rooms.forEach((sr: Room) => fetchRoomMeta(sr));
-          }
-        })
-        .catch(() => {});
-    });
-  }, [rooms]);
-
-  // Navigate to a room's chat
-  function openRoom(roomName: string) {
-    // Check if this is a sub-room
-    const cardEntry = cardData.get(roomName);
-    if (cardEntry?.room.parent_id) {
-      // Find the parent room name
-      const parentCard = Array.from(cardData.values()).find(cd => cd.room.id === cardEntry.room.parent_id);
-      const parentName = parentCard?.room.name || rooms.find(r => r.id === cardEntry.room.parent_id)?.name;
-      if (parentName) {
-        setActiveRoom(parentName);
-        setActiveSubRoom(roomName);
-      } else {
-        setActiveRoom(roomName);
-      }
-    } else {
-      setActiveRoom(roomName);
-      setActiveSubRoom(null);
-    }
-    setView("chat");
-    window.location.hash = roomName;
-  }
-
-  function backToGrid() {
-    setView("grid");
-    setActiveRoom(null);
-    setActiveSubRoom(null);
-    setMessages([]);
-    setRoomDetails(null);
-    setSubRooms([]);
-    setSettingsOpen(false);
-    window.location.hash = "";
-    // Close any existing SSE connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-  }
-
-  // Derive online agents from recent messages (client-side heuristic)
+  // Derive online agents from recent messages
   useEffect(() => {
     const now = Date.now();
     const fiveMin = 5 * 60 * 1000;
@@ -229,10 +127,10 @@ export default function ChatPage() {
     setOnlineAgents(Array.from(active));
   }, [messages]);
 
-  // Fetch room details (including server-side online agents)
+  // Fetch room details
   useEffect(() => {
-    if (!activeRoom || view !== "chat") return;
-    fetch(`/api/v1/rooms/${activeRoom}`)
+    if (!activeRoomName) return;
+    fetch(`/api/v1/rooms/${activeRoomName}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success) setRoomDetails(data);
@@ -240,7 +138,7 @@ export default function ChatPage() {
       .catch(() => {});
 
     const iv = setInterval(() => {
-      fetch(`/api/v1/rooms/${activeRoom}`)
+      fetch(`/api/v1/rooms/${activeRoomName}`)
         .then((r) => r.json())
         .then((data) => {
           if (data.success) setRoomDetails(data);
@@ -248,26 +146,11 @@ export default function ChatPage() {
         .catch(() => {});
     }, 30000);
     return () => clearInterval(iv);
-  }, [activeRoom, view]);
+  }, [activeRoomName]);
 
-  // Fetch sub-rooms when active room changes
+  // Fetch messages + SSE for active room
   useEffect(() => {
-    if (!activeRoom || view !== "chat") return;
-    setSubRooms([]);
-    setActiveSubRoom(null);
-    fetch(`/api/v1/rooms/${activeRoom}/sub-rooms`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) setSubRooms(data.rooms);
-      })
-      .catch(() => {});
-  }, [activeRoom, view]);
-
-  // The effective room for messages: sub-room if selected, otherwise parent
-  const effectiveRoom = activeSubRoom || activeRoom;
-
-  useEffect(() => {
-    if (!effectiveRoom || view !== "chat") return;
+    if (!activeRoomName) return;
     setMessages([]);
     setConnected(false);
     setSettingsOpen(false);
@@ -275,7 +158,7 @@ export default function ChatPage() {
     setLoadingMore(false);
     shouldScrollToBottom.current = true;
 
-    fetch(`/api/v1/rooms/${effectiveRoom}/messages?limit=50`)
+    fetch(`/api/v1/rooms/${activeRoomName}/messages?limit=50`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success && data.messages.length > 0) {
@@ -286,7 +169,7 @@ export default function ChatPage() {
         }
       });
 
-    const es = new EventSource(`/api/v1/rooms/${effectiveRoom}/stream`);
+    const es = new EventSource(`/api/v1/rooms/${activeRoomName}/stream`);
     eventSourceRef.current = es;
 
     es.addEventListener("connected", () => setConnected(true));
@@ -303,16 +186,16 @@ export default function ChatPage() {
       es.close();
       eventSourceRef.current = null;
     };
-  }, [effectiveRoom, view]);
+  }, [activeRoomName]);
 
-  // Auto-scroll to bottom only for new messages
+  // Auto-scroll to bottom
   useEffect(() => {
     if (shouldScrollToBottom.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
 
-  // Infinite scroll: IntersectionObserver on sentinel at top
+  // Infinite scroll
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -328,7 +211,7 @@ export default function ChatPage() {
           shouldScrollToBottom.current = false;
           const prevScrollHeight = container.scrollHeight;
 
-          fetch(`/api/v1/rooms/${effectiveRoom}/messages?limit=50&before=${oldestId}`)
+          fetch(`/api/v1/rooms/${activeRoomName}/messages?limit=50&before=${oldestId}`)
             .then((r) => r.json())
             .then((data) => {
               if (data.success && data.messages.length > 0) {
@@ -357,9 +240,14 @@ export default function ChatPage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, messages, effectiveRoom]);
+  }, [hasMore, loadingMore, messages, activeRoomName]);
 
-  const activeRoomData = rooms.find((r) => r.name === activeRoom);
+  // Find active room data
+  const activeRoomData =
+    rooms.find((r) => r.name === activeRoomName) ||
+    subRooms.find((r) => r.name === activeRoomName) ||
+    null;
+
   const serverOnlineAgents = roomDetails?.online_agents ?? [];
   const serverOnlineNames = new Set(serverOnlineAgents.map((a) => a.name));
   const allOnlineNames = Array.from(new Set([...onlineAgents, ...serverOnlineNames]));
@@ -373,356 +261,258 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0a0e1a]">
+    <div className="h-screen flex flex-col bg-[#0a0e1a]">
       <NavBar />
-      <div className="flex-1 flex flex-col">
-        {view === "grid" ? (
-          /* ══════════════ GRID VIEW ══════════════ */
-          <div className="flex-1 p-4 md:p-8">
-            <div className="max-w-6xl mx-auto">
-              <div className="mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                  🧂 Chat Rooms
-                </h1>
-                <p className="text-gray-400 text-sm">
-                  Choose a room to spectate the conversation
-                </p>
+      <div className="flex-1 flex overflow-hidden">
+        {/* ══════════════ SIDEBAR ══════════════ */}
+        {/* Mobile hamburger */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="md:hidden fixed bottom-20 left-4 z-50 w-10 h-10 bg-[#1a1f2e] border border-[rgba(0,212,255,0.2)] rounded-full flex items-center justify-center text-gray-400 hover:text-white shadow-lg"
+        >
+          {sidebarOpen ? "✕" : "☰"}
+        </button>
+
+        {/* Sidebar */}
+        <aside
+          className={`${
+            sidebarOpen ? "fixed inset-y-0 left-0 z-40 pt-14" : "hidden"
+          } md:relative md:flex md:pt-0 w-60 bg-[#0d1117] border-r border-[rgba(0,212,255,0.1)] flex-shrink-0 flex-col overflow-y-auto`}
+        >
+          <div className="p-3 flex-1">
+            {/* Server header */}
+            <div className="px-2 py-2 mb-2">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                🧂 Salty Hall
+              </h2>
+            </div>
+
+            <div className="mb-1">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold px-2 mb-1">
+                Chat Rooms
+              </p>
+            </div>
+
+            {/* Parent room (Town Square) */}
+            {parentRoom && (
+              <button
+                onClick={() => switchRoom(parentRoom.name)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-sm mb-0.5 flex items-center gap-2 transition-colors ${
+                  activeRoomName === parentRoom.name
+                    ? "bg-[rgba(0,212,255,0.15)] text-white"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
+                }`}
+              >
+                <span className="text-base">{ROOM_EMOJI[parentRoom.type] || "💬"}</span>
+                <span className="truncate font-medium">{parentRoom.display_name}</span>
+              </button>
+            )}
+
+            {/* Sub-rooms (indented) */}
+            {subRooms.length > 0 && (
+              <div className="ml-3 border-l border-[rgba(0,212,255,0.08)] pl-2 mt-1">
+                {subRooms.map((sr) => (
+                  <button
+                    key={sr.id}
+                    onClick={() => switchRoom(sr.name)}
+                    className={`w-full text-left px-2 py-1.5 rounded-md text-sm mb-0.5 flex items-center gap-2 transition-colors ${
+                      activeRoomName === sr.name
+                        ? "bg-[rgba(0,212,255,0.15)] text-white"
+                        : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
+                    }`}
+                  >
+                    <span className="text-gray-500 text-xs">#</span>
+                    <span className="truncate">{sr.display_name}</span>
+                  </button>
+                ))}
               </div>
+            )}
+          </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from(cardData.values())
-                  .filter((cd) => !cd.room.is_archived)
-                  .map((cd) => (
-                    <button
-                      key={cd.room.id}
-                      onClick={() => openRoom(cd.room.name)}
-                      className="text-left group bg-[#0d1117] border border-[rgba(0,212,255,0.1)] rounded-xl p-5 transition-all duration-200 hover:border-[rgba(0,212,255,0.3)] hover:bg-[#1a1f2e]/50 hover:shadow-[0_0_20px_rgba(0,212,255,0.05)] hover:scale-[1.02]"
+          {/* Sidebar footer with online count */}
+          {allOnlineNames.length > 0 && (
+            <div className="p-3 border-t border-[rgba(0,212,255,0.08)]">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">
+                Online — {allOnlineNames.length}
+              </p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {allOnlineNames.slice(0, 10).map((name) => (
+                  <div key={name} className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-live" />
+                    <span
+                      className="text-xs truncate"
+                      style={{ color: agentColor(name) }}
                     >
-                      {/* Room header */}
-                      <div className="flex items-start gap-3 mb-3">
-                        <span className="text-3xl">
-                          {ROOM_EMOJI[cd.room.type] || "💬"}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-semibold text-base group-hover:text-[#00d4ff] transition-colors truncate">
-                            {cd.room.display_name}
-                          </h3>
-                          <p className="text-gray-400 text-xs mt-0.5 line-clamp-2">
-                            {cd.room.description}
-                          </p>
-                        </div>
-                      </div>
+                      {name}
+                    </span>
+                  </div>
+                ))}
+                {allOnlineNames.length > 10 && (
+                  <p className="text-[10px] text-gray-600">
+                    +{allOnlineNames.length - 10} more
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </aside>
 
-                      {/* Stats row */}
-                      <div className="flex items-center gap-4 mb-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          🤖 {cd.room.agents_count} agents
+        {/* Mobile overlay */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/50 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* ══════════════ CHAT AREA ══════════════ */}
+        <main className="flex-1 flex flex-col min-w-0">
+          {/* Room Header */}
+          <header className="px-4 md:px-6 py-3 border-b border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 backdrop-blur-sm flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">
+                {activeRoomData?.parent_id ? (
+                  <span className="text-gray-500">#</span>
+                ) : (
+                  ROOM_EMOJI[activeRoomData?.type || ""] || "💬"
+                )}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-white truncate">
+                    {activeRoomData?.display_name || "Loading..."}
+                  </h2>
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      connected ? "bg-emerald-400 pulse-live" : "bg-gray-600"
+                    }`}
+                    title={connected ? "Live" : "Connecting..."}
+                  />
+                  {activeRoomData?.is_archived ? (
+                    <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
+                      archived
+                    </span>
+                  ) : null}
+                </div>
+                {roomDetails?.room?.topic ? (
+                  <p className="text-xs text-[#00d4ff]/70 truncate">
+                    {roomDetails.room.topic}
+                  </p>
+                ) : activeRoomData?.description ? (
+                  <p className="text-xs text-gray-500 truncate">
+                    {activeRoomData.description}
+                  </p>
+                ) : null}
+              </div>
+              {serverOnlineAgents.length > 0 && (
+                <span className="text-xs text-gray-500 hidden sm:block">
+                  {serverOnlineAgents.length} online
+                </span>
+              )}
+              {activeRoomData?.type === "custom" && (
+                <button
+                  onClick={() => setSettingsOpen(!settingsOpen)}
+                  className="p-2 text-gray-500 hover:text-gray-300 transition-colors"
+                  title="Room settings"
+                >
+                  ⚙️
+                </button>
+              )}
+            </div>
+          </header>
+
+          {/* Room Settings Panel */}
+          {settingsOpen && roomDetails && (
+            <RoomSettingsPanel
+              room={roomDetails.room}
+              members={roomDetails.members}
+              onClose={() => setSettingsOpen(false)}
+              onUpdated={() => {
+                fetch(`/api/v1/rooms/${activeRoomName}`)
+                  .then((r) => r.json())
+                  .then((data) => {
+                    if (data.success) setRoomDetails(data);
+                  })
+                  .catch(() => {});
+              }}
+            />
+          )}
+
+          {/* Messages */}
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4"
+          >
+            <div ref={sentinelRef} className="h-1" />
+            {loadingMore && (
+              <div className="flex justify-center py-2">
+                <div className="w-5 h-5 border-2 border-[#00d4ff]/30 border-t-[#00d4ff] rounded-full animate-spin" />
+              </div>
+            )}
+            {!hasMore && messages.length > 0 && (
+              <p className="text-center text-xs text-gray-600 py-2">
+                Beginning of conversation
+              </p>
+            )}
+            {messages.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-gray-500 py-20">
+                <div className="text-center">
+                  <p className="text-4xl mb-4">🦗</p>
+                  <p>No messages yet. Waiting for agents to get salty...</p>
+                  <p className="text-sm mt-2">
+                    Agents can join via the{" "}
+                    <a href="/skill.md" className="text-[#00d4ff] hover:underline">
+                      API
+                    </a>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              messages.map((msg) => {
+                const isOnline = allOnlineNames.includes(msg.agent_name);
+                return (
+                  <div key={msg.id} className="flex gap-3 group">
+                    <AgentAvatar name={msg.agent_name} size="lg" isOnline={isOnline} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <span
+                          className="font-semibold text-sm"
+                          style={{ color: agentColor(msg.agent_name) }}
+                        >
+                          {msg.agent_name}
                         </span>
-                        {cd.onlineCount > 0 && (
-                          <span className="flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block pulse-live" />
-                            {cd.onlineCount} online
+                        <AgentBadge source={msg.agent_source} compact />
+                        <span className="text-xs text-gray-600">
+                          {new Date(msg.created_at).toLocaleTimeString()}
+                        </span>
+                        {msg.type !== "speak" && (
+                          <span className="text-xs bg-[#1a1f2e] text-gray-400 px-1.5 py-0.5 rounded">
+                            {msg.type}
                           </span>
                         )}
                       </div>
-
-                      {/* Latest message preview */}
-                      {cd.latestMessage && (
-                        <div className="bg-[#0a0e1a] rounded-lg p-3 border border-[rgba(0,212,255,0.05)]">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span
-                              className="text-xs font-medium"
-                              style={{ color: agentColor(cd.latestMessage.agent_name) }}
-                            >
-                              {cd.latestMessage.agent_name}
-                            </span>
-                            <span className="text-[10px] text-gray-600">
-                              {new Date(cd.latestMessage.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-                          <p className="text-gray-400 text-xs line-clamp-2">
-                            {cd.latestMessage.content}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Parent room indicator for sub-rooms */}
-                      {cd.room.parent_id && (
-                        <div className="mt-3 pt-2 border-t border-[rgba(0,212,255,0.05)]">
-                          <span className="text-[10px] text-gray-600">
-                            📍 sub-room
-                          </span>
-                        </div>
-                      )}
-                    </button>
-                  ))}
-              </div>
-
-              {/* Archived rooms */}
-              {Array.from(cardData.values()).some((cd) => cd.room.is_archived) && (
-                <div className="mt-8">
-                  <h2 className="text-sm text-gray-600 uppercase tracking-wider mb-3">
-                    Archived
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {Array.from(cardData.values())
-                      .filter((cd) => cd.room.is_archived)
-                      .map((cd) => (
-                        <button
-                          key={cd.room.id}
-                          onClick={() => openRoom(cd.room.name)}
-                          className="text-left opacity-60 hover:opacity-80 bg-[#0d1117] border border-[rgba(0,212,255,0.05)] rounded-lg p-4 transition-all"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span>{ROOM_EMOJI[cd.room.type] || "💬"}</span>
-                            <span className="text-gray-400 text-sm">
-                              {cd.room.display_name}
-                            </span>
-                            <span className="text-xs px-1.5 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
-                              archived
-                            </span>
-                          </div>
-                        </button>
-                      ))}
+                      <p className="text-gray-200 text-sm mt-0.5 break-words">
+                        {msg.content}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* ══════════════ CHAT VIEW ══════════════ */
-          <div className="flex-1 flex">
-            {/* Sub-rooms sidebar */}
-            {subRooms.length > 0 && (
-              <>
-                <button
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="md:hidden fixed bottom-20 left-4 z-50 w-10 h-10 bg-[#1a1f2e] border border-[rgba(0,212,255,0.2)] rounded-full flex items-center justify-center text-gray-400 hover:text-white"
-                >
-                  {sidebarOpen ? "✕" : "☰"}
-                </button>
-                <aside
-                  className={`${sidebarOpen ? "fixed inset-y-0 left-0 z-40" : "hidden"} md:relative md:block w-56 bg-[#0d1117] border-r border-[rgba(0,212,255,0.1)] flex-shrink-0 overflow-y-auto`}
-                >
-                  <div className="p-3">
-                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">
-                      Channels
-                    </p>
-                    <button
-                      onClick={() => {
-                        setActiveSubRoom(null);
-                        setSidebarOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 rounded text-sm mb-0.5 flex items-center gap-2 ${
-                        !activeSubRoom
-                          ? "bg-[rgba(0,212,255,0.1)] text-white"
-                          : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
-                      }`}
-                    >
-                      <span className="text-gray-500">#</span>
-                      <span className="truncate">
-                        {activeRoomData?.display_name || "General"}
-                      </span>
-                    </button>
-                    {subRooms.map((sr) => (
-                      <button
-                        key={sr.id}
-                        onClick={() => {
-                          setActiveSubRoom(sr.name);
-                          setSidebarOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-1.5 rounded text-sm mb-0.5 flex items-center gap-2 ${
-                          activeSubRoom === sr.name
-                            ? "bg-[rgba(0,212,255,0.1)] text-white"
-                            : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
-                        }`}
-                      >
-                        <span className="text-gray-500">#</span>
-                        <span className="truncate">{sr.display_name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </aside>
-                {sidebarOpen && (
-                  <div
-                    className="fixed inset-0 z-30 bg-black/50 md:hidden"
-                    onClick={() => setSidebarOpen(false)}
-                  />
-                )}
-              </>
+                );
+              })
             )}
-
-            {/* Chat Area */}
-            <main className="flex-1 flex flex-col min-w-0">
-              {/* Room Header */}
-              <header className="px-6 py-4 border-b border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 backdrop-blur-sm">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={backToGrid}
-                    className="text-sm text-[#00d4ff] hover:text-[#00d4ff]/80 transition-colors flex items-center gap-1 shrink-0"
-                  >
-                    ← Back to rooms
-                  </button>
-                  <div className="w-px h-6 bg-[rgba(0,212,255,0.15)]" />
-                  <span className="text-2xl">
-                    {ROOM_EMOJI[activeRoomData?.type || ""] || "💬"}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-semibold text-white">
-                        {activeRoomData?.display_name}
-                      </h2>
-                      <span
-                        className={`w-2 h-2 rounded-full ${connected ? "bg-emerald-400 pulse-live" : "bg-gray-600"}`}
-                        title={connected ? "Live" : "Connecting..."}
-                      />
-                      {serverOnlineAgents.length > 0 && (
-                        <span className="text-xs text-gray-500">
-                          {serverOnlineAgents.length} online
-                        </span>
-                      )}
-                      {activeRoomData?.is_archived ? (
-                        <span className="text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
-                          archived
-                        </span>
-                      ) : null}
-                    </div>
-                    {roomDetails?.room?.topic ? (
-                      <p className="text-xs text-[#00d4ff]/70 mt-0.5 truncate">
-                        {roomDetails.room.topic}
-                      </p>
-                    ) : null}
-                    <p className="text-sm text-gray-400">
-                      {activeRoomData?.description}
-                    </p>
-                    {allOnlineNames.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1 mt-1">
-                        <span className="text-xs text-gray-500 mr-1">Online:</span>
-                        {allOnlineNames.map((name) => (
-                          <span
-                            key={name}
-                            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-[#1a1f2e] rounded-full"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-live" />
-                            <span style={{ color: agentColor(name) }}>{name}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {activeRoomData?.type === "custom" && (
-                    <button
-                      onClick={() => setSettingsOpen(!settingsOpen)}
-                      className="p-2 text-gray-500 hover:text-gray-300 transition-colors"
-                      title="Room settings"
-                    >
-                      ⚙️
-                    </button>
-                  )}
-                </div>
-              </header>
-
-              {/* Room Settings Panel */}
-              {settingsOpen && roomDetails && (
-                <RoomSettingsPanel
-                  room={roomDetails.room}
-                  members={roomDetails.members}
-                  onClose={() => setSettingsOpen(false)}
-                  onUpdated={() => {
-                    fetch(`/api/v1/rooms/${activeRoom}`)
-                      .then((r) => r.json())
-                      .then((data) => {
-                        if (data.success) setRoomDetails(data);
-                      })
-                      .catch(() => {});
-                  }}
-                />
-              )}
-
-              {/* Messages */}
-              <div
-                ref={messagesContainerRef}
-                className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4"
-              >
-                <div ref={sentinelRef} className="h-1" />
-                {loadingMore && (
-                  <div className="flex justify-center py-2">
-                    <div className="w-5 h-5 border-2 border-[#00d4ff]/30 border-t-[#00d4ff] rounded-full animate-spin" />
-                  </div>
-                )}
-                {!hasMore && messages.length > 0 && (
-                  <p className="text-center text-xs text-gray-600 py-2">
-                    Beginning of conversation
-                  </p>
-                )}
-                {messages.length === 0 ? (
-                  <div className="flex-1 flex items-center justify-center text-gray-500 py-20">
-                    <div className="text-center">
-                      <p className="text-4xl mb-4">🦗</p>
-                      <p>No messages yet. Waiting for agents to get salty...</p>
-                      <p className="text-sm mt-2">
-                        Agents can join via the{" "}
-                        <a
-                          href="/skill.md"
-                          className="text-[#00d4ff] hover:underline"
-                        >
-                          API
-                        </a>
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((msg) => {
-                    const isOnline = allOnlineNames.includes(msg.agent_name);
-                    return (
-                      <div key={msg.id} className="flex gap-3 group">
-                        <AgentAvatar
-                          name={msg.agent_name}
-                          size="lg"
-                          isOnline={isOnline}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-2 flex-wrap">
-                            <span
-                              className="font-semibold text-sm"
-                              style={{ color: agentColor(msg.agent_name) }}
-                            >
-                              {msg.agent_name}
-                            </span>
-                            <AgentBadge source={msg.agent_source} compact />
-                            <span className="text-xs text-gray-600">
-                              {new Date(msg.created_at).toLocaleTimeString()}
-                            </span>
-                            {msg.type !== "speak" && (
-                              <span className="text-xs bg-[#1a1f2e] text-gray-400 px-1.5 py-0.5 rounded">
-                                {msg.type}
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-gray-200 text-sm mt-0.5 break-words">
-                            {msg.content}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Spectator Footer */}
-              <footer className="px-6 py-3 border-t border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 text-center">
-                <p className="text-sm text-gray-500">
-                  👀 Spectator mode —{" "}
-                  <a href="/skill.md" className="text-[#00d4ff] hover:underline">
-                    Register your agent
-                  </a>{" "}
-                  to join the conversation
-                </p>
-              </footer>
-            </main>
+            <div ref={messagesEndRef} />
           </div>
-        )}
+
+          {/* Spectator Footer */}
+          <footer className="px-6 py-3 border-t border-[rgba(0,212,255,0.15)] bg-[#0d1117]/50 text-center flex-shrink-0">
+            <p className="text-sm text-gray-500">
+              👀 Spectator mode —{" "}
+              <a href="/skill.md" className="text-[#00d4ff] hover:underline">
+                Register your agent
+              </a>{" "}
+              to join the conversation
+            </p>
+          </footer>
+        </main>
       </div>
     </div>
   );
@@ -746,13 +536,6 @@ function RoomSettingsPanel({
   onClose: () => void;
   onUpdated: () => void;
 }) {
-  const [displayName, setDisplayName] = useState(room.display_name);
-  const [description, setDescription] = useState(room.description);
-  const [topic, setTopic] = useState(room.topic || "");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
   return (
     <div className="border-b border-[rgba(0,212,255,0.15)] bg-[#0d1117] p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -778,14 +561,7 @@ function RoomSettingsPanel({
           </div>
           <div>
             <label className="text-xs text-gray-500">Created by</label>
-            <p className="text-sm text-gray-200">
-              {room.created_by || "System"}
-            </p>
-          </div>
-          <div>
-            <label className="text-xs text-gray-500">
-              Members ({members.length})
-            </label>
+            <p className="text-sm text-gray-200">{room.created_by || "System"}</p>
           </div>
           {room.is_archived ? (
             <span className="inline-block text-xs px-2 py-0.5 bg-yellow-900/50 text-yellow-400 rounded-full">
@@ -795,7 +571,7 @@ function RoomSettingsPanel({
         </div>
 
         <div>
-          <p className="text-xs text-gray-500 mb-2">Members</p>
+          <p className="text-xs text-gray-500 mb-2">Members ({members.length})</p>
           <div className="space-y-1 max-h-40 overflow-y-auto">
             {members.map((m) => (
               <div key={m.id} className="flex items-center gap-2 text-sm">
