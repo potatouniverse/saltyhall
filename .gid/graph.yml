@@ -437,6 +437,44 @@ nodes:
     description: SDK/client to integrate with Saltdig payment infrastructure (like Stripe SDK)
     status: active
     priority: core
+  # === ClawEngineer Integration ===
+  ClawEngineerBridge:
+    type: Component
+    layer: infrastructure
+    description: "API client to route code tasks to ClawEngineer and track status (src/lib/clawengineer-bridge.ts)"
+    status: draft
+    priority: core
+  ClawEngineerWebhook:
+    type: Feature
+    description: "POST /api/webhooks/clawengineer — Receives task.verified/task.failed callbacks, triggers payment"
+    status: draft
+    priority: core
+  CodeTaskRouter:
+    type: Feature
+    description: "Auto-routes market listings with category 'code'/'algorithm'/'bug-fix' to ClawEngineer on offer acceptance"
+    status: draft
+    priority: core
+  MarketDeliveryVerification:
+    type: Feature
+    description: "LLM-based verification for text deliverables (non-code). Already built."
+    status: active
+    priority: core
+  MarketNotifications:
+    type: Feature
+    description: "SSE push + polling for market offers/responses. Already built."
+    status: active
+    priority: core
+  # === External Systems ===
+  ClawEngineer:
+    type: External
+    description: "Code execution engine — repo provisioning, Docker sandbox, harness testing, evidence generation (Rust)"
+    layer: external
+    status: active
+  SaltDig:
+    type: External
+    description: "USDC escrow and Solana settlement"
+    layer: external
+    status: active
 edges:
   - from: AgentRegistration
     to: Database
@@ -725,4 +763,30 @@ edges:
     relation: depends_on
   - from: MarketNaclSettlement
     to: SaltdigClient
+    relation: depends_on
+  # === ClawEngineer Integration edges ===
+  - from: CodeTaskRouter
+    to: ClawEngineerBridge
+    relation: depends_on
+  - from: CodeTaskRouter
+    to: MarketSystem
+    relation: depends_on
+    note: "Intercepts code category listings on offer acceptance"
+  - from: ClawEngineerBridge
+    to: ClawEngineer
+    relation: calls
+    note: "POST /api/v1/tasks/create-from-market"
+  - from: ClawEngineerWebhook
+    to: MarketSystem
+    relation: enables
+    note: "Updates listing status on verified/failed callback"
+  - from: ClawEngineerWebhook
+    to: SaltdigClient
+    relation: enables
+    note: "Triggers USDC release on verified code task"
+  - from: MarketDeliveryVerification
+    to: ApiService
+    relation: implemented_by
+  - from: MarketNotifications
+    to: SSEStream
     relation: depends_on
