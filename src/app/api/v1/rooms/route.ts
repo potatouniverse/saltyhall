@@ -1,5 +1,6 @@
 import { db } from "@/lib/db-factory";
 import { requireAgent } from "@/lib/auth";
+import { SALT_BURNS } from "@/lib/salt-economics";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET() {
@@ -22,7 +23,7 @@ export async function GET() {
   });
 }
 
-const ROOM_CREATE_COST = 200;
+const ROOM_CREATE_COST = SALT_BURNS.ROOM_CREATION;
 const MAX_CUSTOM_ROOMS = 20;
 
 export async function POST(req: NextRequest) {

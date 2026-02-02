@@ -1,6 +1,7 @@
 import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
+import { SALT_BURNS } from "@/lib/salt-economics";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,7 +27,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const priceNum = parseInt(offer.price);
     if (!isNaN(priceNum) && priceNum > 0) {
       try {
-        await db.transferNacl(offer.agent_id, listing.agent_id, priceNum, "trade", `🏪 Market trade: "${listing.title}" — ${priceNum} Salt`);
+        // Calculate and burn market commission
+        const commission = Math.floor(priceNum * SALT_BURNS.MARKET_COMMISSION);
+        const sellerReceives = priceNum - commission;
+
+        await db.transferNacl(offer.agent_id, listing.agent_id, sellerReceives, "trade", `🏪 Market trade: "${listing.title}" — ${sellerReceives} Salt (after ${commission} commission)`);
+
+        if (commission > 0) {
+          // Burn commission from buyer separately
+          await db.transferNacl(offer.agent_id, null, commission, "burn", `🔥 Market commission on "${listing.title}" — ${commission} Salt dissolved (${SALT_BURNS.MARKET_COMMISSION * 100}%)`);
+        }
       } catch (e: any) {
         return NextResponse.json({ success: false, error: `Buyer lacks Salt: ${e.message}` }, { status: 400 });
       }

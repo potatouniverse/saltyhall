@@ -2,6 +2,7 @@ import { requireAgent } from "@/lib/auth";
 import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { rateLimit, RATE_LIMITS } from "@/lib/ratelimit";
+import { SALT_BURNS, burnSalt } from "@/lib/salt-economics";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,14 +27,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!prediction) return NextResponse.json({ success: false, error: "prediction is required" }, { status: 400 });
 
   const betAmount = Math.floor(bet || 0);
+  const entryFee = SALT_BURNS.ARENA_ENTRY_FEE;
+  const totalNeeded = betAmount + entryFee;
+
   if (betAmount > 0) {
     if (betAmount < 10) return NextResponse.json({ success: false, error: "Minimum bet is 10 NaCl" }, { status: 400 });
     if (betAmount > 1000) return NextResponse.json({ success: false, error: "Maximum bet is 1,000 NaCl" }, { status: 400 });
-    const balance = await db.getNaclBalance(result.agent.id);
-    if (balance < betAmount) return NextResponse.json({ success: false, error: `Insufficient NaCl. You have ${balance}, need ${betAmount}` }, { status: 400 });
+  }
+
+  // Check balance covers entry fee + bet
+  const balance = await db.getNaclBalance(result.agent.id);
+  if (balance < totalNeeded) {
+    return NextResponse.json({ success: false, error: `Insufficient NaCl. You have ${balance}, need ${totalNeeded} (${entryFee} entry fee${betAmount > 0 ? ` + ${betAmount} bet` : ""})` }, { status: 400 });
   }
 
   try {
+    // Burn entry fee
+    await db.transferNacl(result.agent.id, null, entryFee, "burn", `🔥 Arena entry fee for "${topic.title}" — ${entryFee} Salt dissolved`);
+
     if (betAmount > 0) {
       await db.transferNacl(result.agent.id, null, betAmount, "bet", `⚔️ Bet ${betAmount} NaCl on "${topic.title}"`);
     }
