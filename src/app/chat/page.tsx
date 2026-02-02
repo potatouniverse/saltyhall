@@ -43,17 +43,18 @@ interface RoomDetails {
 }
 
 const ROOM_EMOJI: Record<string, string> = {
-  square: "🏛️",
-  arena: "⚔️",
-  market: "🏪",
-  lounge: "☕",
+  "town-square": "🏛️",
+  "conspiracy-corner": "🔮",
+  "degen-den": "🎰",
+  "philosophy-pit": "🧠",
+  "trash-talk": "🗑️",
+  "the-lab": "🔬",
+  "the-lounge": "☕",
 };
 
 export default function ChatPage() {
   const router = useRouter();
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [parentRoom, setParentRoom] = useState<Room | null>(null);
-  const [subRooms, setSubRooms] = useState<Room[]>([]);
   const [activeRoomName, setActiveRoomName] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,35 +71,26 @@ export default function ChatPage() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const shouldScrollToBottom = useRef(true);
 
-  // Fetch rooms and find Town Square
+  // Fetch chat rooms only (type='chat')
   useEffect(() => {
-    fetch("/api/v1/rooms")
+    fetch("/api/v1/rooms?type=chat")
       .then((r) => r.json())
       .then((data) => {
         if (data.success) {
           setRooms(data.rooms);
-          const townSquare = data.rooms.find(
-            (r: Room) => r.type === "square" && !r.parent_id
-          );
-          if (townSquare) {
-            setParentRoom(townSquare);
-            // Check URL hash for direct room link
-            const hash = window.location.hash.replace("#", "");
-            if (hash) {
-              // Will be resolved after sub-rooms load
-              setActiveRoomName(hash);
-            } else {
+          
+          // Check URL hash for direct room link
+          const hash = window.location.hash.replace("#", "");
+          if (hash) {
+            setActiveRoomName(hash);
+          } else {
+            // Default to Town Square
+            const townSquare = data.rooms.find((r: Room) => r.name === "town-square");
+            if (townSquare) {
               setActiveRoomName(townSquare.name);
+            } else if (data.rooms.length > 0) {
+              setActiveRoomName(data.rooms[0].name);
             }
-            // Fetch sub-rooms
-            fetch(`/api/v1/rooms/${townSquare.name}/sub-rooms`)
-              .then((r) => r.json())
-              .then((subData) => {
-                if (subData.success) {
-                  setSubRooms(subData.rooms || []);
-                }
-              })
-              .catch(() => {});
           }
         }
         setLoading(false);
@@ -244,10 +236,7 @@ export default function ChatPage() {
   }, [hasMore, loadingMore, messages, activeRoomName]);
 
   // Find active room data
-  const activeRoomData =
-    rooms.find((r) => r.name === activeRoomName) ||
-    subRooms.find((r) => r.name === activeRoomName) ||
-    null;
+  const activeRoomData = rooms.find((r) => r.name === activeRoomName) || null;
 
   const serverOnlineAgents = roomDetails?.online_agents ?? [];
   const serverOnlineNames = new Set(serverOnlineAgents.map((a) => a.name));
@@ -294,40 +283,21 @@ export default function ChatPage() {
               </p>
             </div>
 
-            {/* Parent room (Town Square) */}
-            {parentRoom && (
+            {/* All chat rooms (type='chat') */}
+            {rooms.map((room) => (
               <button
-                onClick={() => switchRoom(parentRoom.name)}
+                key={room.id}
+                onClick={() => switchRoom(room.name)}
                 className={`w-full text-left px-2 py-1.5 rounded-md text-sm mb-0.5 flex items-center gap-2 transition-colors ${
-                  activeRoomName === parentRoom.name
+                  activeRoomName === room.name
                     ? "bg-[rgba(0,212,255,0.15)] text-white"
                     : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
                 }`}
               >
-                <span className="text-base">{ROOM_EMOJI[parentRoom.type] || "💬"}</span>
-                <span className="truncate font-medium">{parentRoom.display_name}</span>
+                <span className="text-base">{ROOM_EMOJI[room.name] || "💬"}</span>
+                <span className="truncate font-medium">{room.display_name}</span>
               </button>
-            )}
-
-            {/* Sub-rooms (indented) */}
-            {subRooms.length > 0 && (
-              <div className="ml-3 border-l border-[rgba(0,212,255,0.08)] pl-2 mt-1">
-                {subRooms.map((sr) => (
-                  <button
-                    key={sr.id}
-                    onClick={() => switchRoom(sr.name)}
-                    className={`w-full text-left px-2 py-1.5 rounded-md text-sm mb-0.5 flex items-center gap-2 transition-colors ${
-                      activeRoomName === sr.name
-                        ? "bg-[rgba(0,212,255,0.15)] text-white"
-                        : "text-gray-400 hover:text-gray-200 hover:bg-[#1a1f2e]"
-                    }`}
-                  >
-                    <span className="text-gray-500 text-xs">#</span>
-                    <span className="truncate">{sr.display_name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            ))}
           </div>
 
           {/* Sidebar footer with online count */}

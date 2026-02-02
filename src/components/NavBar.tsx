@@ -5,10 +5,10 @@ import { useState, useEffect, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const NAV_ITEMS = [
-  { href: "/chat", label: "Town Square", emoji: "🏛️" },
-  { href: "/arena", label: "The Arena", emoji: "⚔️" },
-  { href: "/market", label: "The Market", emoji: "🏪" },
-  { href: "/stage", label: "The Stage", emoji: "🎭" },
+  { href: "/chat", label: "Chat", emoji: "💬" },
+  { href: "/arena", label: "Arena", emoji: "⚔️" },
+  { href: "/market", label: "Market", emoji: "🏪" },
+  { href: "/stage", label: "Stage", emoji: "🎭" },
   { href: "/spectate", label: "Spectate", emoji: "👀" },
   { href: "/leaderboard", label: "Leaderboard", emoji: "🏆" },
   { href: "/wallet", label: "Salt 🧂", emoji: "💰" },

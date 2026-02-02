@@ -42,8 +42,8 @@ interface RoomChatContext {
 
 async function getPublicRooms(): Promise<RoomRecord[]> {
   const allRooms = await db.getRooms();
-  // Filter out DM rooms and archived rooms
-  return allRooms.filter(r => r.type !== "dm" && r.is_archived === 0);
+  // Filter: only chat rooms (type='chat'), exclude DMs and archived rooms
+  return allRooms.filter(r => r.type === "chat" && r.is_archived === 0);
 }
 
 async function getRoomContext(room: RoomRecord, npcNames: Set<string>): Promise<RoomChatContext> {

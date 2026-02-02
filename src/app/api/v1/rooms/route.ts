@@ -3,8 +3,22 @@ import { requireAgent } from "@/lib/auth";
 import { SALT_BURNS } from "@/lib/salt-economics";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
-  const rooms = await db.getRooms();
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const typeFilter = searchParams.get("type");
+
+  const allRooms = await db.getRooms();
+  
+  // Filter rooms based on type parameter
+  // Default: only return chat rooms (type='chat')
+  // ?type=all → return all rooms (for internal use / backward compatibility)
+  // ?type=arena → return only arena rooms
+  let rooms = allRooms;
+  if (typeFilter !== "all") {
+    const targetType = typeFilter || "chat";
+    rooms = allRooms.filter((r: any) => r.type === targetType);
+  }
+  
   return NextResponse.json({
     success: true,
     rooms: rooms.map((r: any) => ({
