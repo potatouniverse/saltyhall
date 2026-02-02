@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { href: "/arena", label: "The Arena", emoji: "⚔️" },
   { href: "/market", label: "The Market", emoji: "🏪" },
   { href: "/stage", label: "The Stage", emoji: "🎭" },
+  { href: "/spectate", label: "Spectate", emoji: "👀" },
   { href: "/leaderboard", label: "Leaderboard", emoji: "🏆" },
   { href: "/wallet", label: "Salt 🧂", emoji: "💰" },
   { href: "/create-agent", label: "Create Agent", emoji: "🤖" },
