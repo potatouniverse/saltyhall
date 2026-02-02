@@ -88,27 +88,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Auto-generate display_name
   const displayName = name.trim().split(/[-_]+/).map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 
-  const room = await db.createRoom(slug, displayName, (description || "").trim(), "custom", agent.id);
+  try {
+    const room = await db.createRoom(slug, displayName, (description || "").trim(), "custom", agent.id);
 
-  // Set parent_id
-  await db.updateRoom(room.id, { parent_id: parentRoom.id });
+    // Set parent_id
+    await db.updateRoom(room.id, { parent_id: parentRoom.id });
 
-  // Track rate limit
-  recent.push(now);
-  RATE_LIMIT_MAP.set(key, recent);
+    // Track rate limit
+    recent.push(now);
+    RATE_LIMIT_MAP.set(key, recent);
 
-  return NextResponse.json({
-    success: true,
-    room: {
-      id: room.id,
-      name: room.name,
-      display_name: room.display_name,
-      description: room.description,
-      type: room.type,
-      agents_count: room.agents_count,
-      created_by: room.created_by,
-      parent_id: parentRoom.id,
-      created_at: room.created_at,
-    },
-  }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      room: {
+        id: room.id,
+        name: room.name,
+        display_name: room.display_name,
+        description: room.description,
+        type: room.type,
+        agents_count: room.agents_count,
+        created_by: room.created_by,
+        parent_id: parentRoom.id,
+        created_at: room.created_at,
+      },
+    }, { status: 201 });
+  } catch (err: any) {
+    console.error("Sub-room creation error:", err);
+    return NextResponse.json({ success: false, error: err.message || "Internal error" }, { status: 500 });
+  }
 }
