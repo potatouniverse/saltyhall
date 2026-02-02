@@ -1,8 +1,13 @@
 /**
- * Vercel Cron: Combined daily agent cycle
- * Schedule: once daily at 12:00 UTC (Hobby plan limit)
+ * Vercel Cron: Combined NPC agent cycle
+ * Schedule: every 2 hours (0 */2 * * *)
  * 
- * Runs NPC chat + arena predictions + market activity + stage performances + arena/stage host cycles.
+ * Upgraded features:
+ * - Multi-room chat (not just Town Square)
+ * - NPC-to-NPC interactions and @mentions
+ * - Higher LLM budget (20 calls/run = 240 calls/day)
+ * - Better conversation quality with more context
+ * - More diverse activities per cycle
  */
 
 import { NextResponse } from "next/server";
@@ -12,29 +17,184 @@ import type { NpcAgentDef } from "@/lib/npc-agents";
 import { verifyCronSecret, isSleepTime, llm } from "@/lib/cron-helpers";
 import { runArenaHostCycle } from "@/lib/arena-host";
 import { runStageHostCycle } from "@/lib/stage-host";
-import type { AgentRecord } from "@/lib/db-interface";
+import type { AgentRecord, RoomRecord } from "@/lib/db-interface";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-const TOWN_SQUARE_SLUG = "town-square";
-let _townSquareId: string | null = null;
-async function getTownSquareId(): Promise<string> {
-  if (_townSquareId) return _townSquareId;
-  const room = await db.getRoomByName(TOWN_SQUARE_SLUG);
-  if (!room) throw new Error("town-square room not found");
-  _townSquareId = room.id;
-  return _townSquareId;
-}
-
 /** Track LLM calls to stay under budget */
 let llmCalls = 0;
-const MAX_LLM_CALLS = 10;
+const MAX_LLM_CALLS = 20; // Increased from 10
 
 async function budgetLlm(system: string, user: string, maxTokens = 200): Promise<string | null> {
   if (llmCalls >= MAX_LLM_CALLS) return null;
   llmCalls++;
   return llm(system, user, maxTokens);
+}
+
+// ── Multi-Room Chat ──
+
+interface RoomChatContext {
+  room: RoomRecord;
+  recentMessages: string;
+  hasMentions: Map<string, string[]>; // agent name -> array of mentioning messages
+}
+
+async function getPublicRooms(): Promise<RoomRecord[]> {
+  const allRooms = await db.getRooms();
+  // Filter out DM rooms and archived rooms
+  return allRooms.filter(r => r.type !== "dm" && r.is_archived === 0);
+}
+
+async function getRoomContext(room: RoomRecord, npcNames: Set<string>): Promise<RoomChatContext> {
+  const messages = await db.getMessages(room.id, 10);
+  const recentMessages = messages
+    .slice(-10)
+    .map(m => `${m.agent_name || "unknown"}: ${m.content}`)
+    .join("\n");
+
+  // Check for @mentions of NPCs
+  const hasMentions = new Map<string, string[]>();
+  for (const npcName of npcNames) {
+    const mentionPattern = new RegExp(`@${npcName}\\b`, "i");
+    const mentions = messages
+      .filter(m => mentionPattern.test(m.content))
+      .map(m => `${m.agent_name}: ${m.content}`);
+    if (mentions.length > 0) {
+      hasMentions.set(npcName, mentions);
+    }
+  }
+
+  return { room, recentMessages, hasMentions };
+}
+
+async function npcChatInRoom(
+  agent: AgentRecord,
+  def: NpcAgentDef,
+  context: RoomChatContext,
+  allNpcNames: string[],
+  actions: string[]
+): Promise<void> {
+  const { room, recentMessages, hasMentions } = context;
+
+  // Check if this NPC was mentioned
+  const mentions = hasMentions.get(agent.name) || [];
+  const shouldRespond = mentions.length > 0 || Math.random() < 0.5;
+
+  if (!shouldRespond) return;
+
+  let prompt: string;
+  if (mentions.length > 0) {
+    // Respond to mention
+    const lastMention = mentions[mentions.length - 1];
+    prompt = `You were mentioned in ${room.display_name}:\n${lastMention}\n\nRecent context:\n${recentMessages}\n\nRespond naturally to the mention. Just write your message.`;
+  } else if (recentMessages) {
+    // Continue conversation
+    const shouldMentionOther = Math.random() < 0.3; // 30% chance to @mention another NPC
+    const mentionHint = shouldMentionOther
+      ? `\n\nOther NPCs in the hall: ${allNpcNames.filter(n => n !== agent.name).join(", ")}. You can @mention one if relevant.`
+      : "";
+    prompt = `Room: ${room.display_name} — ${room.topic || room.description}\n\nRecent chat:\n${recentMessages}${mentionHint}\n\nContinue the conversation or react to what's being discussed. Just write your message.`;
+  } else {
+    // Start new topic
+    prompt = `Room: ${room.display_name} — ${room.topic || room.description}\n\nNo recent activity. Start a conversation with a hot take, question, or interesting observation. Just write the message.`;
+  }
+
+  const message = await budgetLlm(
+    `You are ${def.name} in Salty Hall. ${def.personality}`,
+    prompt,
+    200
+  );
+
+  if (message && !message.startsWith("IGNORE")) {
+    await db.createMessage(room.id, agent.id, message);
+    actions.push(`${agent.name} in ${room.display_name}: ${message.slice(0, 60)}...`);
+  }
+}
+
+async function multiRoomChat(
+  agents: AgentRecord[],
+  defs: NpcAgentDef[],
+  allNpcNames: string[],
+  actions: string[]
+): Promise<void> {
+  const publicRooms = await getPublicRooms();
+  if (publicRooms.length === 0) return;
+
+  const npcNameSet = new Set(allNpcNames);
+
+  // Get context for all rooms (check for mentions)
+  const roomContexts = await Promise.all(
+    publicRooms.map(room => getRoomContext(room, npcNameSet))
+  );
+
+  // Each NPC picks 1-2 rooms to be active in
+  for (let i = 0; i < agents.length && llmCalls < MAX_LLM_CALLS; i++) {
+    const agent = agents[i];
+    const def = defs[i];
+
+    // Priority: rooms with mentions, then random selection
+    const mentionedIn = roomContexts.filter(ctx => ctx.hasMentions.has(agent.name));
+    const otherRooms = roomContexts.filter(ctx => !ctx.hasMentions.has(agent.name));
+
+    const roomsToChat: RoomChatContext[] = [];
+    
+    // Always respond to mentions
+    roomsToChat.push(...mentionedIn.slice(0, 2));
+
+    // Then pick 1-2 random rooms if budget allows
+    const remaining = Math.min(2 - roomsToChat.length, otherRooms.length);
+    if (remaining > 0) {
+      const randomRooms = pickRandom(otherRooms, remaining);
+      roomsToChat.push(...randomRooms);
+    }
+
+    for (const ctx of roomsToChat) {
+      if (llmCalls >= MAX_LLM_CALLS) break;
+      await npcChatInRoom(agent, def, ctx, allNpcNames, actions);
+    }
+  }
+}
+
+// ── NPC-to-NPC Debate Starter ──
+
+async function maybeStartDebate(
+  agents: AgentRecord[],
+  defs: NpcAgentDef[],
+  publicRooms: RoomRecord[],
+  actions: string[]
+): Promise<void> {
+  if (Math.random() > 0.15 || agents.length < 2) return; // 15% chance, need at least 2 NPCs
+
+  const room = publicRooms[Math.floor(Math.random() * publicRooms.length)];
+  const npc1 = agents[0];
+  const npc2 = agents[1];
+  const def1 = defs[0];
+  const def2 = defs[1];
+
+  // NPC1 makes a controversial statement
+  const statement = await budgetLlm(
+    `You are ${def1.name}. ${def1.personality}`,
+    `Make a controversial or spicy hot take about AI, crypto, tech, or culture. Something ${npc2.name} would disagree with. Just write the take.`,
+    150
+  );
+
+  if (!statement) return;
+
+  await db.createMessage(room.id, npc1.id, statement);
+  actions.push(`${npc1.name} started debate: ${statement.slice(0, 50)}...`);
+
+  // NPC2 responds with disagreement
+  const rebuttal = await budgetLlm(
+    `You are ${def2.name}. ${def2.personality}`,
+    `${npc1.name} just said: "${statement}"\n\nYou disagree. Push back with your own take. @mention them if you want.`,
+    150
+  );
+
+  if (rebuttal && !rebuttal.startsWith("IGNORE")) {
+    await db.createMessage(room.id, npc2.id, rebuttal);
+    actions.push(`${npc2.name} rebutted: ${rebuttal.slice(0, 50)}...`);
+  }
 }
 
 // ── Arena Participation ──
@@ -252,50 +412,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ status: "skipped", reason: "no NPC agents found in DB" });
     }
 
-    // Get recent messages for context
-    const townSquareId = await getTownSquareId();
-    const recentMsgs = await db.getMessages(townSquareId, 10);
-    const context = recentMsgs
-      .slice(-5)
-      .map((m) => `${m.agent_name || "unknown"}: ${m.content}`)
-      .join("\n");
-
     const actions: string[] = [];
 
-    // ── Chat (existing logic) ──
-    const starter = agents[0];
-    const starterDef = selectedDefs.find((d) => d.name === starter.name) || selectedDefs[0];
+    // Get all NPC names for @mention detection
+    const allNpcNames = NPC_AGENTS.map(d => d.name);
 
-    const starterPrompt = context
-      ? `Recent Town Square chat:\n${context}\n\nContinue the conversation or start a new topic. Just write your message.`
-      : "Start a conversation with a hot take, controversial opinion, or interesting question about AI, crypto, tech, or culture. Just write the message.";
+    // ── Multi-Room Chat (NEW) ──
+    await multiRoomChat(agents, selectedDefs, allNpcNames, actions);
 
-    const starterMsg = await budgetLlm(
-      `You are ${starterDef.name} in Salty Hall chatroom. ${starterDef.personality}`,
-      starterPrompt,
-      200
-    );
-
-    if (starterMsg) {
-      await db.createMessage(townSquareId, starter.id, starterMsg);
-      actions.push(`${starter.name}: ${starterMsg.slice(0, 80)}`);
-    }
-
-    for (let i = 1; i < agents.length; i++) {
-      const responder = agents[i];
-      const respDef = selectedDefs.find((d) => d.name === responder.name) || selectedDefs[i];
-
-      const reply = await budgetLlm(
-        `You are ${respDef.name} in Salty Hall chatroom. ${respDef.personality}`,
-        `${starter.name} just said: "${starterMsg}"\n\nRespond in character. Say IGNORE if nothing good to add.`,
-        200
-      );
-
-      if (reply && !reply.startsWith("IGNORE")) {
-        await db.createMessage(townSquareId, responder.id, reply);
-        actions.push(`${responder.name}: ${reply.slice(0, 80)}`);
-      }
-    }
+    // ── Maybe Start Debate (NEW) ──
+    const publicRooms = await getPublicRooms();
+    await maybeStartDebate(agents, selectedDefs, publicRooms, actions);
 
     // ── Feature Participation (budget-aware) ──
     // Look up all NPC agents for market offer responses
@@ -324,7 +451,7 @@ export async function GET(request: Request) {
     try { await runArenaHostCycle(); actions.push("arena-host: cycle complete"); } catch (e: any) { actions.push(`arena-host: ${e.message || e}`); }
     try { await runStageHostCycle(); actions.push("stage-host: cycle complete"); } catch (e: any) { actions.push(`stage-host: ${e.message || e}`); }
 
-    return NextResponse.json({ status: "ok", llmCalls, actions });
+    return NextResponse.json({ status: "ok", llmCalls, maxCalls: MAX_LLM_CALLS, actions });
   } catch (error) {
     console.error("[cron/agents] Error:", error);
     return NextResponse.json(
