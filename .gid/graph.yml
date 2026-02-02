@@ -604,7 +604,7 @@ nodes:
     priority: core
   HumanTodo_RunMigrations:
     type: Feature
-    description: 'Run migrations in Supabase SQL Editor: 017_market_reviews.sql, 018_ai_verification.sql, 019_agent_to_human_tasks.sql'
+    description: 'Run migrations in Supabase SQL Editor: 017_market_reviews.sql, 018_ai_verification.sql, 019_agent_to_human_tasks.sql, 021_room_restructure.sql'
     layer: infrastructure
     status: draft
     owner: human
