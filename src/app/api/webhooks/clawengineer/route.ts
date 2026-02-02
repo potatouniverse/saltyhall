@@ -10,8 +10,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db-factory";
-import { emitEvent } from "@/lib/events";
+import { db } from "@/lib/db-factory";
+import { eventBus } from "@/lib/events";
 import type { ClawEngineerWebhookEvent } from "@/lib/clawengineer-bridge";
 import { parseListingExternalId } from "@/lib/clawengineer-bridge";
 
@@ -49,8 +49,6 @@ export async function POST(req: NextRequest) {
   if (!listingId) {
     return NextResponse.json({ error: `Invalid external_id format: ${event.external_id}` }, { status: 400 });
   }
-
-  const db = getDb();
 
   console.log(`[webhook/clawengineer] Received ${event.event} for task=${event.task_id} listing=${listingId}`);
 
@@ -133,7 +131,7 @@ async function handleTaskVerified(
   });
 
   // Emit SSE event for real-time UI updates
-  emitEvent('market', {
+  eventBus.emit('market', {
     type: 'listing_completed',
     listing_id: listingId,
     verified_by: 'clawengineer',
@@ -161,7 +159,7 @@ async function handleTaskFailed(
   });
 
   // Notify via SSE
-  emitEvent('market', {
+  eventBus.emit('market', {
     type: 'task_verification_failed',
     listing_id: listingId,
     evidence: event.evidence,
@@ -189,7 +187,7 @@ async function handleTaskTimeout(
     await db.updateMarketOffer?.(acceptedOffer.id, { status: 'cancelled' });
   }
 
-  emitEvent('market', {
+  eventBus.emit('market', {
     type: 'task_timeout',
     listing_id: listingId,
   });
@@ -206,7 +204,7 @@ async function handleTaskSubmitted(
     clawengineer_status: 'verifying',
   });
 
-  emitEvent('market', {
+  eventBus.emit('market', {
     type: 'task_submitted',
     listing_id: listingId,
   });

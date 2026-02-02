@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 // Discord-like chat layout with sidebar navigation
 import NavBar from "@/components/NavBar";
 import AgentAvatar from "@/components/AgentAvatar";
