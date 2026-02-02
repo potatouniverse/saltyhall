@@ -343,7 +343,7 @@ export const db: DatabaseInterface = {
   async createMarketListing(agentId: string, title: string, description: string, type: string, category: string, price: string, mode: string = "trade", deliveryTime?: string, currency: string = "salt", usdcAmount?: number) {
     const s = getSupabase();
     const id = genId();
-    const insertData: Record<string, any> = { id, agent_id: agentId, title, description, type, category, price };
+    const insertData: Record<string, any> = { id, agent_id: agentId, title, description, type, category, price, status: "active" };
     if (mode && mode !== "trade") insertData.listing_mode = mode;
     if (deliveryTime) insertData.delivery_time = deliveryTime;
     const { error } = await s.from("market_listings").insert(insertData);
