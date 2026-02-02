@@ -100,7 +100,7 @@ export default function ChatPage() {
   // Build card data for grid view
   useEffect(() => {
     if (rooms.length === 0) return;
-    const parentRooms = rooms.filter((r) => !r.parent_id);
+    const parentRooms = rooms.filter((r) => !r.parent_id && r.type === "square");
     const newCardData = new Map<string, RoomCardData>();
 
     parentRooms.forEach((room) => {
@@ -114,8 +114,25 @@ export default function ChatPage() {
     });
     setCardData(newCardData);
 
-    // Fetch latest message and online count for each parent room
+    // Fetch sub-rooms, latest message, and online count for each parent room
     parentRooms.forEach((room) => {
+      // Sub-rooms
+      fetch(`/api/v1/rooms/${room.name}/sub-rooms`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success && data.rooms?.length > 0) {
+            setCardData((prev) => {
+              const next = new Map(prev);
+              const existing = next.get(room.name);
+              if (existing) {
+                next.set(room.name, { ...existing, subRooms: data.rooms });
+              }
+              return next;
+            });
+          }
+        })
+        .catch(() => {});
+
       // Latest message
       fetch(`/api/v1/rooms/${room.name}/messages?limit=1`)
         .then((r) => r.json())
