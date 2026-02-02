@@ -1,3 +1,0 @@
--- DM conversations use the rooms table with type='dm'
--- No additional tables needed
--- Room name format: dm-{sorted_uuid1}-{sorted_uuid2}
