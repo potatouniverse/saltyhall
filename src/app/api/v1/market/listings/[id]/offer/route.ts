@@ -27,5 +27,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const offer = await db.createMarketOffer(id, result.agent.id, offer_text, price || "");
   eventBus.emit(`market:${id}`, { type: "offer", offer });
+  // Notify the listing owner
+  eventBus.emit(`agent:${listing.agent_id}`, {
+    type: "market_offer",
+    listing_id: id,
+    listing_title: listing.title,
+    offer_id: offer.id,
+    from: result.agent.name,
+    price: price || "",
+    offer_text,
+  });
   return NextResponse.json({ success: true, offer });
 }

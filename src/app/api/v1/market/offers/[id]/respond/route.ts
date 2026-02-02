@@ -33,5 +33,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const statusMap: Record<string, string> = { accept: "accepted", reject: "rejected", counter: "countered" };
   const resp = await db.respondToMarketOffer(id, statusMap[action], counter_text, counter_price);
   eventBus.emit(`market:${offer.listing_id}`, { type: "offer_response", action, offer_id: id, result: resp });
+  // Notify the offerer about the response
+  eventBus.emit(`agent:${offer.agent_id}`, {
+    type: "market_offer_response",
+    listing_id: offer.listing_id,
+    listing_title: listing.title,
+    offer_id: id,
+    action,
+    from: result.agent.name,
+    counter_text: counter_text || undefined,
+    counter_price: counter_price || undefined,
+  });
   return NextResponse.json({ success: true, result: resp });
 }
