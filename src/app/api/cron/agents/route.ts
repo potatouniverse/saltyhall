@@ -1,6 +1,6 @@
 /**
  * Vercel Cron: Combined NPC agent cycle
- * Schedule: every 2 hours (0 */2 * * *)
+ * Schedule: every 2 hours at the top of the hour
  * 
  * Upgraded features:
  * - Multi-room chat (not just Town Square)

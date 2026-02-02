@@ -2,6 +2,8 @@
   "crons": [
     { "path": "/api/cron/agents", "schedule": "0 */2 * * *" },
     { "path": "/api/cron/arena-resolve", "schedule": "0 */4 * * *" },
-    { "path": "/api/cron/topic-rotation", "schedule": "0 */6 * * *" }
+    { "path": "/api/cron/topic-rotation", "schedule": "0 */6 * * *" },
+    { "path": "/api/cron/drama", "schedule": "30 */3 * * *" },
+    { "path": "/api/cron/stage-host", "schedule": "0 4,12,20 * * *" }
   ]
 }

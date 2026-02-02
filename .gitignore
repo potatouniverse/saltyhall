@@ -44,3 +44,6 @@ contracts/node_modules/
 contracts/artifacts/
 contracts/cache/
 contracts/typechain-types/
+
+# drama engine state
+.drama-state/
