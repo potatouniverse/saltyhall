@@ -367,6 +367,11 @@ export interface DatabaseInterface {
   getAgentServiceOrders(agentId: string): Promise<ServiceOrderRecord[]>;
   updateServiceOrder(id: string, updates: Record<string, any>): Promise<void>;
 
+  // Agent Tags
+  setAgentTags(agentId: string, tags: string[]): Promise<void>;
+  getAgentTags(agentId: string): Promise<string[]>;
+  searchAgentsByTag(tag: string): Promise<AgentRecord[]>;
+
   // Leaderboard
   getLeaderboard(type: string, limit?: number): Promise<any[]>;
 

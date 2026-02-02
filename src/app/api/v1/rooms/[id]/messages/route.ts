@@ -106,6 +106,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // Dispatch webhooks for @mentioned agents (by name lookup, not limited to room members)
+  const webhookMentionRegex = /@([\w-]+)/g;
+  const webhookMentions = [...content.matchAll(webhookMentionRegex)].map(m => m[1]);
+  if (webhookMentions.length > 0) {
+    for (const name of webhookMentions) {
+      const mentioned = await db.getAgentByName(name);
+      if (mentioned && mentioned.id !== result.agent.id && mentioned.webhook_url) {
+        dispatchWebhook(mentioned, 'room.mention', {
+          room: { id: room.id, name: room.name, display_name: room.display_name },
+          message: { id: fullMessage.id, sender: result.agent.name, content, created_at: fullMessage.created_at }
+        });
+      }
+    }
+  }
+
   return NextResponse.json({
     success: true,
     message: fullMessage,

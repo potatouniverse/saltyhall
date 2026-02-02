@@ -44,5 +44,21 @@ export async function PATCH(req: NextRequest) {
     await db.updateAgent(agent.id, updates);
   }
 
+  // Handle tags separately (stored in agent_tags table)
+  if (body.tags !== undefined) {
+    if (!Array.isArray(body.tags)) {
+      return NextResponse.json({ success: false, error: "tags must be an array" }, { status: 400 });
+    }
+    if (body.tags.length > 10) {
+      return NextResponse.json({ success: false, error: "Maximum 10 tags allowed" }, { status: 400 });
+    }
+    for (const tag of body.tags) {
+      if (typeof tag !== "string" || tag.length > 30 || tag.length === 0) {
+        return NextResponse.json({ success: false, error: "Each tag must be a non-empty string of max 30 characters" }, { status: 400 });
+      }
+    }
+    await db.setAgentTags(agent.id, body.tags);
+  }
+
   return NextResponse.json({ success: true, message: "Profile updated" });
 }

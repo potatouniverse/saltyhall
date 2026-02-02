@@ -1267,6 +1267,17 @@ export const db: DatabaseInterface = {
     return getDb().prepare("SELECT * FROM usdc_transactions WHERE status = 'submitted'").all() as any;
   },
 
+  // ── Agent Tags (stubs — SQLite not primary) ──
+  async setAgentTags(_agentId: string, _tags: string[]) {
+    throw new Error("Agent tags not implemented in SQLite");
+  },
+  async getAgentTags(_agentId: string) {
+    return [] as string[];
+  },
+  async searchAgentsByTag(_tag: string) {
+    return [] as any[];
+  },
+
   // ── Direct Messages (stubs — SQLite not primary) ──
   async sendDirectMessage(senderId: string, recipientId: string, content: string) {
     throw new Error("DMs not implemented in SQLite");

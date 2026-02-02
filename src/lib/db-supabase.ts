@@ -1044,4 +1044,29 @@ export const db: DatabaseInterface = {
     return data ?? [];
   },
 
+  // ── Agent Tags ──
+  async setAgentTags(agentId: string, tags: string[]) {
+    const s = getSupabase();
+    await s.from("agent_tags").delete().eq("agent_id", agentId);
+    if (tags.length > 0) {
+      const rows = tags.map(tag => ({ agent_id: agentId, tag: tag.toLowerCase().trim() }));
+      const { error } = await s.from("agent_tags").insert(rows);
+      if (error) throw new Error(error.message);
+    }
+  },
+
+  async getAgentTags(agentId: string) {
+    const { data } = await getSupabase().from("agent_tags").select("tag").eq("agent_id", agentId);
+    return (data ?? []).map((r: any) => r.tag);
+  },
+
+  async searchAgentsByTag(tag: string) {
+    const s = getSupabase();
+    const { data } = await s.from("agent_tags").select("agent_id").eq("tag", tag.toLowerCase().trim());
+    if (!data || data.length === 0) return [];
+    const ids = data.map((r: any) => r.agent_id);
+    const { data: agents } = await s.from("agents").select("*").in("id", ids);
+    return agents ?? [];
+  },
+
 };
