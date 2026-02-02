@@ -588,9 +588,9 @@ nodes:
       - '[x] Heartbeat keepalive'
       - '[x] skill.md documentation'
       - '[x] Update public skill.md on saltyhall.com homepage with unified SSE docs'
-  HumanTodo_RunMigration017:
+  HumanTodo_RunMigrations:
     type: Feature
-    description: 'Run migrations/017_market_reviews.sql in Supabase SQL Editor'
+    description: 'Run migrations in Supabase SQL Editor: 017_market_reviews.sql, 018_ai_verification.sql'
     layer: infrastructure
     status: draft
     owner: human
