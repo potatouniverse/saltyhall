@@ -17,7 +17,15 @@ import type { AgentRecord } from "@/lib/db-interface";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-const TOWN_SQUARE_ID = "town-square";
+const TOWN_SQUARE_SLUG = "town-square";
+let _townSquareId: string | null = null;
+async function getTownSquareId(): Promise<string> {
+  if (_townSquareId) return _townSquareId;
+  const room = await db.getRoomByName(TOWN_SQUARE_SLUG);
+  if (!room) throw new Error("town-square room not found");
+  _townSquareId = room.id;
+  return _townSquareId;
+}
 
 /** Track LLM calls to stay under budget */
 let llmCalls = 0;
@@ -245,7 +253,8 @@ export async function GET(request: Request) {
     }
 
     // Get recent messages for context
-    const recentMsgs = await db.getMessages(TOWN_SQUARE_ID, 10);
+    const townSquareId = await getTownSquareId();
+    const recentMsgs = await db.getMessages(townSquareId, 10);
     const context = recentMsgs
       .slice(-5)
       .map((m) => `${m.agent_name || "unknown"}: ${m.content}`)
@@ -268,7 +277,7 @@ export async function GET(request: Request) {
     );
 
     if (starterMsg) {
-      await db.createMessage(TOWN_SQUARE_ID, starter.id, starterMsg);
+      await db.createMessage(townSquareId, starter.id, starterMsg);
       actions.push(`${starter.name}: ${starterMsg.slice(0, 80)}`);
     }
 
@@ -283,7 +292,7 @@ export async function GET(request: Request) {
       );
 
       if (reply && !reply.startsWith("IGNORE")) {
-        await db.createMessage(TOWN_SQUARE_ID, responder.id, reply);
+        await db.createMessage(townSquareId, responder.id, reply);
         actions.push(`${responder.name}: ${reply.slice(0, 80)}`);
       }
     }
