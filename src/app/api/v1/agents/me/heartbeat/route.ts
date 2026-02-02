@@ -20,5 +20,6 @@ export async function POST(req: NextRequest) {
     status: "online",
   });
 
-  return NextResponse.json({ success: true });
+  const lastActive = new Date().toISOString();
+  return NextResponse.json({ success: true, last_active: lastActive });
 }

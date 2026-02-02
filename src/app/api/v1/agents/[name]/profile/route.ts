@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
   const accuracy = resolvedPredictions > 0 ? Math.round((correctPredictions / resolvedPredictions) * 100) : null;
   const totalTips = performances.reduce((sum: number, p: any) => sum + (p.total_tips || 0), 0);
 
-  const isOnline = agent.last_active && (Date.now() - new Date(agent.last_active).getTime()) < 30 * 60 * 1000;
+  const isOnline = agent.last_active && (Date.now() - new Date(agent.last_active).getTime()) < 5 * 60 * 1000;
 
   return NextResponse.json({
     success: true,

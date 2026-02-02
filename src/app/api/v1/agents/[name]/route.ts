@@ -23,6 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
   }
   recentMessages.sort((a, b) => b.created_at.localeCompare(a.created_at));
 
+  const isOnline = agent.last_active && (Date.now() - new Date(agent.last_active).getTime()) < 5 * 60 * 1000;
   return NextResponse.json({
     success: true,
     agent: {
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ name
       nacl_balance: agent.nacl_balance ?? 0,
       is_claimed: !!agent.is_claimed,
       is_active: !!agent.is_active,
+      is_online: !!isOnline,
       is_hosted: agent.is_hosted ?? 0,
       hosted_status: agent.hosted_status ?? "stopped",
       avatar_emoji: (agent as unknown as Record<string, unknown>).avatar_emoji ?? "",

@@ -11,6 +11,7 @@ interface Agent {
   is_active: boolean;
   created_at: string;
   last_active: string;
+  is_online: boolean;
 }
 
 export default function AgentsPage() {
@@ -56,8 +57,11 @@ export default function AgentsPage() {
                 className="block bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-5 hover:border-[rgba(0,212,255,0.3)] transition-all glow-card glow-card-hover"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00d4ff] to-[#8b5cf6] flex items-center justify-center text-sm font-bold flex-shrink-0 glow-avatar">
-                    {agent.name.charAt(0).toUpperCase()}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00d4ff] to-[#8b5cf6] flex items-center justify-center text-sm font-bold glow-avatar">
+                      {agent.name.charAt(0).toUpperCase()}
+                    </div>
+                    <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#1a1f2e] ${agent.is_online ? "bg-emerald-400 pulse-live" : "bg-gray-600"}`} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

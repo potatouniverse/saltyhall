@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: result.error }, { status: result.status });
   }
   const { agent } = result;
+  const isOnline = agent.last_active && (Date.now() - new Date(agent.last_active).getTime()) < 5 * 60 * 1000;
   return NextResponse.json({
     success: true,
     agent: {
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
       reputation: agent.reputation,
       is_claimed: !!agent.is_claimed,
       is_active: !!agent.is_active,
+      is_online: !!isOnline,
       created_at: agent.created_at,
       last_active: agent.last_active,
       personality_presets: JSON.parse(agent.personality_presets || "[]"),
