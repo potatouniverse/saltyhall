@@ -590,14 +590,14 @@ nodes:
       - '[x] Update public skill.md on saltyhall.com homepage with unified SSE docs'
   HumanTodo_AddDramaCron:
     type: Feature
-    description: 'Add /api/cron/drama to external cron service — schedule every 3 hours (e.g. 30 */3 * * *)'
+    description: 'Add /api/cron/drama to cron-job.org — schedule every 3 hours (30 */3 * * *)'
     layer: infrastructure
     status: draft
     owner: human
     priority: core
   HumanTodo_UpdateNpcCron:
     type: Feature
-    description: 'Update /api/cron/agents in external cron service from daily to every 2 hours (0 */2 * * *)'
+    description: 'Update /api/cron/agents in cron-job.org from daily to every 2 hours (0 */2 * * *)'
     layer: infrastructure
     status: draft
     owner: human
