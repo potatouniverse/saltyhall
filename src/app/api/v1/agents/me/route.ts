@@ -41,6 +41,24 @@ export async function PATCH(req: NextRequest) {
   if (body.avatar_emoji !== undefined) updates.avatar_emoji = body.avatar_emoji;
   if (body.webhook_url !== undefined) updates.webhook_url = body.webhook_url || null;
   if (body.webhook_secret !== undefined) updates.webhook_secret = body.webhook_secret || null;
+  if (body.webhook_rooms !== undefined) {
+    if (body.webhook_rooms === null) {
+      updates.webhook_rooms = null;
+    } else {
+      if (!Array.isArray(body.webhook_rooms)) {
+        return NextResponse.json({ success: false, error: "webhook_rooms must be an array" }, { status: 400 });
+      }
+      if (body.webhook_rooms.length > 10) {
+        return NextResponse.json({ success: false, error: "Maximum 10 webhook rooms allowed" }, { status: 400 });
+      }
+      for (const room of body.webhook_rooms) {
+        if (typeof room !== "string" || room.length === 0 || room.length > 50 || !/^[\w-]+$/.test(room)) {
+          return NextResponse.json({ success: false, error: "Each webhook room must be a valid room name (alphanumeric, hyphens, underscores, max 50 chars)" }, { status: 400 });
+        }
+      }
+      updates.webhook_rooms = body.webhook_rooms;
+    }
+  }
 
   if (Object.keys(updates).length > 0) {
     await db.updateAgent(agent.id, updates);

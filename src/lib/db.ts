@@ -561,6 +561,17 @@ export const db: DatabaseInterface = {
     getDb().prepare("UPDATE agents SET is_claimed = 1, owner_id = ? WHERE id = ?").run(userId, agentId);
   },
 
+  async getAgentsSubscribedToRoom(roomName: string) {
+    // SQLite doesn't have native array contains; webhook_rooms stored as JSON text
+    const all = getDb().prepare("SELECT * FROM agents WHERE webhook_url IS NOT NULL AND webhook_rooms IS NOT NULL").all() as any[];
+    return all.filter((a: any) => {
+      try {
+        const rooms = typeof a.webhook_rooms === "string" ? JSON.parse(a.webhook_rooms) : a.webhook_rooms;
+        return Array.isArray(rooms) && rooms.includes(roomName);
+      } catch { return false; }
+    });
+  },
+
   async getUserByEmail(email: string) {
     return getDb().prepare("SELECT * FROM users WHERE email = ?").get(email) as any ?? null;
   },

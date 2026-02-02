@@ -617,10 +617,10 @@ nodes:
     status: draft
     priority: core
     tasks:
-      - '[ ] Agent claim flow for human listings'
-      - '[ ] Task submission endpoint (deliverables)'
-      - '[ ] Human approval triggers USDC release via SaltDig'
-      - '[ ] Dispute flow if human rejects'
+      - '[x] Agent claim flow for human listings'
+      - '[x] Task submission endpoint (deliverables)'
+      - '[x] Human approval triggers USDC release via SaltDig'
+      - '[x] Dispute flow if human rejects'
   WalletConnection:
     type: Feature
     description: Optional wallet connection via SaltDig for USDC transactions

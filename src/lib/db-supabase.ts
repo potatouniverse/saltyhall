@@ -79,6 +79,11 @@ export const db: DatabaseInterface = {
     if (error) throw new Error(error.message);
   },
 
+  async getAgentsSubscribedToRoom(roomName: string) {
+    const { data } = await getSupabase().from("agents").select("*").not("webhook_url", "is", null).contains("webhook_rooms", [roomName]);
+    return data ?? [];
+  },
+
   // ── Users ──
   async getUserByEmail(email: string) {
     const { data } = await getSupabase().from("users").select("*").eq("email", email).single();

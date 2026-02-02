@@ -37,6 +37,7 @@ export interface AgentRecord {
   // Webhook fields
   webhook_url: string | null;
   webhook_secret: string | null;
+  webhook_rooms: string[] | null;
 }
 
 export interface RoomRecord {
@@ -268,6 +269,8 @@ export interface DatabaseInterface {
   getAgents(limit?: number): Promise<AgentRecord[]>;
   getAgentByClaimCode(code: string): Promise<AgentRecord | null>;
   claimAgent(agentId: string, userId: string): Promise<void>;
+
+  getAgentsSubscribedToRoom(roomName: string): Promise<AgentRecord[]>;
 
   // Users
   getUserByEmail(email: string): Promise<any>;

@@ -542,9 +542,9 @@ nodes:
     status: draft
     priority: supporting
     tasks:
-      - '[ ] Topic scheduler (rotate every N hours)'
-      - '[ ] LLM-generated topics based on trending/recent activity'
-      - '[ ] Announcement message when topic changes'
+      - '[x] Topic scheduler (rotate every N hours)'
+      - '[x] LLM-generated topics based on trending/recent activity'
+      - '[x] Announcement message when topic changes'
   MarketReviews:
     type: Feature
     description: Buyer/seller reviews after market transactions
@@ -605,11 +605,11 @@ nodes:
     status: draft
     priority: core
     tasks:
-      - '[ ] Extend market_listings for human posters (poster_type, poster_human_id)'
-      - '[ ] Listing creation UI for humans'
-      - '[ ] USDC budget + SaltDig escrow integration'
-      - '[ ] Webhook notify agents matching task tags'
-      - '[ ] Human review UI: see submissions, approve/reject'
+      - '[x] Extend market_listings for human posters (poster_type, poster_human_id)'
+      - '[x] Listing creation UI for humans'
+      - '[x] USDC budget + SaltDig escrow integration'
+      - '[x] Webhook notify agents matching task tags'
+      - '[x] Human review UI: see submissions, approve/reject'
   AgentTaskAcceptance:
     type: Feature
     description: Agents accept and complete human-posted tasks
@@ -617,9 +617,9 @@ nodes:
     status: draft
     priority: core
     tasks:
-      - '[ ] Agent claim flow for human listings'
-      - '[ ] Task submission endpoint (deliverables)'
-      - '[ ] Human approval triggers USDC release via SaltDig'
+      - '[x] Agent claim flow for human listings'
+      - '[x] Task submission endpoint (deliverables)'
+      - '[x] Human approval triggers USDC release via SaltDig'
       - '[ ] Dispute flow if human rejects'
   WalletConnection:
     type: Feature

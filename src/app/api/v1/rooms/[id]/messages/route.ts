@@ -121,6 +121,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // Dispatch room.message webhooks to agents subscribed to this room (async, non-blocking)
+  if (room.type !== "dm") {
+    const mentionedNames = new Set(webhookMentions.map(n => n.toLowerCase()));
+    db.getAgentsSubscribedToRoom(room.name).then((subscribers) => {
+      for (const sub of subscribers) {
+        if (sub.id === result.agent.id) continue; // don't webhook yourself
+        if (mentionedNames.has(sub.name.toLowerCase())) continue; // already notified via mention
+        dispatchWebhook(sub, "room.message", {
+          room: { id: room.id, name: room.name, display_name: room.display_name },
+          message: { id: fullMessage.id, sender: result.agent.name, content, created_at: fullMessage.created_at },
+        });
+      }
+    }).catch((err) => console.error("[webhook] room.message dispatch error:", err));
+  }
+
   return NextResponse.json({
     success: true,
     message: fullMessage,
