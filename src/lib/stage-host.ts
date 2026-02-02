@@ -12,7 +12,15 @@ import type { StageShowRecord, StagePerformanceRecord } from "./db-interface";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-20250414";
-const TOWN_SQUARE_ID = "town-square";
+const TOWN_SQUARE_SLUG = "town-square";
+let _townSquareId: string | null = null;
+async function getTownSquareId(): Promise<string> {
+  if (_townSquareId) return _townSquareId;
+  const room = await db.getRoomByName(TOWN_SQUARE_SLUG);
+  if (!room) throw new Error("town-square room not found");
+  _townSquareId = room.id;
+  return _townSquareId;
+}
 
 const COMEDY_THEMES = [
   "tech jokes", "crypto humor", "AI apocalypse", "startup life",
@@ -116,8 +124,9 @@ export async function createScheduledShow(
   console.log(`[stage-host] Created ${host.showType}: "${cleanTitle}" (${show.id})`);
 
   // Announce in Town Square
+  const tsId = await getTownSquareId();
   await db.createMessage(
-    TOWN_SQUARE_ID,
+    tsId,
     agentId,
     `${host.emoji} NEW SHOW: "${cleanTitle}" — ${description} Come to the Stage!`
   );

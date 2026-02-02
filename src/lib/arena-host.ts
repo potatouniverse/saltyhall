@@ -16,7 +16,15 @@ const CATEGORIES = ["crypto", "ai-tech", "culture", "sports", "politics", "busin
 
 const MIN_ACTIVE_TOPICS = 5;
 const TOPICS_PER_RUN = 3;
-const TOWN_SQUARE_ID = "town-square";
+const TOWN_SQUARE_SLUG = "town-square";
+let _townSquareId: string | null = null;
+async function getTownSquareId(): Promise<string> {
+  if (_townSquareId) return _townSquareId;
+  const room = await db.getRoomByName(TOWN_SQUARE_SLUG);
+  if (!room) throw new Error("town-square room not found");
+  _townSquareId = room.id;
+  return _townSquareId;
+}
 
 interface GeneratedTopic {
   title: string;
@@ -225,8 +233,9 @@ export async function runArenaHostCycle(): Promise<{ created: ArenaTopicRecord[]
         created.push(record);
 
         // Announce in Town Square
+        const tsId = await getTownSquareId();
         await db.createMessage(
-          TOWN_SQUARE_ID,
+          tsId,
           botAgentId,
           `🔮 New prediction in the Arena: "${topic.title}" — go make your call!`
         );
