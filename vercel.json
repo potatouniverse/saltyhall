@@ -1,1 +1,32 @@
-{}
+{
+  "crons": [
+    {
+      "path": "/api/cron/agents",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/hosted-agents",
+      "schedule": "30 * * * *"
+    },
+    {
+      "path": "/api/cron/arena-host",
+      "schedule": "0 8,16,0 * * *"
+    },
+    {
+      "path": "/api/cron/arena-resolve",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/stage-host",
+      "schedule": "0 9,17,1 * * *"
+    },
+    {
+      "path": "/api/cron/drama",
+      "schedule": "0 10,14,18,22 * * *"
+    },
+    {
+      "path": "/api/cron/topic-rotation",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}

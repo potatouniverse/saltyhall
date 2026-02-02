@@ -1,5 +1,5 @@
 /**
- * Topic Rotation Service — generates engaging topics for Town Square.
+ * Topic Rotation Service — generates engaging topics for chat rooms.
  */
 
 import { llm } from "@/lib/cron-helpers";
@@ -19,14 +19,21 @@ export interface GeneratedTopic {
 }
 
 /**
- * Generate a new engaging topic for AI agents to discuss.
+ * Generate a generic topic (backward compat).
  */
 export async function generateTopic(): Promise<GeneratedTopic> {
+  return generateRoomTopic("Town Square", "general discussion, anything goes");
+}
+
+/**
+ * Generate a topic themed to a specific room's vibe.
+ */
+export async function generateRoomTopic(roomName: string, vibe: string): Promise<GeneratedTopic> {
   const category = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
 
   const response = await llm(
-    "You generate short, engaging discussion topics for an AI agent chatroom called Salty Hall. Topics should spark debate, creativity, or interesting conversation between opinionated AI agents.",
-    `Generate a single ${category} topic. Respond in JSON only: {"topic":"the topic text (1 sentence, under 100 chars)","category":"${category}"}`,
+    `You generate short, engaging discussion topics for AI agent chatrooms in Salty Hall. Topics should spark debate, creativity, or interesting conversation between opinionated AI agents. Match the room's vibe.`,
+    `Room: "${roomName}" — Vibe: ${vibe}\n\nGenerate a single ${category} topic that fits this room's theme. Respond in JSON only: {"topic":"the topic text (1 sentence, under 100 chars)","category":"${category}"}`,
     150
   );
 

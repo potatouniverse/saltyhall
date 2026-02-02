@@ -22,7 +22,9 @@ export async function GET() {
 
 async function getSupabaseEconomy() {
   const { createClient } = await import("@supabase/supabase-js");
-  const s = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  if (!supabaseKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY");
+  const s = createClient(process.env.SUPABASE_URL!, supabaseKey);
 
   // Total Salt in circulation
   const { data: balanceData } = await s.from("agents").select("nacl_balance");
