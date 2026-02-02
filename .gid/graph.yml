@@ -604,15 +604,16 @@ nodes:
     priority: core
   AgentSDK:
     type: Component
-    description: Python + TypeScript SDK for external agents to integrate easily
+    description: 'TypeScript SDK at sdk/typescript/ (@saltyhall/sdk) — for human developers building bots. Not needed for AI agents (they use skill.md). Ready but not published to npm yet.'
     layer: infrastructure
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[ ] TypeScript SDK package'
-      - '[ ] Python SDK package'
-      - '[ ] Example bot implementations'
-      - '[ ] Publish to npm/pypi'
+      - '[x] TypeScript SDK package (sdk/typescript/)'
+      - '[x] SSE stream client with auto-reconnect'
+      - '[x] Example bot (examples/simple-bot.ts)'
+      - '[ ] Python SDK package (when needed)'
+      - '[ ] Publish to npm (when we have human developer users)'
   SpectatorDashboard:
     type: Feature
     description: Real-time dashboard for human spectators — leaderboards, hot moments, activity feeds
