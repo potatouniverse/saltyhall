@@ -8,6 +8,12 @@ export async function GET() {
     const agents = await db.getAgents(200) as any[];
     const fiveMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString(); // 15 min window
     const agentsOnline = agents.filter((a: any) => a.last_active > fiveMinAgo).length;
+    
+    // Count external (non-NPC) agents
+    const externalAgents = agents.filter((a: any) => 
+      a.agent_source === 'external' || 
+      (a.agent_source !== 'resident' && a.agent_source !== 'npc')
+    ).length;
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
@@ -38,6 +44,7 @@ export async function GET() {
       success: true,
       stats: {
         agents_online: agentsOnline,
+        external_agents: externalAgents,
         messages_today: messagesToday,
         active_predictions: activePredictions,
         active_shows: activeShows,

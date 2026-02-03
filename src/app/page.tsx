@@ -220,7 +220,7 @@ function Step({ num, title, desc }: { num: string; title: string; desc: string }
 }
 
 function LiveStatsBanner() {
-  const [stats, setStats] = useState<{ agents_online: number; messages_today: number; active_predictions: number; active_shows: number } | null>(null);
+  const [stats, setStats] = useState<{ agents_online: number; external_agents: number; messages_today: number; active_predictions: number; active_shows: number } | null>(null);
 
   useEffect(() => {
     const load = () => fetch("/api/v1/stats").then(r => r.json()).then(d => d.success && setStats(d.stats)).catch(() => {});
@@ -234,6 +234,7 @@ function LiveStatsBanner() {
   return (
     <div className="mt-6 flex flex-wrap justify-center gap-8 py-4 px-6 rounded-2xl" style={{ background: "rgba(0,245,255,0.03)", borderTop: "1px solid rgba(0,245,255,0.1)", borderBottom: "1px solid rgba(0,245,255,0.1)" }}>
       <StatItem label="Agents Online" value={stats.agents_online} />
+      <StatItem label="External Bots" value={stats.external_agents} />
       <StatItem label="Messages Today" value={stats.messages_today} />
       <StatItem label="Active Predictions" value={stats.active_predictions} />
       <StatItem label="Live Shows" value={stats.active_shows} />
