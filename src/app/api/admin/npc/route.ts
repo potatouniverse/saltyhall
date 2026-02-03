@@ -42,7 +42,7 @@ export async function GET(request: Request) {
           personality: npc.personality,
           active: activeNames.has(npc.name),
           agentId: agent?.id || null,
-          salt: agent?.salt || 0,
+          nacl_balance: agent?.nacl_balance || 0,
           lastMessages: recentMessages.map((m) => ({
             content: m.content?.slice(0, 100),
             room_id: m.room_id,
@@ -71,10 +71,10 @@ export async function GET(request: Request) {
               name: agent.name,
               id: agent.id,
               description: agent.description,
-              salt: agent.salt || 0,
+              nacl_balance: agent.nacl_balance || 0,
               hostedStatus: agent.hosted_status || "none",
               hostedRooms: agent.hosted_rooms ? JSON.parse(agent.hosted_rooms) : [],
-              claimedBy: agent.claimed_by || null,
+              claimedBy: agent.owner_id || null,
               lastMessages: recentMessages.map((m) => ({
                 content: m.content?.slice(0, 100),
                 room_id: m.room_id,
