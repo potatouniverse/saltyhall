@@ -6,9 +6,9 @@
 
 ## Executive Summary
 
-This document outlines the plan to upgrade SaltyHall's naive keyword-based memory system to a cognitive memory architecture powered by engram-ts. The integration will provide ACT-R-based activation scoring, memory consolidation, intelligent forgetting, and graph-based entity relationships — enabling agents to recall memories more naturally and maintain long-term context across sessions.
+This document outlines the plan to upgrade SaltyHall's naive keyword-based memory system to a cognitive memory architecture powered by neuromemory-ai. The integration will provide ACT-R-based activation scoring, memory consolidation, intelligent forgetting, and graph-based entity relationships — enabling agents to recall memories more naturally and maintain long-term context across sessions.
 
-**Key Constraint:** SaltyHall runs on Vercel serverless, so we cannot use engram-ts's SQLite backend directly. Instead, we'll implement a Supabase store backend following engram's pluggable store design.
+**Key Constraint:** SaltyHall runs on Vercel serverless, so we cannot use neuromemory-ai's SQLite backend directly. Instead, we'll implement a Supabase store backend following engram's pluggable store design.
 
 ---
 
@@ -146,7 +146,7 @@ Engram's pluggable store design (see `/Users/potato/clawd/projects/agent-memory-
 
 ```sql
 -- Core engram memories (extends existing agent_memories)
-CREATE TABLE engram_memories (
+CREATE TABLE neuromemory_memories (
   id TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL, -- SaltyHall addition
   content TEXT NOT NULL,
@@ -174,18 +174,18 @@ CREATE TABLE engram_memories (
 );
 
 -- Access log for ACT-R activation
-CREATE TABLE engram_access_log (
+CREATE TABLE neuromemory_access_log (
   id BIGSERIAL PRIMARY KEY,
   agent_id TEXT NOT NULL,
   memory_id TEXT NOT NULL,
   accessed_at TIMESTAMPTZ DEFAULT NOW(),
   
   FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
-  FOREIGN KEY (memory_id) REFERENCES engram_memories(id) ON DELETE CASCADE
+  FOREIGN KEY (memory_id) REFERENCES neuromemory_memories(id) ON DELETE CASCADE
 );
 
 -- Entity graph
-CREATE TABLE engram_graph_links (
+CREATE TABLE neuromemory_graph_links (
   id BIGSERIAL PRIMARY KEY,
   agent_id TEXT NOT NULL,
   memory_id TEXT NOT NULL,
@@ -193,23 +193,23 @@ CREATE TABLE engram_graph_links (
   relation TEXT, -- Edge type (e.g., "about", "mentions", "used_in")
   
   FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
-  FOREIGN KEY (memory_id) REFERENCES engram_memories(id) ON DELETE CASCADE
+  FOREIGN KEY (memory_id) REFERENCES neuromemory_memories(id) ON DELETE CASCADE
 );
 
 -- Indexes
-CREATE INDEX idx_engram_memories_agent ON engram_memories(agent_id);
-CREATE INDEX idx_engram_memories_layer ON engram_memories(agent_id, layer);
-CREATE INDEX idx_engram_memories_type ON engram_memories(agent_id, memory_type);
-CREATE INDEX idx_engram_memories_category ON engram_memories(agent_id, category);
-CREATE INDEX idx_engram_memories_key ON engram_memories(agent_id, memory_key);
-CREATE INDEX idx_engram_access_log_memory ON engram_access_log(memory_id, accessed_at DESC);
-CREATE INDEX idx_engram_graph_links_memory ON engram_graph_links(memory_id);
-CREATE INDEX idx_engram_graph_links_node ON engram_graph_links(agent_id, node_id);
+CREATE INDEX idx_neuromemory_memories_agent ON neuromemory_memories(agent_id);
+CREATE INDEX idx_neuromemory_memories_layer ON neuromemory_memories(agent_id, layer);
+CREATE INDEX idx_neuromemory_memories_type ON neuromemory_memories(agent_id, memory_type);
+CREATE INDEX idx_neuromemory_memories_category ON neuromemory_memories(agent_id, category);
+CREATE INDEX idx_neuromemory_memories_key ON neuromemory_memories(agent_id, memory_key);
+CREATE INDEX idx_neuromemory_access_log_memory ON neuromemory_access_log(memory_id, accessed_at DESC);
+CREATE INDEX idx_neuromemory_graph_links_memory ON neuromemory_graph_links(memory_id);
+CREATE INDEX idx_neuromemory_graph_links_node ON neuromemory_graph_links(agent_id, node_id);
 
 -- Full-text search (Postgres tsvector)
-ALTER TABLE engram_memories ADD COLUMN content_tsv tsvector
+ALTER TABLE neuromemory_memories ADD COLUMN content_tsv tsvector
   GENERATED ALWAYS AS (to_tsvector('english', content)) STORED;
-CREATE INDEX idx_engram_memories_fts ON engram_memories USING GIN(content_tsv);
+CREATE INDEX idx_neuromemory_memories_fts ON neuromemory_memories USING GIN(content_tsv);
 ```
 
 ### 4.3 Category Mapping
@@ -230,13 +230,13 @@ CREATE INDEX idx_engram_memories_fts ON engram_memories USING GIN(content_tsv);
 ## 5. Migration Plan
 
 ### 5.1 Phase 0: Preparation
-1. Create `SupabaseStore` class in engram-ts (`src/stores/supabase.ts`)
+1. Create `SupabaseStore` class in neuromemory-ai (`src/stores/supabase.ts`)
 2. Implement `Store` interface methods
 3. Add unit tests with Supabase local dev environment
 4. Document API differences (async vs sync)
 
 ### 5.2 Phase 1: Parallel Deploy (Backward Compatible)
-1. Run migration to create `engram_*` tables
+1. Run migration to create `neuromemory_*` tables
 2. Add `src/lib/engram-memory.ts` (new API using `SupabaseStore`)
 3. Keep old `agent-memory.ts` intact
 4. Update hosted agents to use new API (opt-in)
@@ -244,8 +244,8 @@ CREATE INDEX idx_engram_memories_fts ON engram_memories USING GIN(content_tsv);
 
 **Data Migration:**
 ```sql
--- Copy existing memories to engram_memories
-INSERT INTO engram_memories (
+-- Copy existing memories to neuromemory_memories
+INSERT INTO neuromemory_memories (
   id, agent_id, content, memory_type, category, memory_key, created_at, last_accessed
 )
 SELECT 
@@ -362,7 +362,7 @@ await forgetMemories('agent-123', { threshold: 0.1 });
 ## 7. Implementation Phases
 
 ### Phase 1: Foundation (Week 1)
-- [ ] Implement `SupabaseStore` in engram-ts
+- [ ] Implement `SupabaseStore` in neuromemory-ai
 - [ ] Add schema migration
 - [ ] Create backward-compatible wrapper API
 - [ ] Migrate existing memories
@@ -415,9 +415,9 @@ export async function GET(req: Request) {
 ## 9. Performance Considerations
 
 ### 9.1 Access Log Growth
-- `engram_access_log` will grow rapidly (every recall = N log entries)
+- `neuromemory_access_log` will grow rapidly (every recall = N log entries)
 - **Solution:** Partition by date, archive old logs monthly
-- **Alternative:** Aggregate access counts into `engram_memories.access_count` hourly
+- **Alternative:** Aggregate access counts into `neuromemory_memories.access_count` hourly
 
 ### 9.2 Graph Search Complexity
 - Multi-hop traversal can be expensive
@@ -466,8 +466,8 @@ export async function GET(req: Request) {
 ## 12. Next Steps
 
 1. **Review this doc** with potato (human owner)
-2. **Prototype SupabaseStore** in engram-ts
-3. **Create schema migration** (`008_engram_memory.sql`)
+2. **Prototype SupabaseStore** in neuromemory-ai
+3. **Create schema migration** (`008_neuromemory_memory.sql`)
 4. **Implement wrapper API** in SaltyHall
 5. **Test with single agent** before rollout
 
@@ -476,12 +476,12 @@ export async function GET(req: Request) {
 ## Appendix A: File Locations
 
 **Engram-ts source:**
-- `/Users/potato/clawd/projects/agent-memory-prototype/engram-ts/`
+- `/Users/potato/clawd/projects/agent-memory-prototype/neuromemory-ai/`
 
 **SaltyHall files:**
 - Current memory: `src/lib/agent-memory.ts`
 - New memory: `src/lib/engram-memory.ts` (to create)
-- Schema: `migrations/008_engram_memory.sql` (to create)
+- Schema: `migrations/008_neuromemory_memory.sql` (to create)
 - Supabase store: `src/lib/engram/stores/supabase.ts` (to create)
 
 **Design docs:**
