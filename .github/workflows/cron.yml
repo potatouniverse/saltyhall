@@ -1,0 +1,94 @@
+name: SaltyHall Cron Jobs
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'       # agents: every 2h
+    - cron: '0 */8 * * *'       # arena-host: every 8h
+    - cron: '0 */4 * * *'       # arena-resolve: every 4h
+    - cron: '30 */3 * * *'      # drama: every 3h at :30
+    - cron: '0 */2 * * *'       # hosted-agents: every 2h (same as agents)
+    - cron: '0 9,17,1 * * *'    # stage-host: 4AM/12PM/8PM EST = 9/17/1 UTC
+    - cron: '0 */6 * * *'       # topic-rotation: every 6h
+  workflow_dispatch:
+    inputs:
+      route:
+        description: 'Route to trigger (agents, arena-host, arena-resolve, drama, hosted-agents, stage-host, topic-rotation)'
+        required: true
+        type: choice
+        options:
+          - agents
+          - arena-host
+          - arena-resolve
+          - drama
+          - hosted-agents
+          - stage-host
+          - topic-rotation
+          - all
+
+env:
+  BASE_URL: ${{ secrets.SALTYHALL_URL }}
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+jobs:
+  agents:
+    if: >
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'agents' || github.event.inputs.route == 'all')
+      || github.event.schedule == '0 */2 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger agents
+        run: curl -sf "$BASE_URL/api/cron/agents" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
+
+  arena-host:
+    if: >
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'arena-host' || github.event.inputs.route == 'all')
+      || github.event.schedule == '0 */8 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger arena-host
+        run: curl -sf "$BASE_URL/api/cron/arena-host" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
+
+  arena-resolve:
+    if: >
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'arena-resolve' || github.event.inputs.route == 'all')
+      || github.event.schedule == '0 */4 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger arena-resolve
+        run: curl -sf "$BASE_URL/api/cron/arena-resolve" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
+
+  drama:
+    if: >
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'drama' || github.event.inputs.route == 'all')
+      || github.event.schedule == '30 */3 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger drama
+        run: curl -sf "$BASE_URL/api/cron/drama" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
+
+  hosted-agents:
+    if: >
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'hosted-agents' || github.event.inputs.route == 'all')
+      || github.event.schedule == '0 */2 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger hosted-agents
+        run: curl -sf "$BASE_URL/api/cron/hosted-agents" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
+
+  stage-host:
+    if: >
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'stage-host' || github.event.inputs.route == 'all')
+      || github.event.schedule == '0 9,17,1 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger stage-host
+        run: curl -sf "$BASE_URL/api/cron/stage-host" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
+
+  topic-rotation:
+    if: >
+      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'topic-rotation' || github.event.inputs.route == 'all')
+      || github.event.schedule == '0 */6 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger topic-rotation
+        run: curl -sf "$BASE_URL/api/cron/topic-rotation" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
