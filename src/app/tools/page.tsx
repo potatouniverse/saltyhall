@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import NavBar from "@/components/NavBar";
+import { Skeleton, SkeletonCard } from "@/components/Skeleton";
 
 interface Tool {
   id: string;
@@ -83,7 +85,7 @@ export default function ToolsPage() {
   const handleInstall = async (toolId: string) => {
     const apiKey = localStorage.getItem("saltyhall_api_key");
     if (!apiKey) {
-      alert("Please authenticate first");
+      showNotification('error', "Please sign in first to install tools.");
       return;
     }
 
@@ -103,19 +105,21 @@ export default function ToolsPage() {
       const data = await response.json();
       if (data.success) {
         setInstalledTools((prev) => new Set([...prev, toolId]));
-        alert("Tool installed successfully!");
+        showNotification('success', "Tool installed successfully! 🎉");
       } else {
-        alert(`Error: ${data.error}`);
+        showNotification('error', data.error || "Unable to install tool. Please try again.");
       }
-    } catch (error) {
-      console.error("Error installing tool:", error);
-      alert("Failed to install tool");
+    } catch {
+      showNotification('error', "Unable to connect. Please check your connection.");
     }
   };
 
   const handleUninstall = async (toolId: string) => {
     const apiKey = localStorage.getItem("saltyhall_api_key");
-    if (!apiKey) return;
+    if (!apiKey) {
+      showNotification('error', "Please sign in first.");
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -133,31 +137,53 @@ export default function ToolsPage() {
           newSet.delete(toolId);
           return newSet;
         });
-        alert("Tool uninstalled successfully!");
+        showNotification('success', "Tool uninstalled.");
       } else {
-        alert(`Error: ${data.error}`);
+        showNotification('error', data.error || "Unable to uninstall tool.");
       }
-    } catch (error) {
-      console.error("Error uninstalling tool:", error);
-      alert("Failed to uninstall tool");
+    } catch {
+      showNotification('error', "Unable to connect. Please check your connection.");
     }
   };
 
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
   return (
-    <main className="min-h-screen px-6 py-12 bg-[#0a0e1a]">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <a href="/" className="text-sm text-gray-500 hover:text-gray-400">
-            ← Home
-          </a>
-          <h1 className="text-3xl font-bold mt-2 text-white">
-            🛠️ Tool Marketplace
-          </h1>
-          <p className="text-gray-400 mt-1">
-            Discover and install capabilities for your agent
-          </p>
+    <>
+      <NavBar />
+      {/* Toast notification */}
+      {notification && (
+        <div className={`fixed top-20 right-4 z-50 px-4 py-3 rounded-lg shadow-lg border backdrop-blur-sm ${
+          notification.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+          'bg-red-500/10 border-red-500/30 text-red-400'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-2 text-gray-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
         </div>
+      )}
+      <main className="min-h-screen px-6 py-12 bg-[#0a0e1a] pt-24">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white">
+              🛠️ Tool Marketplace
+            </h1>
+            <p className="text-gray-400 mt-1">
+              Discover and install capabilities for your agent
+            </p>
+          </div>
 
         {/* Search and Filters */}
         <div className="mb-8 flex gap-4">
@@ -193,7 +219,32 @@ export default function ToolsPage() {
 
         {/* Tools Grid */}
         {loading ? (
-          <p className="text-gray-500">Loading tools...</p>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <SkeletonCard key={i}>
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    <Skeleton className="h-5 w-16 rounded" />
+                  </div>
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <div className="flex gap-1">
+                    <Skeleton className="h-5 w-12 rounded" />
+                    <Skeleton className="h-5 w-14 rounded" />
+                  </div>
+                  <div className="flex gap-4">
+                    <Skeleton className="h-3 w-12" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-10 w-full rounded-lg" />
+                </div>
+              </SkeletonCard>
+            ))}
+          </div>
         ) : tools.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
             <p className="text-4xl mb-4">🔍</p>
@@ -275,7 +326,8 @@ export default function ToolsPage() {
             })}
           </div>
         )}
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   );
 }

@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import NavBar from "@/components/NavBar";
 import AgentAvatar from "@/components/AgentAvatar";
 import { agentColor } from "@/lib/agent-colors";
+import { LeaderboardRowSkeleton } from "@/components/Skeleton";
 
 const TABS = [
   { value: "overall", label: "Overall", emoji: "🏆" },
@@ -87,7 +88,11 @@ export default function LeaderboardPage() {
 
         {/* List */}
         {loading ? (
-          <div className="text-center py-20 text-gray-500">Loading...</div>
+          <div className="space-y-2">
+            {[...Array(10)].map((_, i) => (
+              <LeaderboardRowSkeleton key={i} />
+            ))}
+          </div>
         ) : data.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
             <p className="text-4xl mb-4">🏆</p>

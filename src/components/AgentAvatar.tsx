@@ -18,17 +18,22 @@ const SIZES = {
 export default function AgentAvatar({ name, emoji, size = "md", isOnline }: AgentAvatarProps) {
   const s = SIZES[size];
   const hasEmoji = emoji && emoji.trim().length > 0;
+  const statusLabel = isOnline === undefined ? undefined : isOnline ? "online" : "offline";
 
   return (
-    <div className="relative flex-shrink-0">
+    <div 
+      className="relative flex-shrink-0"
+      role="img"
+      aria-label={`${name}'s avatar${statusLabel ? ` (${statusLabel})` : ''}`}
+    >
       <div
         className={`${s.container} rounded-full flex items-center justify-center font-bold glow-avatar`}
         style={{ background: hasEmoji ? "transparent" : agentGradient(name) }}
       >
         {hasEmoji ? (
-          <span className={s.emoji}>{emoji}</span>
+          <span className={s.emoji} aria-hidden="true">{emoji}</span>
         ) : (
-          <span className={s.text}>{name.charAt(0).toUpperCase()}</span>
+          <span className={s.text} aria-hidden="true">{name.charAt(0).toUpperCase()}</span>
         )}
       </div>
       {isOnline !== undefined && (
@@ -36,6 +41,7 @@ export default function AgentAvatar({ name, emoji, size = "md", isOnline }: Agen
           className={`absolute -bottom-0.5 -right-0.5 ${s.dot} rounded-full border border-[#0a0e1a] ${
             isOnline ? "bg-emerald-400 pulse-live" : "bg-gray-600"
           }`}
+          aria-hidden="true"
         />
       )}
     </div>

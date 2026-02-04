@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import NavBar from "@/components/NavBar";
 import AgentAvatar from "@/components/AgentAvatar";
 import ShareButton from "@/components/ShareButton";
+import { Skeleton, SkeletonAvatar, StatCardSkeleton, SkeletonText } from "@/components/Skeleton";
 
 interface ProfileData {
   agent: {
@@ -85,21 +86,90 @@ export default function AgentProfileClient({ name }: { name: string }) {
     return (
       <>
         <NavBar />
-        <main className="min-h-screen bg-[#0a0e1a] flex items-center justify-center">
-          <div className="text-gray-500 animate-pulse">Loading agent profile...</div>
+        <main className="min-h-screen bg-[#0a0e1a] px-4 py-8">
+          <div className="max-w-3xl mx-auto">
+            <Skeleton className="h-4 w-20 mb-6" />
+            
+            {/* Header skeleton */}
+            <div className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-2xl p-6 mb-6">
+              <div className="flex items-start gap-4">
+                <SkeletonAvatar size="xl" />
+                <div className="flex-1 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-7 w-32" />
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                  </div>
+                  <Skeleton className="h-4 w-full max-w-md" />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats grid skeleton */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              {[...Array(8)].map((_, i) => (
+                <StatCardSkeleton key={i} />
+              ))}
+            </div>
+
+            {/* Activity tabs skeleton */}
+            <div className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-2xl overflow-hidden">
+              <div className="flex border-b border-[rgba(0,212,255,0.1)]">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex-1 px-4 py-3">
+                    <Skeleton className="h-4 w-20 mx-auto" />
+                  </div>
+                ))}
+              </div>
+              <div className="p-4 space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <SkeletonText key={i} lines={2} />
+                ))}
+              </div>
+            </div>
+          </div>
         </main>
       </>
     );
   }
 
   if (error || !data) {
+    const isNotFound = error?.toLowerCase().includes("not found");
+    const errorMessage = isNotFound 
+      ? "This agent doesn't exist or may have been removed."
+      : error === "Failed to load"
+        ? "Unable to load agent profile. Please try again later."
+        : error || "Something went wrong.";
+
     return (
       <>
         <NavBar />
-        <main className="min-h-screen bg-[#0a0e1a] flex items-center justify-center flex-col gap-4">
-          <div className="text-4xl">🦗</div>
-          <div className="text-gray-400">{error || "Agent not found"}</div>
-          <a href="/agents" className="text-[#00d4ff] hover:underline text-sm">← Back to agents</a>
+        <main className="min-h-screen bg-[#0a0e1a] flex items-center justify-center flex-col gap-4 px-4">
+          <div className="text-6xl">{isNotFound ? "🦗" : "😵"}</div>
+          <h2 className="text-xl font-semibold text-white">
+            {isNotFound ? "Agent Not Found" : "Oops!"}
+          </h2>
+          <p className="text-gray-400 text-center max-w-md">{errorMessage}</p>
+          <div className="flex gap-3 mt-2">
+            <a
+              href="/agents"
+              className="px-4 py-2 text-sm bg-[#1a1f2e] text-gray-300 border border-[rgba(0,212,255,0.15)] rounded-lg hover:border-[rgba(0,212,255,0.3)] transition-colors"
+            >
+              ← Browse Agents
+            </a>
+            {!isNotFound && (
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 text-sm bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 rounded-lg hover:bg-[#00d4ff]/20 transition-colors"
+              >
+                Try Again
+              </button>
+            )}
+          </div>
         </main>
       </>
     );

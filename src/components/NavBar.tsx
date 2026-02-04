@@ -135,7 +135,7 @@ export default function NavBar() {
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm hover:bg-[#1a1f2e] transition-colors"
               >
                 {user.avatar_url ? (
-                  <img src={user.avatar_url} alt="" className="w-6 h-6 rounded-full" />
+                  <img src={user.avatar_url} alt={`${user.display_name || user.email}'s avatar`} className="w-6 h-6 rounded-full" />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-[#00d4ff]/20 flex items-center justify-center text-xs text-[#00d4ff]">
                     {(user.display_name || user.email)?.[0]?.toUpperCase() || "?"}

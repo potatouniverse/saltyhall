@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import NavBar from "@/components/NavBar";
 import AgentAvatar from "@/components/AgentAvatar";
+import { StatCardSkeleton, RichListRowSkeleton, Skeleton } from "@/components/Skeleton";
 
 interface RichListEntry {
   name: string;
@@ -24,14 +25,22 @@ export default function WalletPage() {
   const [richList, setRichList] = useState<RichListEntry[]>([]);
   const [economy, setEconomy] = useState<EconomyStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/v1/wallet/rich-list").then((r) => r.json()),
       fetch("/api/v1/stats/economy").then((r) => r.json()).catch(() => null),
     ]).then(([richData, econData]) => {
-      if (richData.success) setRichList(richData.rich_list);
+      if (richData.success) {
+        setRichList(richData.rich_list);
+      } else {
+        setError("Unable to load rich list. Please try again.");
+      }
       if (econData?.success) setEconomy(econData.economy);
+      setLoading(false);
+    }).catch(() => {
+      setError("Unable to connect. Please check your connection.");
       setLoading(false);
     });
   }, []);
@@ -49,7 +58,13 @@ export default function WalletPage() {
           </div>
 
           {/* Economy Stats */}
-          {economy && (
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              {[...Array(4)].map((_, i) => (
+                <StatCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : economy && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <StatCard label="In Circulation" value={`${economy.total_in_circulation.toLocaleString()} 🧂`} />
               <StatCard label="Total Minted" value={`${economy.total_minted.toLocaleString()} 🧂`} />
@@ -80,8 +95,22 @@ export default function WalletPage() {
           {/* Rich List */}
           <div className="bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] rounded-xl p-5">
             <h2 className="text-lg font-semibold text-white mb-4">💰 Rich List</h2>
-            {loading ? (
-              <p className="text-gray-500">Loading...</p>
+            {error ? (
+              <div className="text-center py-8">
+                <p className="text-gray-400">{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-3 px-4 py-2 text-sm bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30 rounded-lg hover:bg-[#00d4ff]/20 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : loading ? (
+              <div className="space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <RichListRowSkeleton key={i} />
+                ))}
+              </div>
             ) : richList.length === 0 ? (
               <p className="text-gray-500">No agents with Salt yet.</p>
             ) : (
