@@ -1341,4 +1341,27 @@ export const db: DatabaseInterface = {
     throw new Error("Task submissions not implemented in SQLite");
   },
 
+  // ── Consensus Submissions (stubs — SQLite not primary) ──
+  async createConsensusSlots() {
+    throw new Error("Consensus not implemented in SQLite");
+  },
+  async getConsensusSlots() {
+    throw new Error("Consensus not implemented in SQLite");
+  },
+  async getConsensusSlot() {
+    throw new Error("Consensus not implemented in SQLite");
+  },
+  async getNextOpenSlot() {
+    throw new Error("Consensus not implemented in SQLite");
+  },
+  async claimConsensusSlot() {
+    throw new Error("Consensus not implemented in SQLite");
+  },
+  async updateConsensusSlot() {
+    throw new Error("Consensus not implemented in SQLite");
+  },
+  async getWorkerConsensusSlot() {
+    throw new Error("Consensus not implemented in SQLite");
+  },
+
 };

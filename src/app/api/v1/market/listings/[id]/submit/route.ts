@@ -3,6 +3,7 @@ import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { dispatchWebhook } from "@/lib/webhook";
 import { verifyTaskSubmission } from "@/lib/task-verification";
+import { evaluateConsensus, calculatePayouts, type Submission } from "@/lib/consensus";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,11 +18,101 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const isAgent = agentResult && !("error" in agentResult);
   const isHuman = humanResult && !("error" in humanResult);
+  const workerId = isAgent && agentResult && !("error" in agentResult)
+    ? agentResult.agent.id
+    : humanResult && !("error" in humanResult)
+    ? humanResult.user.id
+    : null;
+  const workerType = isAgent ? "agent" : "human";
 
   const { id } = await params;
   const listing = await db.getMarketListing(id);
   if (!listing) return NextResponse.json({ success: false, error: "Listing not found" }, { status: 404 });
 
+  const body = await req.json();
+  const { content, attachment_url } = body;
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
+    return NextResponse.json({ success: false, error: "content is required" }, { status: 400 });
+  }
+
+  // Check if this is a consensus task
+  const consensusCount = (listing as any).consensus_count || 1;
+  const isConsensusTask = consensusCount > 1;
+
+  if (isConsensusTask) {
+    // Consensus task: check slot
+    const slot = await db.getWorkerConsensusSlot(id, workerType, workerId!);
+    if (!slot) {
+      return NextResponse.json({ success: false, error: "You have not claimed a slot for this task" }, { status: 403 });
+    }
+    if (slot.status === "submitted") {
+      return NextResponse.json({ success: false, error: "You have already submitted for this task" }, { status: 400 });
+    }
+    if (slot.status !== "claimed") {
+      return NextResponse.json({ success: false, error: "Invalid slot status" }, { status: 400 });
+    }
+
+    // Create submission
+    const submission = await db.createTaskSubmission(
+      id,
+      isAgent && agentResult && !("error" in agentResult) ? agentResult.agent.id : null as any,
+      content.trim(),
+      attachment_url || null
+    );
+
+    // If human submission, update with human fields
+    if (isHuman && humanResult && !("error" in humanResult)) {
+      await db.updateTaskSubmission(submission.id, {
+        submitter_type: "human",
+        submitter_human_id: humanResult.user.id,
+      });
+    }
+
+    // Update slot with submission
+    await db.updateConsensusSlot(slot.id, {
+      submission_id: submission.id,
+      status: "submitted",
+    });
+
+    // Check if all slots have submitted
+    const allSlots = await db.getConsensusSlots(id);
+    const submittedSlots = allSlots.filter((s: any) => s.status === "submitted");
+    const allSubmitted = submittedSlots.length === consensusCount;
+
+    if (allSubmitted) {
+      // Auto-trigger consensus evaluation
+      await triggerConsensusEvaluation(id, listing, allSlots);
+    }
+
+    // Notify poster
+    if (listing.poster_type === "agent") {
+      const agent = await db.getAgentById(listing.agent_id);
+      if (agent && agent.webhook_url) {
+        await dispatchWebhook(agent, "market.consensus_submission", {
+          listing_id: id,
+          listing_title: listing.title,
+          slot_number: slot.slot_number,
+          submissions_received: submittedSlots.length,
+          total_slots: consensusCount,
+          all_submitted: allSubmitted,
+        });
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      submission,
+      slot: { ...slot, status: "submitted", submission_id: submission.id },
+      submissions_received: submittedSlots.length,
+      total_slots: consensusCount,
+      all_submitted: allSubmitted,
+      message: allSubmitted
+        ? "All submissions received. Consensus evaluation started."
+        : `Submission ${submittedSlots.length}/${consensusCount} received. Waiting for other workers.`,
+    });
+  }
+
+  // Regular (non-consensus) task
   // Check if this user claimed the task
   if (isAgent && agentResult && !("error" in agentResult)) {
     if ((listing as any).claimed_by !== agentResult.agent.id) {
@@ -35,12 +126,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (listing.status !== "in_progress") {
     return NextResponse.json({ success: false, error: "Task is not in progress" }, { status: 400 });
-  }
-
-  const body = await req.json();
-  const { content, attachment_url } = body;
-  if (!content || typeof content !== "string" || content.trim().length === 0) {
-    return NextResponse.json({ success: false, error: "content is required" }, { status: 400 });
   }
 
   // Create submission (agent_id required by interface, pass null for humans and update after)
@@ -128,6 +213,83 @@ async function triggerAIVerification(
   } catch (error) {
     console.error("AI verification failed for submission", submissionId, error);
     // Don't fail submission if AI verification fails - human can still review
+  }
+}
+
+/**
+ * Trigger consensus evaluation after all submissions received.
+ */
+async function triggerConsensusEvaluation(listingId: string, listing: any, slots: any[]) {
+  try {
+    // Update status to evaluating
+    await db.updateMarketListing(listingId, { consensus_status: "evaluating" });
+
+    // Gather submissions
+    const submissions: Submission[] = [];
+    for (const slot of slots) {
+      if (slot.submission_id) {
+        const sub = await db.getTaskSubmission(slot.submission_id);
+        if (sub) {
+          submissions.push({
+            id: sub.id,
+            slot_number: slot.slot_number,
+            worker_id: slot.worker_agent_id || slot.worker_human_id,
+            worker_type: slot.worker_type as "agent" | "human",
+            content: sub.content,
+            attachment_url: sub.attachment_url,
+          });
+        }
+      }
+    }
+
+    // Evaluate consensus
+    const method = (listing as any).consensus_method || "exact";
+    const result = await evaluateConsensus(submissions, method as "exact" | "semantic");
+
+    // Calculate payouts
+    const totalBounty = parseFloat(listing.price) || 0;
+    const payouts = calculatePayouts(totalBounty, slots.length, result);
+
+    // Update slots with results
+    for (const slot of slots) {
+      const workerId = slot.worker_agent_id || slot.worker_human_id;
+      const isAgreeing = result.agreeingWorkers.includes(workerId);
+      const payout = payouts.get(workerId) || 0;
+
+      await db.updateConsensusSlot(slot.id, {
+        status: isAgreeing ? "agreed" : "outlier",
+        payout_amount: payout,
+      });
+    }
+
+    // Update listing with consensus result
+    const consensusStatus = result.achieved ? "achieved" : "failed";
+    await db.updateMarketListing(listingId, {
+      consensus_status: consensusStatus,
+      consensus_result: JSON.stringify(result),
+      status: result.achieved ? "completed" : "failed",
+    });
+
+    console.log(`✅ Consensus ${consensusStatus} for listing ${listingId}: ${result.agreementRatio * 100}% agreement`);
+
+    // Notify poster
+    if (listing.poster_type === "agent") {
+      const agent = await db.getAgentById(listing.agent_id);
+      if (agent && agent.webhook_url) {
+        await dispatchWebhook(agent, "market.consensus_result", {
+          listing_id: listingId,
+          listing_title: listing.title,
+          achieved: result.achieved,
+          agreement_ratio: result.agreementRatio,
+          final_answer: result.finalAnswer,
+          agreeing_workers: result.agreeingWorkers.length,
+          outlier_workers: result.outlierWorkers.length,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Consensus evaluation failed for listing", listingId, error);
+    await db.updateMarketListing(listingId, { consensus_status: "failed" });
   }
 }
 

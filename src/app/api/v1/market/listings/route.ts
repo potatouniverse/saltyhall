@@ -26,22 +26,48 @@ export async function POST(req: NextRequest) {
   if ("error" in result) return NextResponse.json({ success: false, error: result.error }, { status: result.status });
 
   const body = await req.json();
-  const { title, description, type, category, price, acceptance_criteria, human_only } = body;
+  const { title, description, type, category, price, acceptance_criteria, human_only, consensus_count, consensus_method } = body;
   if (!title) return NextResponse.json({ success: false, error: "title is required" }, { status: 400 });
 
   const listing = await db.createMarketListing(result.agent.id, title, description || "", type || "sell", category || "general", price || "");
 
+  // Build updates object
+  const updates: Record<string, any> = {};
+
   // If acceptance_criteria provided, update the listing (enables delivery verification flow)
   if (acceptance_criteria) {
-    await db.updateMarketListing(listing.id, { acceptance_criteria });
-    listing.acceptance_criteria = acceptance_criteria;
+    updates.acceptance_criteria = acceptance_criteria;
   }
 
   // If human_only flag is set, update target_type to 'human'
   if (human_only === true) {
-    await db.updateMarketListing(listing.id, { target_type: "human" });
-    listing.target_type = "human";
+    updates.target_type = "human";
   }
 
-  return NextResponse.json({ success: true, listing });
+  // Handle consensus settings
+  const consensusNum = parseInt(consensus_count) || 1;
+  if (consensusNum > 1) {
+    updates.consensus_count = consensusNum;
+    updates.max_submissions = consensusNum;
+    updates.consensus_method = consensus_method || "exact";
+    updates.consensus_status = "collecting";
+  }
+
+  // Apply all updates
+  if (Object.keys(updates).length > 0) {
+    await db.updateMarketListing(listing.id, updates);
+    Object.assign(listing, updates);
+  }
+
+  // Create consensus slots if needed
+  let slots: any[] = [];
+  if (consensusNum > 1) {
+    slots = await db.createConsensusSlots(listing.id, consensusNum);
+  }
+
+  return NextResponse.json({
+    success: true,
+    listing,
+    consensus_slots: slots.length > 0 ? slots : undefined,
+  });
 }

@@ -420,6 +420,15 @@ export interface DatabaseInterface {
   getUsdcTransaction(bountyHash: string): Promise<UsdcTransactionRecord | null>;
   updateUsdcTransaction(bountyHash: string, updates: Record<string, any>): Promise<void>;
   getSubmittedUsdcTransactions(): Promise<UsdcTransactionRecord[]>;
+
+  // Consensus Submissions
+  createConsensusSlots(listingId: string, consensusCount: number): Promise<ConsensusSubmissionRecord[]>;
+  getConsensusSlots(listingId: string): Promise<ConsensusSubmissionRecord[]>;
+  getConsensusSlot(listingId: string, slotNumber: number): Promise<ConsensusSubmissionRecord | null>;
+  getNextOpenSlot(listingId: string): Promise<ConsensusSubmissionRecord | null>;
+  claimConsensusSlot(slotId: string, workerType: string, workerId: string): Promise<ConsensusSubmissionRecord>;
+  updateConsensusSlot(slotId: string, updates: Record<string, any>): Promise<void>;
+  getWorkerConsensusSlot(listingId: string, workerType: string, workerId: string): Promise<ConsensusSubmissionRecord | null>;
 }
 
 export interface ServiceListingRecord {
@@ -482,6 +491,20 @@ export interface TaskSubmissionRecord {
   ai_reasoning: string | null;
   ai_status: string | null; // 'ai_approved', 'ai_flagged', 'pending', null
   ai_issues: string | null; // JSON array
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConsensusSubmissionRecord {
+  id: string;
+  listing_id: string;
+  slot_number: number;
+  submission_id: string | null;
+  worker_type: string | null; // 'agent' | 'human'
+  worker_agent_id: string | null;
+  worker_human_id: string | null;
+  status: string; // 'open', 'claimed', 'submitted', 'agreed', 'outlier'
+  payout_amount: number;
   created_at: string;
   updated_at: string;
 }

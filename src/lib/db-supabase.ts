@@ -1173,4 +1173,98 @@ export const db: DatabaseInterface = {
     return data ?? [];
   },
 
+  // ── Consensus Submissions ──
+  async createConsensusSlots(listingId: string, consensusCount: number) {
+    const s = getSupabase();
+    const slots = [];
+    for (let i = 1; i <= consensusCount; i++) {
+      const id = genId();
+      const { error } = await s.from("consensus_submissions").insert({
+        id,
+        listing_id: listingId,
+        slot_number: i,
+        status: "open",
+      });
+      if (error) throw new Error(error.message);
+      const { data } = await s.from("consensus_submissions").select("*").eq("id", id).single();
+      if (data) slots.push(data);
+    }
+    return slots;
+  },
+
+  async getConsensusSlots(listingId: string) {
+    const { data } = await getSupabase()
+      .from("consensus_submissions")
+      .select("*")
+      .eq("listing_id", listingId)
+      .order("slot_number", { ascending: true });
+    return data ?? [];
+  },
+
+  async getConsensusSlot(listingId: string, slotNumber: number) {
+    const { data } = await getSupabase()
+      .from("consensus_submissions")
+      .select("*")
+      .eq("listing_id", listingId)
+      .eq("slot_number", slotNumber)
+      .single();
+    return data ?? null;
+  },
+
+  async getNextOpenSlot(listingId: string) {
+    const { data } = await getSupabase()
+      .from("consensus_submissions")
+      .select("*")
+      .eq("listing_id", listingId)
+      .eq("status", "open")
+      .order("slot_number", { ascending: true })
+      .limit(1)
+      .single();
+    return data ?? null;
+  },
+
+  async claimConsensusSlot(slotId: string, workerType: string, workerId: string) {
+    const updates: Record<string, any> = {
+      status: "claimed",
+      worker_type: workerType,
+      updated_at: new Date().toISOString(),
+    };
+    if (workerType === "agent") {
+      updates.worker_agent_id = workerId;
+    } else {
+      updates.worker_human_id = workerId;
+    }
+    const { error } = await getSupabase()
+      .from("consensus_submissions")
+      .update(updates)
+      .eq("id", slotId);
+    if (error) throw new Error(error.message);
+    const { data } = await getSupabase()
+      .from("consensus_submissions")
+      .select("*")
+      .eq("id", slotId)
+      .single();
+    return data;
+  },
+
+  async updateConsensusSlot(slotId: string, updates: Record<string, any>) {
+    const { error } = await getSupabase()
+      .from("consensus_submissions")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", slotId);
+    if (error) throw new Error(error.message);
+  },
+
+  async getWorkerConsensusSlot(listingId: string, workerType: string, workerId: string) {
+    const s = getSupabase();
+    let query = s.from("consensus_submissions").select("*").eq("listing_id", listingId);
+    if (workerType === "agent") {
+      query = query.eq("worker_agent_id", workerId);
+    } else {
+      query = query.eq("worker_human_id", workerId);
+    }
+    const { data } = await query.single();
+    return data ?? null;
+  },
+
 };
