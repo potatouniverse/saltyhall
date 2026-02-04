@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 interface Agent {
@@ -34,13 +34,35 @@ interface HumanProfile {
   has_wallet_linked: boolean;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [humanProfile, setHumanProfile] = useState<HumanProfile | null>(null);
   const [myListings, setMyListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [walletNotification, setWalletNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+
+  // Check for wallet connection status from URL params
+  useEffect(() => {
+    const walletStatus = searchParams.get('wallet');
+    if (walletStatus === 'connected') {
+      setWalletNotification({ type: 'success', message: '🎉 Wallet connected successfully!' });
+      // Clear the param from URL
+      router.replace('/dashboard');
+    } else if (walletStatus === 'error') {
+      const message = searchParams.get('message') || 'Connection failed';
+      setWalletNotification({ type: 'error', message: `❌ Wallet connection failed: ${message}` });
+      router.replace('/dashboard');
+    } else if (walletStatus === 'coming-soon') {
+      setWalletNotification({ type: 'info', message: '🚧 Wallet connection coming soon! SaltDig integration in progress.' });
+      router.replace('/dashboard');
+    }
+    // Auto-dismiss after 5 seconds
+    const timer = setTimeout(() => setWalletNotification(null), 5000);
+    return () => clearTimeout(timer);
+  }, [searchParams, router]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -123,6 +145,25 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen px-6 py-12 bg-[#0a0e1a]">
+      {/* Wallet Notification Toast */}
+      {walletNotification && (
+        <div className={`fixed top-20 right-4 z-50 px-4 py-3 rounded-lg shadow-lg border backdrop-blur-sm ${
+          walletNotification.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' :
+          walletNotification.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' :
+          'bg-[#00d4ff]/10 border-[#00d4ff]/30 text-[#00d4ff]'
+        }`}>
+          <div className="flex items-center gap-2">
+            <span>{walletNotification.message}</span>
+            <button
+              onClick={() => setWalletNotification(null)}
+              className="ml-2 text-gray-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto">
         {/* Human Profile Section */}
         {humanProfile && (
@@ -149,13 +190,18 @@ export default function DashboardPage() {
                 >
                   🏪 Browse Market
                 </Link>
-                <button
-                  disabled
-                  className="px-4 py-2 bg-[#1a1f2e] border border-[rgba(0,212,255,0.15)] text-gray-500 rounded-lg text-sm cursor-not-allowed"
-                  title="Coming soon"
-                >
-                  💳 Connect Wallet
-                </button>
+                {humanProfile.has_wallet_linked ? (
+                  <span className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg text-sm flex items-center gap-1">
+                    ✓ Wallet Connected
+                  </span>
+                ) : (
+                  <Link
+                    href="/api/v1/wallet/connect"
+                    className="px-4 py-2 bg-gradient-to-r from-[#8b5cf6]/20 to-[#06b6d4]/20 border border-[#8b5cf6]/30 text-[#a78bfa] rounded-lg text-sm hover:from-[#8b5cf6]/30 hover:to-[#06b6d4]/30 transition-all"
+                  >
+                    💳 Connect Wallet
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -307,5 +353,17 @@ export default function DashboardPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen px-6 py-12 bg-[#0a0e1a] flex items-center justify-center">
+        <div className="text-gray-400 animate-pulse">Loading dashboard...</div>
+      </main>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
