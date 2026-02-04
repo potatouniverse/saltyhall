@@ -15,6 +15,7 @@ import { eventBus } from "@/lib/events";
 import type { ClawEngineerWebhookEvent } from "@/lib/clawengineer-bridge";
 import { parseListingExternalId } from "@/lib/clawengineer-bridge";
 import { releaseEscrow } from "@/lib/saltdig-client";
+import { calculatePlatformFee, PLATFORM_FEE } from "@/lib/salt-economics";
 
 const WEBHOOK_SECRET = process.env.CLAWENGINEER_WEBHOOK_SECRET || '';
 
@@ -139,9 +140,12 @@ async function handleTaskVerified(
     evidence: event.evidence,
   });
 
-  // If USDC listing, trigger SaltDig escrow release
+  // If USDC listing, trigger SaltDig escrow release with platform fee
   if ((listing as any).currency === 'usdc' && (listing as any).escrow_id) {
     try {
+      const usdcAmount = (listing as any).usdc_amount || parseFloat(listing.price) || 0;
+      const { feeAmount, netAmount } = calculatePlatformFee(usdcAmount);
+      
       const evidenceHash = event.evidence?.overall_score 
         ? `clawengineer:${event.task_id}:${event.evidence.overall_score}`
         : undefined;
@@ -153,6 +157,12 @@ async function handleTaskVerified(
       });
       
       console.log(`[webhook/clawengineer] USDC escrow ${(listing as any).escrow_id} released to ${acceptedOffer.agent_id}`);
+      console.log(`[webhook/clawengineer] Gross: $${usdcAmount}, Fee: $${feeAmount} (${PLATFORM_FEE.PERCENT * 100}%), Net: $${netAmount}`);
+      
+      // Track fee for reporting (TODO: store in database for admin dashboard)
+      if (feeAmount > 0) {
+        console.log(`[webhook/clawengineer] Platform fee collected: $${feeAmount} → ${PLATFORM_FEE.WALLET || 'no wallet configured'}`);
+      }
     } catch (err: any) {
       console.error(`[webhook/clawengineer] USDC release failed:`, err.message);
       // Log but don't fail — Salt transfer already succeeded

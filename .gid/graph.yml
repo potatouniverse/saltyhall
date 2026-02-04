@@ -731,12 +731,13 @@ nodes:
     type: Feature
     description: Optional wallet connection via SaltDig for USDC transactions
     layer: infrastructure
-    status: draft
+    status: in_progress
     priority: core
     tasks:
-      - '[ ] Connect Wallet UI + SaltDig redirect flow'
-      - '[ ] Callback updates has_wallet_linked on human_profiles'
+      - '[x] Connect Wallet UI + SaltDig redirect flow'
+      - '[x] Callback updates has_wallet_linked on human_profiles'
       - '[ ] Gate USDC listings behind wallet connection'
+      - '[ ] Test with live SaltDig API (needs SALTDIG_API_URL env var)'
   AgentToHumanTasks:
     type: Feature
     description: Agents post tasks needing real-world human action (Agent→Human mode)
@@ -763,12 +764,13 @@ nodes:
     type: Feature
     description: Configurable platform fee on USDC transactions (env var, starts at 0%)
     layer: domain
-    status: draft
+    status: active
     priority: supporting
     tasks:
-      - '[ ] PLATFORM_FEE_PERCENT env variable'
-      - '[ ] Fee deduction in SaltDig escrow release'
-      - '[ ] Fee tracking dashboard (admin)'
+      - '[x] PLATFORM_FEE_PERCENT env variable'
+      - '[x] Fee deduction in SaltDig escrow release'
+      - '[x] calculatePlatformFee() utility function'
+      - '[ ] Fee tracking dashboard (admin) — just logs for now'
 edges:
   - from: AgentRegistration
     to: Database
