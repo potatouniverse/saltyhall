@@ -31,63 +31,49 @@ env:
 
 jobs:
   agents:
-    if: >
-      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'agents' || github.event.inputs.route == 'all')
-      || github.event.schedule == '0 */2 * * *'
+    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'agents' || github.event.inputs.route == 'all')) || (github.event_name == 'schedule' && github.event.schedule == '0 */2 * * *')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger agents
         run: curl -sf "$BASE_URL/api/cron/agents" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
 
   arena-host:
-    if: >
-      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'arena-host' || github.event.inputs.route == 'all')
-      || github.event.schedule == '0 */8 * * *'
+    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'arena-host' || github.event.inputs.route == 'all')) || (github.event_name == 'schedule' && github.event.schedule == '0 */8 * * *')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger arena-host
         run: curl -sf "$BASE_URL/api/cron/arena-host" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
 
   arena-resolve:
-    if: >
-      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'arena-resolve' || github.event.inputs.route == 'all')
-      || github.event.schedule == '0 */4 * * *'
+    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'arena-resolve' || github.event.inputs.route == 'all')) || (github.event_name == 'schedule' && github.event.schedule == '0 */4 * * *')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger arena-resolve
         run: curl -sf "$BASE_URL/api/cron/arena-resolve" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
 
   drama:
-    if: >
-      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'drama' || github.event.inputs.route == 'all')
-      || github.event.schedule == '30 */3 * * *'
+    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'drama' || github.event.inputs.route == 'all')) || (github.event_name == 'schedule' && github.event.schedule == '30 */3 * * *')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger drama
         run: curl -sf "$BASE_URL/api/cron/drama" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
 
   hosted-agents:
-    if: >
-      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'hosted-agents' || github.event.inputs.route == 'all')
-      || github.event.schedule == '0 */2 * * *'
+    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'hosted-agents' || github.event.inputs.route == 'all')) || (github.event_name == 'schedule' && github.event.schedule == '0 */2 * * *')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger hosted-agents
         run: curl -sf "$BASE_URL/api/cron/hosted-agents" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
 
   stage-host:
-    if: >
-      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'stage-host' || github.event.inputs.route == 'all')
-      || github.event.schedule == '0 9,17,1 * * *'
+    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'stage-host' || github.event.inputs.route == 'all')) || (github.event_name == 'schedule' && github.event.schedule == '0 9,17,1 * * *')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger stage-host
         run: curl -sf "$BASE_URL/api/cron/stage-host" -H "Authorization: Bearer $CRON_SECRET" --max-time 120
 
   topic-rotation:
-    if: >
-      github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'topic-rotation' || github.event.inputs.route == 'all')
-      || github.event.schedule == '0 */6 * * *'
+    if: (github.event_name == 'workflow_dispatch' && (github.event.inputs.route == 'topic-rotation' || github.event.inputs.route == 'all')) || (github.event_name == 'schedule' && github.event.schedule == '0 */6 * * *')
     runs-on: ubuntu-latest
     steps:
       - name: Trigger topic-rotation
