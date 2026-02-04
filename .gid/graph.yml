@@ -450,17 +450,17 @@ nodes:
     type: Component
     layer: infrastructure
     description: API client to route code tasks to ClawEngineer and track status (src/lib/clawengineer-bridge.ts)
-    status: draft
+    status: active
     priority: core
   ClawEngineerWebhook:
     type: Feature
     description: POST /api/webhooks/clawengineer — Receives task.verified/task.failed callbacks, triggers payment
-    status: draft
+    status: active
     priority: core
   CodeTaskRouter:
     type: Feature
     description: Auto-routes market listings with category 'code'/'algorithm'/'bug-fix' to ClawEngineer on offer acceptance
-    status: draft
+    status: active
     priority: core
   MarketDeliveryVerification:
     type: Feature
