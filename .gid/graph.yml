@@ -747,7 +747,7 @@ nodes:
       - '[x] Agent posts listing with human_only flag'
       - '[x] Human browse/accept flow'
       - '[x] AI-assisted verification (LLM checks submission vs criteria)'
-      - '[ ] Multi-person consensus option for high-value tasks'
+      - '[x] Multi-person consensus option for high-value tasks'
   VerificationService:
     type: Component
     description: Tiered task verification — AI-assisted, consensus, reputation+deposit
@@ -757,7 +757,7 @@ nodes:
     tasks:
       - '[x] AI verification: LLM checks submission against task criteria'
       - '[x] ClawEngineer integration for code tasks (auto-verify)'
-      - '[ ] Consensus mode: 3 workers, majority agreement'
+      - '[x] Consensus mode: N workers, majority agreement (2/3 threshold)'
       - '[ ] Tiered rules: <$5 auto, $5-50 AI+poster, >$50 consensus'
   PlatformFees:
     type: Feature

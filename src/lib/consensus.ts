@@ -35,12 +35,12 @@ export interface ComparisonDetail {
  * Evaluate consensus among multiple submissions.
  * @param submissions - Array of worker submissions
  * @param comparisonMethod - 'exact' for structured data, 'semantic' for LLM comparison
- * @param threshold - Minimum agreement ratio (default 0.67 = 2/3)
+ * @param threshold - Minimum agreement ratio (default 2/3 = 0.666...)
  */
 export async function evaluateConsensus(
   submissions: Submission[],
   comparisonMethod: "exact" | "semantic" = "exact",
-  threshold: number = 0.67
+  threshold: number = 2 / 3
 ): Promise<ConsensusResult> {
   if (submissions.length < 2) {
     // Single submission - auto-pass (no consensus needed)
@@ -104,6 +104,7 @@ export async function evaluateConsensus(
 /**
  * Exact comparison for structured data.
  * Normalizes whitespace and compares strings.
+ * For "exact" mode, only exact matches count as agreement.
  */
 function compareExact(
   content1: string,
@@ -133,14 +134,25 @@ function compareExact(
     // Not JSON, continue with string comparison
   }
 
-  // Calculate Levenshtein-based similarity for near matches
+  // For "exact" mode, if not exact match, calculate similarity but it won't count as agreement
+  // Use a high threshold (0.95) for near-exact matches (typos only)
   const distance = levenshteinDistance(n1, n2);
   const maxLen = Math.max(n1.length, n2.length);
-  const similarity = maxLen > 0 ? 1 - distance / maxLen : 1;
+  const rawSimilarity = maxLen > 0 ? 1 - distance / maxLen : 1;
 
+  // Only consider as "agreeing" if similarity is very high (>95% = typo level)
+  // Otherwise return low similarity to mark as different
+  if (rawSimilarity >= 0.95) {
+    return {
+      similarity: rawSimilarity,
+      reasoning: `Near-exact match: ${(rawSimilarity * 100).toFixed(1)}%`,
+    };
+  }
+
+  // Different answers - return actual similarity but below threshold
   return {
-    similarity,
-    reasoning: `String similarity: ${(similarity * 100).toFixed(1)}%`,
+    similarity: rawSimilarity * 0.5, // Scale down to ensure it's below 0.7 threshold
+    reasoning: `Different content: ${(rawSimilarity * 100).toFixed(1)}% similar`,
   };
 }
 
