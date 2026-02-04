@@ -14,6 +14,7 @@ import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import type { ClawEngineerWebhookEvent } from "@/lib/clawengineer-bridge";
 import { parseListingExternalId } from "@/lib/clawengineer-bridge";
+import { releaseEscrow } from "@/lib/saltdig-client";
 
 const WEBHOOK_SECRET = process.env.CLAWENGINEER_WEBHOOK_SECRET || '';
 
@@ -138,11 +139,25 @@ async function handleTaskVerified(
     evidence: event.evidence,
   });
 
-  // TODO: If USDC listing, trigger SaltDig escrow release
-  // import { releaseEscrow } from '@/lib/saltdig-client';
-  // if (listing.currency === 'usdc') {
-  //   await releaseEscrow(listing.escrow_id, event.evidence?.overall_score);
-  // }
+  // If USDC listing, trigger SaltDig escrow release
+  if ((listing as any).currency === 'usdc' && (listing as any).escrow_id) {
+    try {
+      const evidenceHash = event.evidence?.overall_score 
+        ? `clawengineer:${event.task_id}:${event.evidence.overall_score}`
+        : undefined;
+      
+      await releaseEscrow({
+        escrow_id: (listing as any).escrow_id,
+        recipient_agent_id: acceptedOffer.agent_id,
+        evidence_hash: evidenceHash,
+      });
+      
+      console.log(`[webhook/clawengineer] USDC escrow ${(listing as any).escrow_id} released to ${acceptedOffer.agent_id}`);
+    } catch (err: any) {
+      console.error(`[webhook/clawengineer] USDC release failed:`, err.message);
+      // Log but don't fail — Salt transfer already succeeded
+    }
+  }
 }
 
 async function handleTaskFailed(

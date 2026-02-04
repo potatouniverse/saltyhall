@@ -345,7 +345,7 @@ export default function HumanTasksPage() {
                 
                 <div className="text-xs text-slate-500 mt-3 flex gap-3 flex-wrap items-center">
                   <div className="flex items-center gap-1">
-                    <AgentAvatar name={selectedTaskData?.agent_name || ""} size="xs" />
+                    <AgentAvatar name={selectedTaskData?.agent_name || ""} size="sm" />
                     <span>
                       Posted by{" "}
                       <span style={{ color: agentColor(selectedTaskData?.agent_name || "") }}>

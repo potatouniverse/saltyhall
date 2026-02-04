@@ -3,6 +3,13 @@ import { db } from "@/lib/db-factory";
 import { eventBus } from "@/lib/events";
 import { SALT_BURNS } from "@/lib/salt-economics";
 import { NextRequest, NextResponse } from "next/server";
+import {
+  shouldRouteToClawEngineer,
+  createTaskFromMarket,
+  makeListingExternalId,
+  makeAgentExternalId,
+  categoryToTaskType,
+} from "@/lib/clawengineer-bridge";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const result = await requireAgent(req);
@@ -45,6 +52,69 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const statusMap: Record<string, string> = { accept: "accepted", reject: "rejected", counter: "countered" };
   const resp = await db.respondToMarketOffer(id, statusMap[action], counter_text, counter_price);
+  
+  // ── CodeTaskRouter: Route code listings to ClawEngineer ──
+  let clawEngineerRouted = false;
+  if (action === "accept" && shouldRouteToClawEngineer(listing.category || "")) {
+    try {
+      console.log(`[CodeTaskRouter] Routing ${listing.category} listing ${listing.id} to ClawEngineer`);
+      
+      // Parse acceptance criteria into array
+      let criteria: string[] = [];
+      if ((listing as any).acceptance_criteria) {
+        try {
+          const parsed = JSON.parse((listing as any).acceptance_criteria);
+          criteria = Array.isArray(parsed) ? parsed : [String(parsed)];
+        } catch {
+          criteria = [(listing as any).acceptance_criteria];
+        }
+      }
+
+      // Get the offerer (worker) agent details
+      const workerAgent = await db.getAgentById(offer.agent_id);
+      if (!workerAgent) throw new Error("Worker agent not found");
+
+      const clawTask = await createTaskFromMarket({
+        external_id: makeListingExternalId(listing.id),
+        title: listing.title,
+        description: listing.description,
+        acceptance_criteria: criteria,
+        task_type: categoryToTaskType(listing.category || "code"),
+        assigned_agent: {
+          external_id: makeAgentExternalId(workerAgent.id),
+          name: workerAgent.name,
+        },
+        sla_hours: 24, // Default 24h deadline
+      });
+
+      // Update listing with ClawEngineer task info
+      await db.updateMarketListing(listing.id, {
+        clawengineer_task_id: clawTask.task_id,
+        clawengineer_status: "pending",
+        clawengineer_repo_url: clawTask.repo_url,
+        clawengineer_deadline: clawTask.deadline,
+      });
+
+      clawEngineerRouted = true;
+      console.log(`[CodeTaskRouter] Task ${clawTask.task_id} created for listing ${listing.id}`);
+
+      // Notify the offerer with repo details
+      eventBus.emit(`agent:${offer.agent_id}`, {
+        type: "code_task_assigned",
+        listing_id: listing.id,
+        listing_title: listing.title,
+        task_id: clawTask.task_id,
+        repo_url: clawTask.repo_url,
+        clone_token: clawTask.clone_token,
+        deadline: clawTask.deadline,
+      });
+    } catch (err: any) {
+      // Log error but don't fail the accept - fall back to manual delivery
+      console.error(`[CodeTaskRouter] Failed to route to ClawEngineer:`, err.message);
+      // Still proceed with normal accept flow
+    }
+  }
+
   eventBus.emit(`market:${offer.listing_id}`, { type: "offer_response", action, offer_id: id, result: resp });
   // Notify the offerer about the response
   eventBus.emit(`agent:${offer.agent_id}`, {
@@ -56,7 +126,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     from: result.agent.name,
     counter_text: counter_text || undefined,
     counter_price: counter_price || undefined,
-    requires_delivery: action === "accept" && hasVerification,
+    requires_delivery: action === "accept" && hasVerification && !clawEngineerRouted,
+    clawengineer_routed: clawEngineerRouted,
   });
-  return NextResponse.json({ success: true, result: resp });
+  return NextResponse.json({ success: true, result: resp, clawengineer_routed: clawEngineerRouted });
 }
